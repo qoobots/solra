@@ -1,0 +1,23 @@
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/solra/apis/gen/go
+plugins:
+  - plugin: buf.build/protocolbuffers/java
+    out: ../../services
+    opt:
+      - java_multiple_files=true
+  - plugin: buf.build/grpc/java
+    out: ../../services
+  - plugin: buf.build/protocolbuffers/python
+    out: ../../ai-services
+  - plugin: buf.build/grpc/python
+    out: ../../ai-services
+  - plugin: buf.build/protocolbuffers/kotlin
+    out: ../../clients/android/app/src/main/proto
+  - plugin: buf.build/grpc/kotlin
+    out: ../../clients/android/app/src/main/proto
+inputs:
+  - directory: .
