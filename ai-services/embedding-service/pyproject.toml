@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "embedding-service"
+version = "0.1.0"
+description = "Solra 文本与多模态嵌入服务"
+authors = ["Solra Team"]
+python = "^3.11"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = {version = "^0.30.0", extras = ["standard"]}
+protobuf = "^5.26.0"
+grpcio = "^1.64.0"
+torch = "^2.3.0"
+transformers = "^4.42.0"
+sentence-transformers = "^3.0.0"
+prometheus-fastapi-instrumentator = "^7.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+ruff = "^0.4.0"
+mypy = "^1.10"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

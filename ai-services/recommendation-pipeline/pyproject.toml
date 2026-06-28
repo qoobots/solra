@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "recommendation-pipeline"
+version = "0.1.0"
+description = "Solra 推荐算法流水线服务"
+authors = ["Solra Team"]
+python = "^3.11"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = {version = "^0.30.0", extras = ["standard"]}
+protobuf = "^5.26.0"
+grpcio = "^1.64.0"
+numpy = "^1.26"
+scikit-learn = "^1.5"
+scipy = "^1.13"
+prometheus-fastapi-instrumentator = "^7.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+ruff = "^0.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
