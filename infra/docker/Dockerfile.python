@@ -1,0 +1,36 @@
+# Solra - Standard Python AI microservice Dockerfile
+# Usage: Place in service root with pyproject.toml
+
+FROM python:3.11-slim
+
+LABEL org.opencontainers.image.authors="Solra Team"
+
+# Security: non-root user
+RUN addgroup --system solra && adduser --system --group solra
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY pyproject.toml poetry.lock* ./
+RUN pip install --no-cache-dir poetry \
+    && poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-root
+
+# Copy application code
+COPY src/ ./src/
+COPY models/ ./models/ 2>/dev/null || true
+
+RUN chown -R solra:solra /app
+USER solra
+
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:9090/health')" || exit 1
+
+EXPOSE 9090
+
+ENTRYPOINT ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9090"]

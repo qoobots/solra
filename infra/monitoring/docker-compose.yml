@@ -1,0 +1,86 @@
+# Solra - Observability Stack
+# Prometheus (metrics) + Grafana (dashboards) + Loki (logs) + Tempo (traces)
+#
+# Usage: docker-compose -f infra/monitoring/docker-compose.yml up -d
+
+version: "3.8"
+
+services:
+  # --- Metrics Collection ---
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: solra-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    ports:
+      - "9090:9090"
+    networks:
+      - solra-monitoring
+    restart: unless-stopped
+
+  # --- Dashboards ---
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: solra-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - solra-monitoring
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
+
+  # --- Log Aggregation ---
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: solra-loki
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - solra-monitoring
+    restart: unless-stopped
+
+  # --- Distributed Tracing ---
+  tempo:
+    image: grafana/tempo:2.4.0
+    container_name: solra-tempo
+    volumes:
+      - ./tempo-config.yml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    command: -config.file=/etc/tempo/tempo.yaml
+    ports:
+      - "3200:3200"  # query
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+    networks:
+      - solra-monitoring
+    restart: unless-stopped
+
+networks:
+  solra-monitoring:
+    name: solra-monitoring
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  tempo_data:

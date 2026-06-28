@@ -1,0 +1,49 @@
+# Solra - Prometheus Configuration
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: solra-dev
+    environment: development
+
+# Alert rules
+rule_files:
+  - "alerts/*.yml"
+
+# Scrape targets
+scrape_configs:
+  # Self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Java microservices (Spring Actuator + Prometheus)
+  - job_name: solra-java-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - "auth-service:8081"
+          - "avt-service:8082"
+          - "spc-service:8083"
+          - "saf-service:8084"
+        labels:
+          platform: java
+
+  # Python AI services (Prometheus client)
+  - job_name: solra-python-services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "llm-router:9091"
+          - "safety-model-service:9094"
+          - "embedding-service:9092"
+          - "recommendation-pipeline:9093"
+          - "tts-service:9095"
+        labels:
+          platform: python
+
+  # Node exporter (host metrics)
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]

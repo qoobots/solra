@@ -1,0 +1,53 @@
+# Solra - Kubernetes Namespace & RBAC Foundation
+---
+# Development namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: solra-dev
+  labels:
+    environment: development
+    managed-by: terraform
+
+---
+# Staging namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: solra-staging
+  labels:
+    environment: staging
+    managed-by: terraform
+
+---
+# Production namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: solra-prod
+  labels:
+    environment: production
+    managed-by: terraform
+
+---
+# Service account for CI/CD (ArgoCD)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: solra-deployer
+  namespace: solra-dev
+
+---
+# Resource quota for development namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: solra-dev-quota
+  namespace: solra-dev
+spec:
+  hard:
+    requests.cpu: "16"
+    requests.memory: 32Gi
+    limits.cpu: "32"
+    limits.memory: 64Gi
+    persistentvolumeclaims: "20"
