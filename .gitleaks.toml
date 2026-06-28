@@ -1,0 +1,18 @@
+# Gitleaks configuration for Solra project
+title = "Solra Gitleaks Config"
+
+[allowlist]
+description = "Allowlisted patterns"
+paths = [
+  '''01docs/.*''',
+  '''\.codebuddy/.*''',
+  '''\.github/.*''',
+  '''LICENSE''',
+  '''README\.md''',
+]
+
+[[rules]]
+id = "generic-api-key"
+[rules.allowlist]
+description = "Allow test/example keys in config files"
+paths = ['''\.yml$''', '''\.yaml$''', '''\.toml$''']

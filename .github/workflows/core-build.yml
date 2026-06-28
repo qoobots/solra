@@ -1,0 +1,111 @@
+name: Core SDK Build
+
+on:
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'vcpkg.json'
+  push:
+    branches: [main]
+    paths:
+      - 'core/**'
+      - 'vcpkg.json'
+  workflow_dispatch:
+
+jobs:
+  # ── Linux (GCC) 编译 ──
+  linux-gcc:
+    name: Linux GCC Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
+          $HOME/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Install vcpkg dependencies
+        run: |
+          cd core
+          $HOME/vcpkg/vcpkg install --triplet x64-linux --vcpkg-root $HOME/vcpkg
+
+      - name: Configure CMake
+        run: |
+          cd core
+          cmake -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVCPKG_TARGET_TRIPLET=x64-linux
+
+      - name: Build
+        run: cmake --build core/build --config Release
+
+      - name: Run unit tests
+        run: cd core/build && ctest --output-on-failure
+
+  # ── macOS (Clang) 编译 ──
+  macos-clang:
+    name: macOS Clang Build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
+          $HOME/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Install vcpkg dependencies
+        run: |
+          cd core
+          $HOME/vcpkg/vcpkg install --triplet arm64-osx --vcpkg-root $HOME/vcpkg
+
+      - name: Configure CMake
+        run: |
+          cd core
+          cmake -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVCPKG_TARGET_TRIPLET=arm64-osx
+
+      - name: Build
+        run: cmake --build core/build --config Release
+
+      - name: Run unit tests
+        run: cd core/build && ctest --output-on-failure
+
+  # ── Windows (MSVC) 编译 ──
+  windows-msvc:
+    name: Windows MSVC Build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git $env:USERPROFILE/vcpkg
+          $env:USERPROFILE/vcpkg/bootstrap-vcpkg.bat
+
+      - name: Install vcpkg dependencies
+        run: |
+          cd core
+          $env:USERPROFILE/vcpkg/vcpkg install --triplet x64-windows --vcpkg-root $env:USERPROFILE/vcpkg
+
+      - name: Configure CMake
+        run: |
+          cd core
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE=$env:USERPROFILE/vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -DVCPKG_TARGET_TRIPLET=x64-windows
+
+      - name: Build
+        run: cmake --build core/build --config Release
+
+      - name: Run unit tests
+        run: cd core/build && ctest --output-on-failure -C Release

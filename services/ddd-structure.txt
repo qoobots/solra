@@ -1,0 +1,55 @@
+# Solra 各服务 DDD 四层目录结构
+# 执行: pwsh tools/scripts/init-dirs.ps1 自动创建
+
+# ── P0 服务 ──
+
+# auth-service (身份认证)
+services/auth-service/src/main/java/com/solra/auth/interfaces/    # 接口层: REST Controller / gRPC ServiceImpl
+services/auth-service/src/main/java/com/solra/auth/application/   # 应用层: DTO / Assembler / UseCase
+services/auth-service/src/main/java/com/solra/auth/domain/        # 领域层: Entity / ValueObject / Repository接口 / DomainService
+services/auth-service/src/main/java/com/solra/auth/infrastructure/# 基础设施层: RepositoryImpl / Config / ExternalClient
+
+# saf-service (内容安全)
+services/saf-service/src/main/java/com/solra/saf/interfaces/
+services/saf-service/src/main/java/com/solra/saf/application/
+services/saf-service/src/main/java/com/solra/saf/domain/
+services/saf-service/src/main/java/com/solra/saf/infrastructure/
+
+# avt-service (虚拟人交互)
+services/avt-service/src/main/java/com/solra/avt/interfaces/
+services/avt-service/src/main/java/com/solra/avt/application/
+services/avt-service/src/main/java/com/solra/avt/domain/
+services/avt-service/src/main/java/com/solra/avt/infrastructure/
+
+# spc-service (空间消费)
+services/spc-service/src/main/java/com/solra/spc/interfaces/
+services/spc-service/src/main/java/com/solra/spc/application/
+services/spc-service/src/main/java/com/solra/spc/domain/
+services/spc-service/src/main/java/com/solra/spc/infrastructure/
+
+# ── P1 服务 (预留) ──
+services/soc-service/src/main/java/com/solra/soc/interfaces/
+services/soc-service/src/main/java/com/solra/soc/application/
+services/soc-service/src/main/java/com/solra/soc/domain/
+services/soc-service/src/main/java/com/solra/soc/infrastructure/
+
+services/grw-service/src/main/java/com/solra/grw/interfaces/
+services/grw-service/src/main/java/com/solra/grw/application/
+services/grw-service/src/main/java/com/solra/grw/domain/
+services/grw-service/src/main/java/com/solra/grw/infrastructure/
+
+services/not-service/src/main/java/com/solra/not/interfaces/
+services/not-service/src/main/java/com/solra/not/application/
+services/not-service/src/main/java/com/solra/not/domain/
+services/not-service/src/main/java/com/solra/not/infrastructure/
+
+services/crt-service/src/main/java/com/solra/crt/interfaces/
+services/crt-service/src/main/java/com/solra/crt/application/
+services/crt-service/src/main/java/com/solra/crt/domain/
+services/crt-service/src/main/java/com/solra/crt/infrastructure/
+
+# ── P2 服务 (预留) ──
+services/mon-service/src/main/java/com/solra/mon/interfaces/
+services/mon-service/src/main/java/com/solra/mon/application/
+services/mon-service/src/main/java/com/solra/mon/domain/
+services/mon-service/src/main/java/com/solra/mon/infrastructure/
