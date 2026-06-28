@@ -1,0 +1,36 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: saf-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/solra_saf
+    username: ${DB_USER:solra}
+    password: ${DB_PASSWORD:solra}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: ${JPA_SHOW_SQL:false}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: saf-service
+
+grpc:
+  server:
+    port: 9084
+  client:
+    safety-model-service:
+      address: static://${SAFETY_MODEL_HOST:localhost}:9094
+      negotiation-type: plaintext
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    com.solra.saf: ${LOG_LEVEL:INFO}

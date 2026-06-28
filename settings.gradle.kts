@@ -1,11 +1,12 @@
 rootProject.name = "solra"
 
-// services/ 下所有子模块
-file("services").listFiles()?.filter { it.isDirectory }?.forEach { serviceGroup ->
-    file(serviceGroup).listFiles()?.filter { it.isDirectory }?.forEach { service ->
-        include("services:${serviceGroup.name}:${service.name}")
-        project(":services:${serviceGroup.name}:${service.name}").projectDir =
-            file("services/${serviceGroup.name}/${service.name}")
+// services/ 下所有子模块（扁平结构：services/<service-name>/）
+file("services").listFiles()?.filter {
+    it.isDirectory && !it.name.startsWith(".") && it.name != "01docs"
+}?.forEach { service ->
+    if (file("services/${service.name}/build.gradle.kts").exists()) {
+        include("services:${service.name}")
+        project(":services:${service.name}").projectDir = file("services/${service.name}")
     }
 }
 
