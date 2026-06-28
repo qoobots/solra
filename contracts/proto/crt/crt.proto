@@ -1,0 +1,414 @@
+syntax = "proto3";
+
+package solra.crt;
+option java_package = "com.solra.proto.crt";
+option go_package = "solra/contracts/proto/crt;crt";
+
+import "common/common.proto";
+
+// ═══════════════════════════════════════════════════════════════
+// 空间创作域 — 空间项目、资产管理与模板系统
+// ═══════════════════════════════════════════════════════════════
+
+// ── 资产模型 ──
+
+message Asset {
+  string asset_id = 1;
+  common.SpaceId space_id = 2;
+  common.UserId owner_id = 3;
+  AssetType type = 4;
+  string name = 5;
+  string description = 6;
+  AssetMeta meta = 7;
+  AssetStatus status = 8;
+  common.SolraTimestamp created_at = 9;
+  common.SolraTimestamp updated_at = 10;
+  int32 version = 11;
+  repeated string tags = 12;
+}
+
+enum AssetType {
+  ASSET_TYPE_UNSPECIFIED = 0;
+  ASSET_TYPE_MODEL_3D = 1;    // 3D 模型 (glTF/FBX)
+  ASSET_TYPE_TEXTURE = 2;      // 纹理贴图
+  ASSET_TYPE_MATERIAL = 3;     // PBR 材质
+  ASSET_TYPE_ANIMATION = 4;    // 动画剪辑
+  ASSET_TYPE_AUDIO = 5;        // 音频资产
+  ASSET_TYPE_SCRIPT = 6;       // 行为脚本
+  ASSET_TYPE_PREFAB = 7;       // 预制体
+  ASSET_TYPE_SCENE = 8;        // 场景配置
+}
+
+enum AssetStatus {
+  ASSET_STATUS_UNSPECIFIED = 0;
+  ASSET_STATUS_DRAFT = 1;      // 草稿
+  ASSET_STATUS_PUBLISHED = 2;  // 已发布
+  ASSET_STATUS_ARCHIVED = 3;   // 已归档
+  ASSET_STATUS_REVIEWING = 4;  // 审核中
+}
+
+message AssetMeta {
+  string file_format = 1;      // gltf, fbx, png, wav 等
+  int64 file_size_bytes = 2;
+  string file_hash = 3;        // SHA-256
+  string cdn_url = 4;
+  string thumbnail_url = 5;
+  map<string, string> properties = 6;  // 自定义属性
+  BoundingBox bounding_box = 7;
+  int32 triangle_count = 8;
+  int32 vertex_count = 9;
+}
+
+message BoundingBox {
+  common.GeoPoint min = 1;
+  common.GeoPoint max = 2;
+}
+
+// ── 空间项目模型 ──
+
+message SpaceProject {
+  string project_id = 1;
+  common.SpaceId space_id = 2;
+  common.UserId owner_id = 3;
+  string name = 4;
+  string description = 5;
+  ProjectType type = 6;
+  ProjectStatus status = 7;
+  ProjectConfig config = 8;
+  repeated string collaborator_ids = 9;
+  common.SolraTimestamp created_at = 10;
+  common.SolraTimestamp updated_at = 11;
+  common.SolraTimestamp last_edited_at = 12;
+}
+
+enum ProjectType {
+  PROJECT_TYPE_UNSPECIFIED = 0;
+  PROJECT_TYPE_SPACE = 1;       // 沉浸式空间
+  PROJECT_TYPE_GALLERY = 2;     // 画廊/展览
+  PROJECT_TYPE_AVATAR = 3;      // 虚拟人定制
+  PROJECT_TYPE_SCENE = 4;       // 场景搭建
+}
+
+enum ProjectStatus {
+  PROJECT_STATUS_UNSPECIFIED = 0;
+  PROJECT_STATUS_DRAFT = 1;
+  PROJECT_STATUS_BUILDING = 2;  // 构建中
+  PROJECT_STATUS_PUBLISHED = 3;
+  PROJECT_STATUS_ARCHIVED = 4;
+}
+
+message ProjectConfig {
+  SceneGraph scene_graph = 1;
+  LightingConfig lighting = 2;
+  AudioConfig audio = 3;
+  PhysicsConfig physics = 4;
+}
+
+message SceneGraph {
+  repeated SceneNode nodes = 1;
+  string root_node_id = 2;
+}
+
+message SceneNode {
+  string node_id = 1;
+  string parent_id = 2;
+  string name = 3;
+  Transform transform = 4;
+  string asset_ref = 5;          // 引用的资产ID
+  map<string, string> properties = 6;
+  bool visible = 7;
+  bool locked = 8;
+}
+
+message Transform {
+  repeated double position = 1;  // [x, y, z]
+  repeated double rotation = 2;  // 四元数 [x, y, z, w]
+  repeated double scale = 3;     // [x, y, z]
+}
+
+message LightingConfig {
+  repeated LightSource lights = 1;
+  EnvironmentLight environment = 2;
+  ShadowConfig shadows = 3;
+}
+
+message LightSource {
+  string light_id = 1;
+  LightType type = 2;
+  repeated float color = 3;    // RGB
+  float intensity = 4;
+  Transform transform = 5;
+  float range = 6;
+  float spot_angle = 7;
+}
+
+enum LightType {
+  LIGHT_TYPE_UNSPECIFIED = 0;
+  LIGHT_TYPE_DIRECTIONAL = 1;
+  LIGHT_TYPE_POINT = 2;
+  LIGHT_TYPE_SPOT = 3;
+}
+
+message EnvironmentLight {
+  string hdri_url = 1;
+  float intensity = 2;
+  repeated float rotation = 3; // 欧拉角 [x, y, z]
+}
+
+message ShadowConfig {
+  bool enabled = 1;
+  int32 resolution = 2;        // 阴影贴图分辨率
+  float bias = 3;
+}
+
+message AudioConfig {
+  float master_volume = 1;
+  bool spatial_audio = 2;
+  repeated AudioSource sources = 3;
+}
+
+message AudioSource {
+  string source_id = 1;
+  string audio_asset_ref = 2;
+  float volume = 3;
+  bool loop = 4;
+  bool spatial = 5;
+  Transform position = 6;
+}
+
+message PhysicsConfig {
+  bool enabled = 1;
+  repeated Collider colliders = 2;
+}
+
+message Collider {
+  string node_id = 1;
+  ColliderType type = 2;
+  repeated float size = 3;     // 根据类型含义不同
+  bool is_trigger = 4;
+}
+
+enum ColliderType {
+  COLLIDER_TYPE_UNSPECIFIED = 0;
+  COLLIDER_TYPE_BOX = 1;
+  COLLIDER_TYPE_SPHERE = 2;
+  COLLIDER_TYPE_CAPSULE = 3;
+  COLLIDER_TYPE_MESH = 4;
+}
+
+// ── 模板系统 ──
+
+message Template {
+  string template_id = 1;
+  string name = 2;
+  string description = 3;
+  string author_id = 4;
+  TemplateCategory category = 5;
+  string thumbnail_url = 6;
+  ProjectConfig default_config = 7;
+  repeated string tags = 8;
+  int32 usage_count = 9;
+  float rating = 10;
+  bool is_official = 11;
+  common.SolraTimestamp created_at = 12;
+}
+
+enum TemplateCategory {
+  TEMPLATE_CATEGORY_UNSPECIFIED = 0;
+  TEMPLATE_CATEGORY_SPACE = 1;
+  TEMPLATE_CATEGORY_GALLERY = 2;
+  TEMPLATE_CATEGORY_AVATAR = 3;
+  TEMPLATE_CATEGORY_GAME = 4;
+}
+
+// ── RPC 服务 ──
+
+service SpaceCreationService {
+  // 项目管理
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
+  rpc UpdateProject(UpdateProjectRequest) returns (UpdateProjectResponse);
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+
+  // 资产CRUD
+  rpc UploadAsset(UploadAssetRequest) returns (UploadAssetResponse);
+  rpc GetAsset(GetAssetRequest) returns (GetAssetResponse);
+  rpc ListAssets(ListAssetsRequest) returns (ListAssetsResponse);
+  rpc DeleteAsset(DeleteAssetRequest) returns (DeleteAssetResponse);
+
+  // 场景编辑
+  rpc UpdateSceneGraph(UpdateSceneGraphRequest) returns (UpdateSceneGraphResponse);
+  rpc GetSceneGraph(GetSceneGraphRequest) returns (GetSceneGraphResponse);
+
+  // 模板
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse);
+  rpc UseTemplate(UseTemplateRequest) returns (UseTemplateResponse);
+
+  // 构建与发布
+  rpc BuildProject(BuildProjectRequest) returns (BuildProjectResponse);
+  rpc PublishProject(PublishProjectRequest) returns (PublishProjectResponse);
+}
+
+// ── 项目管理 RPC 消息 ──
+
+message CreateProjectRequest {
+  common.SpaceId space_id = 1;
+  string name = 2;
+  ProjectType type = 3;
+  string template_id = 4;      // 可选，从模板创建
+}
+message CreateProjectResponse {
+  common.SolraError error = 1;
+  SpaceProject project = 2;
+}
+
+message GetProjectRequest {
+  string project_id = 1;
+}
+message GetProjectResponse {
+  common.SolraError error = 1;
+  SpaceProject project = 2;
+}
+
+message UpdateProjectRequest {
+  string project_id = 1;
+  string name = 2;
+  string description = 3;
+  ProjectConfig config = 4;
+}
+message UpdateProjectResponse {
+  common.SolraError error = 1;
+  SpaceProject project = 2;
+}
+
+message DeleteProjectRequest {
+  string project_id = 1;
+}
+message DeleteProjectResponse {
+  common.SolraError error = 1;
+}
+
+message ListProjectsRequest {
+  common.UserId owner_id = 1;
+  common.PageRequest page = 2;
+  ProjectStatus status_filter = 3;
+}
+message ListProjectsResponse {
+  common.SolraError error = 1;
+  repeated SpaceProject projects = 2;
+  common.PageResponse page = 3;
+}
+
+// ── 资产 RPC 消息 ──
+
+message UploadAssetRequest {
+  common.SpaceId space_id = 1;
+  string name = 2;
+  AssetType type = 3;
+  bytes file_content = 4;      // 小文件直接上传
+  string file_url = 5;         // 大文件用预签名URL
+}
+message UploadAssetResponse {
+  common.SolraError error = 1;
+  Asset asset = 2;
+  string upload_url = 3;       // 大文件预签名上传URL
+}
+
+message GetAssetRequest {
+  string asset_id = 1;
+}
+message GetAssetResponse {
+  common.SolraError error = 1;
+  Asset asset = 2;
+}
+
+message ListAssetsRequest {
+  common.SpaceId space_id = 1;
+  common.PageRequest page = 2;
+  AssetType type_filter = 3;
+}
+message ListAssetsResponse {
+  common.SolraError error = 1;
+  repeated Asset assets = 2;
+  common.PageResponse page = 3;
+}
+
+message DeleteAssetRequest {
+  string asset_id = 1;
+}
+message DeleteAssetResponse {
+  common.SolraError error = 1;
+}
+
+// ── 场景编辑 RPC 消息 ──
+
+message UpdateSceneGraphRequest {
+  string project_id = 1;
+  SceneGraph scene_graph = 2;
+}
+message UpdateSceneGraphResponse {
+  common.SolraError error = 1;
+  SceneGraph scene_graph = 2;
+}
+
+message GetSceneGraphRequest {
+  string project_id = 1;
+}
+message GetSceneGraphResponse {
+  common.SolraError error = 1;
+  SceneGraph scene_graph = 2;
+}
+
+// ── 模板 RPC 消息 ──
+
+message ListTemplatesRequest {
+  common.PageRequest page = 1;
+  TemplateCategory category = 2;
+  string keyword = 3;
+}
+message ListTemplatesResponse {
+  common.SolraError error = 1;
+  repeated Template templates = 2;
+  common.PageResponse page = 3;
+}
+
+message UseTemplateRequest {
+  string template_id = 1;
+  common.SpaceId space_id = 2;
+  string project_name = 3;
+}
+message UseTemplateResponse {
+  common.SolraError error = 1;
+  SpaceProject project = 2;
+}
+
+// ── 构建与发布 RPC 消息 ──
+
+message BuildProjectRequest {
+  string project_id = 1;
+  bool incremental = 2;        // 增量构建
+}
+message BuildProjectResponse {
+  common.SolraError error = 1;
+  string build_id = 2;
+  float progress = 3;          // 0.0 - 1.0
+}
+
+message PublishProjectRequest {
+  string project_id = 1;
+  string build_id = 2;
+  PublishVisibility visibility = 3;
+}
+message PublishProjectResponse {
+  common.SolraError error = 1;
+  SpaceProject project = 2;
+  string public_url = 3;
+}
+
+enum PublishVisibility {
+  PUBLISH_VISIBILITY_UNSPECIFIED = 0;
+  PUBLISH_VISIBILITY_PRIVATE = 1;
+  PUBLISH_VISIBILITY_FRIENDS = 2;
+  PUBLISH_VISIBILITY_PUBLIC = 3;
+}

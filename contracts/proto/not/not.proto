@@ -1,0 +1,373 @@
+syntax = "proto3";
+
+package solra.not;
+option java_package = "com.solra.proto.not";
+option go_package = "solra/contracts/proto/not;not";
+
+import "common/common.proto";
+
+// ═══════════════════════════════════════════════════════════════
+// 通知消息域 — 站内通知、推送消息、收件箱管理
+// ═══════════════════════════════════════════════════════════════
+
+// ── 通知模型 ──
+
+message Notification {
+  string notification_id = 1;
+  common.UserId user_id = 2;
+  NotificationType type = 3;
+  NotificationPriority priority = 4;
+  string title = 5;
+  string body = 6;
+  string icon_url = 7;
+  string action_url = 8;       // 点击跳转链接
+  bytes extra_data = 9;        // 业务自定义数据
+  NotificationStatus status = 10;
+  DeliveryChannel channel = 11;
+  common.SolraTimestamp created_at = 12;
+  common.SolraTimestamp read_at = 13;
+  common.SolraTimestamp expires_at = 14;
+}
+
+enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0;
+  // 社交类
+  NOTIFICATION_TYPE_FOLLOW = 1;
+  NOTIFICATION_TYPE_INTERACTION = 2;
+  NOTIFICATION_TYPE_SESSION_INVITE = 3;
+  NOTIFICATION_TYPE_SESSION_JOINED = 4;
+  // 创作类
+  NOTIFICATION_TYPE_PROJECT_PUBLISHED = 10;
+  NOTIFICATION_TYPE_PROJECT_LIKED = 11;
+  NOTIFICATION_TYPE_ASSET_UPLOADED = 12;
+  // 系统类
+  NOTIFICATION_TYPE_SYSTEM_ANNOUNCEMENT = 20;
+  NOTIFICATION_TYPE_ACHIEVEMENT = 21;
+  NOTIFICATION_TYPE_FAITH_LEVEL_UP = 22;
+  NOTIFICATION_TYPE_REVIEW_RESULT = 23;
+  // 商业化
+  NOTIFICATION_TYPE_PURCHASE_SUCCESS = 30;
+  NOTIFICATION_TYPE_SUBSCRIPTION_EXPIRY = 31;
+  NOTIFICATION_TYPE_GIFT_RECEIVED = 32;
+}
+
+enum NotificationPriority {
+  NOTIFICATION_PRIORITY_UNSPECIFIED = 0;
+  NOTIFICATION_PRIORITY_LOW = 1;
+  NOTIFICATION_PRIORITY_NORMAL = 2;
+  NOTIFICATION_PRIORITY_HIGH = 3;
+  NOTIFICATION_PRIORITY_URGENT = 4;
+}
+
+enum NotificationStatus {
+  NOTIFICATION_STATUS_UNSPECIFIED = 0;
+  NOTIFICATION_STATUS_UNREAD = 1;
+  NOTIFICATION_STATUS_READ = 2;
+  NOTIFICATION_STATUS_ARCHIVED = 3;
+  NOTIFICATION_STATUS_EXPIRED = 4;
+}
+
+enum DeliveryChannel {
+  DELIVERY_CHANNEL_UNSPECIFIED = 0;
+  DELIVERY_CHANNEL_IN_APP = 1;    // 站内通知
+  DELIVERY_CHANNEL_PUSH = 2;      // 推送通知 (APNs/FCM)
+  DELIVERY_CHANNEL_EMAIL = 3;     // 邮件
+  DELIVERY_CHANNEL_SMS = 4;       // 短信
+  DELIVERY_CHANNEL_ALL = 5;       // 全渠道
+}
+
+// ── 推送消息模型 ──
+
+message PushMessage {
+  string push_id = 1;
+  common.UserId user_id = 2;
+  string device_token = 3;
+  PlatformType platform = 4;
+  PushTitle title = 5;
+  PushBody body = 6;
+  map<string, string> custom_data = 7;
+  PushPriority push_priority = 8;
+  int32 ttl_seconds = 9;        // 消息有效期
+  PushStatus status = 10;
+  common.SolraTimestamp sent_at = 11;
+  common.SolraTimestamp delivered_at = 12;
+  string error_message = 13;
+}
+
+enum PlatformType {
+  PLATFORM_TYPE_UNSPECIFIED = 0;
+  PLATFORM_TYPE_IOS = 1;
+  PLATFORM_TYPE_ANDROID = 2;
+  PLATFORM_TYPE_WEB = 3;
+  PLATFORM_TYPE_HARMONYOS = 4;
+}
+
+message PushTitle {
+  string default = 1;
+  map<string, string> localized = 2;  // key: language-tag
+}
+
+message PushBody {
+  string default = 1;
+  map<string, string> localized = 2;
+}
+
+enum PushPriority {
+  PUSH_PRIORITY_UNSPECIFIED = 0;
+  PUSH_PRIORITY_NORMAL = 1;
+  PUSH_PRIORITY_HIGH = 2;
+}
+
+enum PushStatus {
+  PUSH_STATUS_UNSPECIFIED = 0;
+  PUSH_STATUS_PENDING = 1;
+  PUSH_STATUS_SENT = 2;
+  PUSH_STATUS_DELIVERED = 3;
+  PUSH_STATUS_FAILED = 4;
+  PUSH_STATUS_OPENED = 5;
+}
+
+// ── 收件箱模型 ──
+
+message Inbox {
+  common.UserId user_id = 1;
+  int32 total_unread = 2;
+  int32 total_count = 3;
+  repeated Notification recent_notifications = 4;
+}
+
+message InboxMessage {
+  string message_id = 1;
+  common.UserId sender_id = 2;
+  common.UserId recipient_id = 3;
+  MessageType type = 4;
+  string content = 5;
+  string attachment_url = 6;
+  MessageStatus status = 7;
+  common.SolraTimestamp sent_at = 8;
+  common.SolraTimestamp read_at = 9;
+}
+
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_TEXT = 1;
+  MESSAGE_TYPE_IMAGE = 2;
+  MESSAGE_TYPE_VOICE = 3;
+  MESSAGE_TYPE_INVITATION = 4;
+  MESSAGE_TYPE_SYSTEM = 5;
+}
+
+enum MessageStatus {
+  MESSAGE_STATUS_UNSPECIFIED = 0;
+  MESSAGE_STATUS_SENT = 1;
+  MESSAGE_STATUS_DELIVERED = 2;
+  MESSAGE_STATUS_READ = 3;
+}
+
+// ── 设备注册模型 ──
+
+message DeviceRegistration {
+  string registration_id = 1;
+  common.UserId user_id = 2;
+  string device_token = 3;
+  PlatformType platform = 4;
+  string device_name = 5;
+  string os_version = 6;
+  string app_version = 7;
+  bool push_enabled = 8;
+  common.SolraTimestamp registered_at = 9;
+  common.SolraTimestamp last_active_at = 10;
+}
+
+// ── 通知偏好 ──
+
+message NotificationPreference {
+  common.UserId user_id = 1;
+  bool push_enabled = 2;
+  bool email_enabled = 3;
+  bool sms_enabled = 4;
+  repeated NotificationType muted_types = 5;
+  QuietHours quiet_hours = 6;
+}
+
+message QuietHours {
+  bool enabled = 1;
+  string start_time = 2;       // "22:00"
+  string end_time = 3;         // "08:00"
+  string timezone = 4;         // IANA timezone
+}
+
+// ── RPC 服务 ──
+
+service NotificationService {
+  // 通知
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+  rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse);
+  rpc DeleteNotification(DeleteNotificationRequest) returns (DeleteNotificationResponse);
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse);
+
+  // 推送
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse);
+  rpc UnregisterDevice(UnregisterDeviceRequest) returns (UnregisterDeviceResponse);
+  rpc SendPushMessage(SendPushMessageRequest) returns (SendPushMessageResponse);
+
+  // 收件箱
+  rpc GetInbox(GetInboxRequest) returns (GetInboxResponse);
+  rpc SendInboxMessage(SendInboxMessageRequest) returns (SendInboxMessageResponse);
+  rpc ListInboxMessages(ListInboxMessagesRequest) returns (ListInboxMessagesResponse);
+
+  // 偏好
+  rpc GetNotificationPreference(GetNotificationPreferenceRequest) returns (GetNotificationPreferenceResponse);
+  rpc UpdateNotificationPreference(UpdateNotificationPreferenceRequest) returns (UpdateNotificationPreferenceResponse);
+}
+
+// ── 通知 RPC 消息 ──
+
+message SendNotificationRequest {
+  common.UserId user_id = 1;
+  NotificationType type = 2;
+  string title = 3;
+  string body = 4;
+  string action_url = 5;
+  bytes extra_data = 6;
+  NotificationPriority priority = 7;
+  DeliveryChannel channel = 8;
+}
+message SendNotificationResponse {
+  common.SolraError error = 1;
+  Notification notification = 2;
+}
+
+message ListNotificationsRequest {
+  common.UserId user_id = 1;
+  common.PageRequest page = 2;
+  NotificationType type_filter = 3;
+  NotificationStatus status_filter = 4;
+}
+message ListNotificationsResponse {
+  common.SolraError error = 1;
+  repeated Notification notifications = 2;
+  common.PageResponse page = 3;
+}
+
+message MarkAsReadRequest {
+  string notification_id = 1;
+}
+message MarkAsReadResponse {
+  common.SolraError error = 1;
+}
+
+message MarkAllAsReadRequest {
+  common.UserId user_id = 1;
+}
+message MarkAllAsReadResponse {
+  common.SolraError error = 1;
+  int32 count_marked = 2;
+}
+
+message DeleteNotificationRequest {
+  string notification_id = 1;
+}
+message DeleteNotificationResponse {
+  common.SolraError error = 1;
+}
+
+message GetUnreadCountRequest {
+  common.UserId user_id = 1;
+}
+message GetUnreadCountResponse {
+  common.SolraError error = 1;
+  int32 unread_count = 2;
+}
+
+// ── 推送 RPC 消息 ──
+
+message RegisterDeviceRequest {
+  string device_token = 1;
+  PlatformType platform = 2;
+  string device_name = 3;
+  string os_version = 4;
+  string app_version = 5;
+}
+message RegisterDeviceResponse {
+  common.SolraError error = 1;
+  DeviceRegistration registration = 2;
+}
+
+message UnregisterDeviceRequest {
+  string device_token = 1;
+}
+message UnregisterDeviceResponse {
+  common.SolraError error = 1;
+}
+
+message SendPushMessageRequest {
+  common.UserId user_id = 1;
+  string title = 2;
+  string body = 3;
+  map<string, string> custom_data = 4;
+  PushPriority priority = 5;
+}
+message SendPushMessageResponse {
+  common.SolraError error = 1;
+  PushMessage message = 2;
+}
+
+// ── 收件箱 RPC 消息 ──
+
+message GetInboxRequest {
+  common.UserId user_id = 1;
+  common.PageRequest page = 2;
+}
+message GetInboxResponse {
+  common.SolraError error = 1;
+  repeated InboxMessage messages = 2;
+  common.PageResponse page = 3;
+  int32 unread_count = 4;
+}
+
+message SendInboxMessageRequest {
+  common.UserId recipient_id = 1;
+  MessageType type = 2;
+  string content = 3;
+  string attachment_url = 4;
+}
+message SendInboxMessageResponse {
+  common.SolraError error = 1;
+  InboxMessage message = 2;
+}
+
+message ListInboxMessagesRequest {
+  common.UserId user_id = 1;
+  common.PageRequest page = 2;
+  MessageType type_filter = 3;
+}
+message ListInboxMessagesResponse {
+  common.SolraError error = 1;
+  repeated InboxMessage messages = 2;
+  common.PageResponse page = 3;
+}
+
+// ── 偏好 RPC 消息 ──
+
+message GetNotificationPreferenceRequest {
+  common.UserId user_id = 1;
+}
+message GetNotificationPreferenceResponse {
+  common.SolraError error = 1;
+  NotificationPreference preference = 2;
+}
+
+message UpdateNotificationPreferenceRequest {
+  bool push_enabled = 1;
+  bool email_enabled = 2;
+  bool sms_enabled = 3;
+  repeated NotificationType muted_types = 4;
+  QuietHours quiet_hours = 5;
+}
+message UpdateNotificationPreferenceResponse {
+  common.SolraError error = 1;
+  NotificationPreference preference = 2;
+}

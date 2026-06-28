@@ -1,0 +1,303 @@
+syntax = "proto3";
+
+package solra.soc;
+option java_package = "com.solra.proto.soc";
+option go_package = "solra/contracts/proto/soc;soc";
+
+import "common/common.proto";
+
+// ═══════════════════════════════════════════════════════════════
+// 社交在场域 — 多人空间会话、虚拟人姿态同步与社交互动
+// ═══════════════════════════════════════════════════════════════
+
+// ── 会话模型 ──
+
+message Session {
+  string session_id = 1;
+  common.SpaceId space_id = 2;
+  SessionType type = 3;
+  SessionStatus status = 4;
+  repeated Participant participants = 5;
+  int32 max_participants = 6;
+  common.UserId host_id = 7;
+  common.SolraTimestamp started_at = 8;
+  common.SolraTimestamp ended_at = 9;
+  SessionConfig config = 10;
+}
+
+enum SessionType {
+  SESSION_TYPE_UNSPECIFIED = 0;
+  SESSION_TYPE_PRIVATE = 1;    // 私密空间
+  SESSION_TYPE_FRIENDS = 2;    // 好友空间
+  SESSION_TYPE_PUBLIC = 3;     // 公开大厅
+  SESSION_TYPE_EVENT = 4;      // 活动/演出
+}
+
+enum SessionStatus {
+  SESSION_STATUS_UNSPECIFIED = 0;
+  SESSION_STATUS_PENDING = 1;
+  SESSION_STATUS_ACTIVE = 2;
+  SESSION_STATUS_PAUSED = 3;
+  SESSION_STATUS_ENDED = 4;
+}
+
+message SessionConfig {
+  bool voice_chat_enabled = 1;
+  bool gesture_enabled = 2;
+  bool screen_share_enabled = 3;
+  bool record_session = 4;
+  repeated string entry_approval_user_ids = 5;  // 进入需审批的用户
+}
+
+// ── 参与者模型 ──
+
+message Participant {
+  common.UserId user_id = 1;
+  string session_id = 2;
+  AvatarState avatar_state = 3;
+  ParticipantStatus status = 4;
+  common.SolraTimestamp joined_at = 5;
+  common.SolraTimestamp last_active_at = 6;
+  bool microphone_on = 7;
+  bool camera_on = 8;
+}
+
+enum ParticipantStatus {
+  PARTICIPANT_STATUS_UNSPECIFIED = 0;
+  PARTICIPANT_STATUS_CONNECTING = 1;
+  PARTICIPANT_STATUS_ACTIVE = 2;
+  PARTICIPANT_STATUS_AWAY = 3;
+  PARTICIPANT_STATUS_SPEAKING = 4;
+  PARTICIPANT_STATUS_MUTED = 5;
+}
+
+// ── 虚拟人状态同步 ──
+
+message AvatarState {
+  string avatar_id = 1;
+  Transform transform = 2;
+  AnimationState animation = 3;
+  EmotionState emotion = 4;
+  GestureState gesture = 5;
+  uint64 timestamp_ms = 6;
+}
+
+message AnimationState {
+  string current_animation_id = 1;
+  float playhead_time = 2;     // 当前播放位置(秒)
+  float speed = 3;
+  float blend_weight = 4;
+  bool loop = 5;
+}
+
+message EmotionState {
+  string emotion_id = 1;
+  float intensity = 2;
+  int64 emotion_timestamp_ms = 3;
+}
+
+message GestureState {
+  GestureType type = 1;
+  float progress = 2;          // 0.0 - 1.0
+  int64 gesture_timestamp_ms = 3;
+}
+
+enum GestureType {
+  GESTURE_TYPE_UNSPECIFIED = 0;
+  GESTURE_TYPE_WAVE = 1;
+  GESTURE_TYPE_CLAP = 2;
+  GESTURE_TYPE_POINT = 3;
+  GESTURE_TYPE_THUMBS_UP = 4;
+  GESTURE_TYPE_DANCE = 5;
+  GESTURE_TYPE_IDLE = 6;
+  GESTURE_TYPE_CUSTOM = 7;
+}
+
+// ── 状态同步事件（通过 WebRTC DataChannel 发送） ──
+
+message PresenceUpdate {
+  string session_id = 1;
+  repeated Participant participants = 2;
+  int64 sequence_number = 3;
+}
+
+message AvatarStateUpdate {
+  string session_id = 1;
+  string user_id = 2;
+  AvatarState avatar_state = 3;
+  int64 sequence_number = 4;
+}
+
+// ── 社交互动模型 ──
+
+message SocialInteraction {
+  string interaction_id = 1;
+  string session_id = 2;
+  common.UserId from_user_id = 3;
+  common.UserId to_user_id = 4;
+  InteractionType type = 5;
+  string content = 6;          // 表情/文字/礼物ID等
+  common.SolraTimestamp timestamp = 7;
+}
+
+enum InteractionType {
+  INTERACTION_TYPE_UNSPECIFIED = 0;
+  INTERACTION_TYPE_EMOJI = 1;       // 表情互动
+  INTERACTION_TYPE_GIFT = 2;        // 送礼物
+  INTERACTION_TYPE_FOLLOW = 3;      // 关注
+  INTERACTION_TYPE_INVITE = 4;      // 邀请
+  INTERACTION_TYPE_HIGH_FIVE = 5;   // 击掌
+  INTERACTION_TYPE_HUG = 6;         // 拥抱
+}
+
+// ── RPC 服务 ──
+
+service SocialService {
+  // 会话管理
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc JoinSession(JoinSessionRequest) returns (JoinSessionResponse);
+  rpc LeaveSession(LeaveSessionRequest) returns (LeaveSessionResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc ListActiveSessions(ListActiveSessionsRequest) returns (ListActiveSessionsResponse);
+  rpc EndSession(EndSessionRequest) returns (EndSessionResponse);
+
+  // 参与者在场
+  rpc GetOnlineParticipants(GetOnlineParticipantsRequest) returns (GetOnlineParticipantsResponse);
+
+  // 社交互动
+  rpc SendInteraction(SendInteractionRequest) returns (SendInteractionResponse);
+  rpc InviteToSession(InviteToSessionRequest) returns (InviteToSessionResponse);
+
+  // 好友关系
+  rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
+  rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
+  rpc ListFollowers(ListFollowersRequest) returns (ListFollowersResponse);
+  rpc ListFollowing(ListFollowingRequest) returns (ListFollowingResponse);
+}
+
+// ── 会话 RPC 消息 ──
+
+message CreateSessionRequest {
+  common.SpaceId space_id = 1;
+  SessionType type = 2;
+  string name = 3;
+  int32 max_participants = 4;
+  SessionConfig config = 5;
+}
+message CreateSessionResponse {
+  common.SolraError error = 1;
+  Session session = 2;
+  string webrtc_offer_sdp = 3; // 服务端WebRTC Offer SDP
+}
+
+message JoinSessionRequest {
+  string session_id = 1;
+  string webrtc_answer_sdp = 2;
+  AvatarState initial_state = 3;
+}
+message JoinSessionResponse {
+  common.SolraError error = 1;
+  Session session = 2;
+  repeated Participant current_participants = 3;
+}
+
+message LeaveSessionRequest {
+  string session_id = 1;
+}
+message LeaveSessionResponse {
+  common.SolraError error = 1;
+}
+
+message GetSessionRequest {
+  string session_id = 1;
+}
+message GetSessionResponse {
+  common.SolraError error = 1;
+  Session session = 2;
+}
+
+message ListActiveSessionsRequest {
+  common.SpaceId space_id = 1;
+  common.PageRequest page = 2;
+}
+message ListActiveSessionsResponse {
+  common.SolraError error = 1;
+  repeated Session sessions = 2;
+  common.PageResponse page = 3;
+}
+
+message EndSessionRequest {
+  string session_id = 1;
+}
+message EndSessionResponse {
+  common.SolraError error = 1;
+}
+
+// ── 参与者 RPC 消息 ──
+
+message GetOnlineParticipantsRequest {
+  common.SpaceId space_id = 1;
+}
+message GetOnlineParticipantsResponse {
+  common.SolraError error = 1;
+  repeated Participant participants = 2;
+  int32 total_online = 3;
+}
+
+// ── 互动 RPC 消息 ──
+
+message SendInteractionRequest {
+  string session_id = 1;
+  common.UserId to_user_id = 2;
+  InteractionType type = 3;
+  string content = 4;
+}
+message SendInteractionResponse {
+  common.SolraError error = 1;
+  SocialInteraction interaction = 2;
+}
+
+message InviteToSessionRequest {
+  string session_id = 1;
+  common.UserId invitee_id = 2;
+  string message = 3;
+}
+message InviteToSessionResponse {
+  common.SolraError error = 1;
+}
+
+// ── 好友 RPC 消息 ──
+
+message FollowUserRequest {
+  common.UserId target_user_id = 1;
+}
+message FollowUserResponse {
+  common.SolraError error = 1;
+}
+
+message UnfollowUserRequest {
+  common.UserId target_user_id = 1;
+}
+message UnfollowUserResponse {
+  common.SolraError error = 1;
+}
+
+message ListFollowersRequest {
+  common.UserId user_id = 1;
+  common.PageRequest page = 2;
+}
+message ListFollowersResponse {
+  common.SolraError error = 1;
+  repeated common.UserId user_ids = 2;
+  common.PageResponse page = 3;
+}
+
+message ListFollowingRequest {
+  common.UserId user_id = 1;
+  common.PageRequest page = 2;
+}
+message ListFollowingResponse {
+  common.SolraError error = 1;
+  repeated common.UserId user_ids = 2;
+  common.PageResponse page = 3;
+}

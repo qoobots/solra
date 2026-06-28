@@ -1,0 +1,304 @@
+syntax = "proto3";
+
+package solra.grw;
+option java_package = "com.solra.proto.grw";
+option go_package = "solra/contracts/proto/grw;grw";
+
+import "common/common.proto";
+
+// ═══════════════════════════════════════════════════════════════
+// 用户成长域 — 用户画像、成就系统、信誉等级与成长体系
+// ═══════════════════════════════════════════════════════════════
+
+// ── 用户画像模型 ──
+
+message UserProfile {
+  common.UserId user_id = 1;
+  string display_name = 2;
+  string avatar_url = 3;
+  string bio = 4;
+  common.SolraTimestamp created_at = 5;
+  common.SolraTimestamp last_active_at = 6;
+  FaithLevel faith_level = 7;
+  ProfileStats stats = 8;
+  repeated Achievement achievements = 9;
+  BadgeCollection badges = 10;
+}
+
+message ProfileStats {
+  int32 spaces_created = 1;
+  int32 spaces_visited = 2;
+  int32 total_session_minutes = 3;
+  int32 friends_count = 4;
+  int32 followers_count = 5;
+  int32 following_count = 6;
+  int32 interactions_sent = 7;
+  int32 projects_published = 8;
+}
+
+// ── 信誉等级 ──
+
+message FaithLevel {
+  int32 level = 1;             // 1-100
+  string title = 2;            // "新信徒" / "虔诚者" / "信仰使者"
+  int64 faith_points = 3;
+  int32 experience = 4;        // 当前等级经验值
+  int32 required_experience = 5; // 升级所需经验值
+  FaithLevelTier tier = 6;
+}
+
+enum FaithLevelTier {
+  FAITH_TIER_UNSPECIFIED = 0;
+  FAITH_TIER_SEEKER = 1;      // 探索者 (Lv1-10)
+  FAITH_TIER_BELIEVER = 2;    // 信徒 (Lv11-30)
+  FAITH_TIER_DEVOTEE = 3;     // 虔诚者 (Lv31-60)
+  FAITH_TIER_MESSENGER = 4;   // 使者 (Lv61-90)
+  FAITH_TIER_GUARDIAN = 5;    // 守护者 (Lv91-100)
+}
+
+// ── 经验值事件 ──
+
+message ExperienceEvent {
+  string event_id = 1;
+  common.UserId user_id = 2;
+  ExperienceSource source = 3;
+  int32 experience_gained = 4;
+  string context_description = 5;
+  common.SolraTimestamp timestamp = 6;
+}
+
+enum ExperienceSource {
+  EXPERIENCE_SOURCE_UNSPECIFIED = 0;
+  EXPERIENCE_SOURCE_SPACE_VISIT = 1;      // 访问空间
+  EXPERIENCE_SOURCE_SESSION_PARTICIPATE = 2; // 参与会话
+  EXPERIENCE_SOURCE_INTERACTION = 3;      // 社交互动
+  EXPERIENCE_SOURCE_PROJECT_PUBLISH = 4;  // 发布项目
+  EXPERIENCE_SOURCE_DAILY_LOGIN = 5;      // 每日登录
+  EXPERIENCE_SOURCE_ACHIEVEMENT = 6;      // 解锁成就
+  EXPERIENCE_SOURCE_CONTENT_REVIEWED = 7; // 内容获审核通过
+}
+
+// ── 成就系统 ──
+
+message Achievement {
+  string achievement_id = 1;
+  string name = 2;
+  string description = 3;
+  string icon_url = 4;
+  AchievementCategory category = 5;
+  int32 points = 6;
+  repeated AchievementStep steps = 7;
+  int32 current_step = 8;
+  bool completed = 9;
+  common.SolraTimestamp unlocked_at = 10;
+}
+
+enum AchievementCategory {
+  ACHIEVEMENT_CATEGORY_UNSPECIFIED = 0;
+  ACHIEVEMENT_CATEGORY_EXPLORATION = 1;   // 探索
+  ACHIEVEMENT_CATEGORY_SOCIAL = 2;        // 社交
+  ACHIEVEMENT_CATEGORY_CREATION = 3;      // 创作
+  ACHIEVEMENT_CATEGORY_COLLECTION = 4;    // 收集
+  ACHIEVEMENT_CATEGORY_STREAK = 5;        // 连续
+  ACHIEVEMENT_CATEGORY_SPECIAL = 6;       // 特殊
+}
+
+message AchievementStep {
+  int32 step_index = 1;
+  string description = 2;
+  int64 requirement = 3;       // 达成数值要求
+  int64 current_progress = 4;
+  bool completed = 5;
+}
+
+// ── 徽章系统 ──
+
+message BadgeCollection {
+  repeated Badge badges = 1;
+  Badge active_badge = 2;
+  string active_badge_frame_url = 3;
+}
+
+message Badge {
+  string badge_id = 1;
+  string name = 2;
+  string description = 3;
+  string icon_url = 4;
+  BadgeRarity rarity = 5;
+  common.SolraTimestamp acquired_at = 6;
+  bool is_limited = 7;         // 限时限定
+  common.SolraTimestamp expires_at = 8;
+}
+
+enum BadgeRarity {
+  BADGE_RARITY_UNSPECIFIED = 0;
+  BADGE_RARITY_COMMON = 1;
+  BADGE_RARITY_RARE = 2;
+  BADGE_RARITY_EPIC = 3;
+  BADGE_RARITY_LEGENDARY = 4;
+}
+
+// ── RPC 服务 ──
+
+service GrowthService {
+  // 用户画像
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+
+  // 信誉等级
+  rpc GetFaithLevel(GetFaithLevelRequest) returns (GetFaithLevelResponse);
+  rpc GetFaithLevelHistory(GetFaithLevelHistoryRequest) returns (GetFaithLevelHistoryResponse);
+
+  // 经验值
+  rpc RecordExperience(RecordExperienceRequest) returns (RecordExperienceResponse);
+  rpc GetExperienceHistory(GetExperienceHistoryRequest) returns (GetExperienceHistoryResponse);
+
+  // 成就
+  rpc ListAchievements(ListAchievementsRequest) returns (ListAchievementsResponse);
+  rpc GetAchievementProgress(GetAchievementProgressRequest) returns (GetAchievementProgressResponse);
+  rpc ClaimAchievementReward(ClaimAchievementRewardRequest) returns (ClaimAchievementRewardResponse);
+
+  // 徽章
+  rpc ListBadges(ListBadgesRequest) returns (ListBadgesResponse);
+  rpc EquipBadge(EquipBadgeRequest) returns (EquipBadgeResponse);
+
+  // 排行榜
+  rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+}
+
+// ── 画像 RPC 消息 ──
+
+message GetProfileRequest {
+  common.UserId user_id = 1;
+}
+message GetProfileResponse {
+  common.SolraError error = 1;
+  UserProfile profile = 2;
+}
+
+message UpdateProfileRequest {
+  string display_name = 1;
+  string bio = 2;
+  string avatar_url = 3;
+}
+message UpdateProfileResponse {
+  common.SolraError error = 1;
+  UserProfile profile = 2;
+}
+
+// ── 信誉 RPC 消息 ──
+
+message GetFaithLevelRequest {
+  common.UserId user_id = 1;
+}
+message GetFaithLevelResponse {
+  common.SolraError error = 1;
+  FaithLevel faith_level = 2;
+}
+
+message GetFaithLevelHistoryRequest {
+  common.UserId user_id = 1;
+  common.PageRequest page = 2;
+}
+message GetFaithLevelHistoryResponse {
+  common.SolraError error = 1;
+  repeated ExperienceEvent events = 2;
+  common.PageResponse page = 3;
+}
+
+// ── 经验值 RPC 消息 ──
+
+message RecordExperienceRequest {
+  common.UserId user_id = 1;
+  ExperienceSource source = 2;
+  string context_id = 3;
+}
+message RecordExperienceResponse {
+  common.SolraError error = 1;
+  int32 experience_gained = 2;
+  FaithLevel updated_level = 3;
+}
+
+message GetExperienceHistoryRequest {
+  common.UserId user_id = 1;
+  common.PageRequest page = 2;
+  ExperienceSource source_filter = 3;
+}
+message GetExperienceHistoryResponse {
+  common.SolraError error = 1;
+  repeated ExperienceEvent events = 2;
+  common.PageResponse page = 3;
+}
+
+// ── 成就 RPC 消息 ──
+
+message ListAchievementsRequest {
+  common.UserId user_id = 1;
+  AchievementCategory category = 2;
+}
+message ListAchievementsResponse {
+  common.SolraError error = 1;
+  repeated Achievement achievements = 2;
+}
+
+message GetAchievementProgressRequest {
+  string achievement_id = 1;
+}
+message GetAchievementProgressResponse {
+  common.SolraError error = 1;
+  Achievement achievement = 2;
+}
+
+message ClaimAchievementRewardRequest {
+  string achievement_id = 1;
+}
+message ClaimAchievementRewardResponse {
+  common.SolraError error = 1;
+  int32 faith_points_rewarded = 2;
+}
+
+// ── 徽章 RPC 消息 ──
+
+message ListBadgesRequest {
+  common.UserId user_id = 1;
+}
+message ListBadgesResponse {
+  common.SolraError error = 1;
+  BadgeCollection collection = 2;
+}
+
+message EquipBadgeRequest {
+  string badge_id = 1;
+}
+message EquipBadgeResponse {
+  common.SolraError error = 1;
+  BadgeCollection collection = 2;
+}
+
+// ── 排行榜 RPC 消息 ──
+
+message GetLeaderboardRequest {
+  LeaderboardType type = 1;
+  common.PageRequest page = 2;
+}
+message GetLeaderboardResponse {
+  common.SolraError error = 1;
+  repeated LeaderboardEntry entries = 2;
+  common.PageResponse page = 3;
+  int32 user_rank = 4;
+}
+
+message LeaderboardEntry {
+  int32 rank = 1;
+  common.UserId user_id = 2;
+  string display_name = 3;
+  int64 score = 4;
+}
+
+enum LeaderboardType {
+  LEADERBOARD_TYPE_UNSPECIFIED = 0;
+  LEADERBOARD_TYPE_FAITH_LEVEL = 1;
+  LEADERBOARD_TYPE_SPACES_CREATED = 2;
+  LEADERBOARD_TYPE_PROJECTS = 3;
+  LEADERBOARD_TYPE_INTERACTIONS = 4;
+}
