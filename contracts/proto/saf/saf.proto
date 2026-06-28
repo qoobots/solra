@@ -1,0 +1,330 @@
+syntax = "proto3";
+
+package solra.saf.v1;
+
+import "solra/common/v1/common.proto";
+
+option java_package = "com.solra.apis.saf.v1";
+option java_multiple_files = true;
+option go_package = "github.com/solra/apis/gen/go/saf/v1;safv1";
+
+// ============================================================
+// SafService 内容安全服务
+// ============================================================
+
+service SafService {
+  // 提交内容审核
+  rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse);
+
+  // 查询审核结果
+  rpc QueryReviewResult(QueryReviewResultRequest) returns (QueryReviewResultResponse);
+
+  // 批量审核
+  rpc BatchReview(BatchReviewRequest) returns (BatchReviewResponse);
+
+  // 获取安全评分
+  rpc GetSafetyScore(GetSafetyScoreRequest) returns (GetSafetyScoreResponse);
+
+  // 提交申诉
+  rpc SubmitAppeal(SubmitAppealRequest) returns (SubmitAppealResponse);
+
+  // 查询申诉状态
+  rpc QueryAppealResult(QueryAppealResultRequest) returns (QueryAppealResultResponse);
+
+  // 实时内容过滤（文本/图片/音频）
+  rpc FilterContent(FilterContentRequest) returns (FilterContentResponse);
+}
+
+// ============================================================
+// 审核模型
+// ============================================================
+
+// ReviewCase 审核案例
+message ReviewCase {
+  string case_id = 1;
+  solra.common.v1.UserId user_id = 2;
+  ContentTarget target = 3;            // 被审核的内容
+  ReviewType review_type = 4;
+  ReviewStatus status = 5;
+  ReviewResult result = 6;             // 审核结果（完成时有值）
+  ReviewPriority priority = 7;
+  solra.common.v1.SolraTimestamp submitted_at = 8;
+  solra.common.v1.SolraTimestamp reviewed_at = 9;  // 审核完成时间
+  string reviewer_id = 10;             // 审核员/模型ID
+  map<string, string> metadata = 11;
+}
+
+// ContentTarget 被审核内容
+message ContentTarget {
+  string content_id = 1;
+  ContentType content_type = 2;
+  string content_text = 3;       // 文本内容
+  string content_url = 4;        // 图片/音频/视频URL
+  string content_hash = 5;       // 内容哈希
+  solra.common.v1.SpaceId space_id = 6; // 所属空间
+}
+
+// ContentType 内容类型
+enum ContentType {
+  CONTENT_TYPE_UNSPECIFIED = 0;
+  CONTENT_TYPE_TEXT = 1;            // 文本
+  CONTENT_TYPE_IMAGE = 2;           // 图片
+  CONTENT_TYPE_AUDIO = 3;           // 音频
+  CONTENT_TYPE_VIDEO = 4;           // 视频
+  CONTENT_TYPE_AVATAR_SPEECH = 5;   // 虚拟人语音
+  CONTENT_TYPE_SPACE_NAME = 6;      // 空间名称
+  CONTENT_TYPE_SPACE_DESCRIPTION = 7; // 空间描述
+  CONTENT_TYPE_USER_PROFILE = 8;    // 用户资料
+}
+
+// ReviewType 审核类型
+enum ReviewType {
+  REVIEW_TYPE_UNSPECIFIED = 0;
+  REVIEW_TYPE_AUTOMATIC = 1;    // 自动审核（AI模型）
+  REVIEW_TYPE_MANUAL = 2;       // 人工审核
+  REVIEW_TYPE_HYBRID = 3;       // 混合审核（先AI后人工）
+}
+
+// ReviewStatus 审核状态
+enum ReviewStatus {
+  REVIEW_STATUS_UNSPECIFIED = 0;
+  REVIEW_STATUS_PENDING = 1;       // 待审核
+  REVIEW_STATUS_IN_PROGRESS = 2;   // 审核中
+  REVIEW_STATUS_COMPLETED = 3;     // 已完成
+  REVIEW_STATUS_ESCALATED = 4;     // 已升级（需人工）
+}
+
+// ReviewPriority 审核优先级
+enum ReviewPriority {
+  REVIEW_PRIORITY_UNSPECIFIED = 0;
+  REVIEW_PRIORITY_LOW = 1;
+  REVIEW_PRIORITY_NORMAL = 2;
+  REVIEW_PRIORITY_HIGH = 3;
+  REVIEW_PRIORITY_URGENT = 4;      // 紧急（如实时对话）
+}
+
+// ReviewResult 审核结果
+message ReviewResult {
+  ReviewDecision decision = 1;
+  repeated PolicyViolation violations = 2;    // 违规详情
+  solra.common.v1.SolraTimestamp decided_at = 3;
+  string decided_by = 4;                      // 决策者
+  string reason = 5;                          // 决策理由
+  float confidence = 6;                       // 置信度 0-1
+}
+
+// ReviewDecision 审核决策
+enum ReviewDecision {
+  REVIEW_DECISION_UNSPECIFIED = 0;
+  REVIEW_DECISION_APPROVED = 1;     // 通过
+  REVIEW_DECISION_REJECTED = 2;     // 拒绝
+  REVIEW_DECISION_FLAGGED = 3;      // 标记（需人工复核）
+  REVIEW_DECISION_BLOCKED = 4;      // 屏蔽
+}
+
+// PolicyViolation 违规详情
+message PolicyViolation {
+  string policy_id = 1;
+  string policy_name = 2;
+  ViolationCategory category = 3;
+  ViolationSeverity severity = 4;
+  string description = 5;
+  string evidence = 6;            // 违规证据（如命中的关键词）
+}
+
+// ViolationCategory 违规类别
+enum ViolationCategory {
+  VIOLATION_CATEGORY_UNSPECIFIED = 0;
+  VIOLATION_CATEGORY_ILLEGAL = 1;           // 违法违规
+  VIOLATION_CATEGORY_NSFW = 2;              // 色情内容
+  VIOLATION_CATEGORY_HATE_SPEECH = 3;        // 仇恨言论
+  VIOLATION_CATEGORY_HARASSMENT = 4;         // 骚扰/霸凌
+  VIOLATION_CATEGORY_SPAM = 5;              // 垃圾信息
+  VIOLATION_CATEGORY_FRAUD = 6;             // 欺诈
+  VIOLATION_CATEGORY_SELF_HARM = 7;          // 自残/自杀
+  VIOLATION_CATEGORY_VIOLENCE = 8;           // 暴力
+  VIOLATION_CATEGORY_MINOR_SAFETY = 9;       // 未成年人安全
+  VIOLATION_CATEGORY_PERSONAL_INFO = 10;     // 个人隐私泄露
+}
+
+// ViolationSeverity 违规严重度
+enum ViolationSeverity {
+  VIOLATION_SEVERITY_UNSPECIFIED = 0;
+  VIOLATION_SEVERITY_LOW = 1;
+  VIOLATION_SEVERITY_MEDIUM = 2;
+  VIOLATION_SEVERITY_HIGH = 3;
+  VIOLATION_SEVERITY_CRITICAL = 4;
+}
+
+// ============================================================
+// 安全评分模型
+// ============================================================
+
+// SafetyScore 安全评分
+message SafetyScore {
+  string score_id = 1;
+  solra.common.v1.UserId user_id = 2;
+  ContentTarget target = 3;
+  float overall_score = 4;              // 综合安全评分 0-1
+  repeated CategoryScore category_scores = 5;
+  string model_version = 6;
+  solra.common.v1.SolraTimestamp scored_at = 7;
+}
+
+// CategoryScore 类别得分
+message CategoryScore {
+  ViolationCategory category = 1;
+  float score = 2;              // 该类别违规概率 0-1
+  string explanation = 3;       // 得分说明
+}
+
+// ScoreDetail 评分详情
+message ScoreDetail {
+  SafetyScore score = 1;
+  repeated float feature_values = 2;     // 特征向量
+  map<string, float> sub_scores = 3;     // 子维度得分
+}
+
+// ============================================================
+// 申诉模型
+// ============================================================
+
+// Appeal 申诉
+message Appeal {
+  string appeal_id = 1;
+  string case_id = 2;                   // 关联的审核案例
+  solra.common.v1.UserId user_id = 3;
+  string reason = 4;                    // 申诉理由
+  repeated string evidence_urls = 5;    // 证据URL
+  AppealStatus status = 6;
+  AppealResult result = 7;              // 申诉结果
+  solra.common.v1.SolraTimestamp submitted_at = 8;
+  solra.common.v1.SolraTimestamp resolved_at = 9;
+}
+
+// AppealStatus 申诉状态
+enum AppealStatus {
+  APPEAL_STATUS_UNSPECIFIED = 0;
+  APPEAL_STATUS_SUBMITTED = 1;
+  APPEAL_STATUS_IN_REVIEW = 2;
+  APPEAL_STATUS_RESOLVED = 3;
+  APPEAL_STATUS_REJECTED = 4;      // 申诉被驳回
+}
+
+// AppealResult 申诉结果
+message AppealResult {
+  AppealDecision decision = 1;
+  string reason = 2;
+  string reviewer_id = 3;
+  solra.common.v1.SolraTimestamp decided_at = 4;
+}
+
+// AppealDecision 申诉决策
+enum AppealDecision {
+  APPEAL_DECISION_UNSPECIFIED = 0;
+  APPEAL_DECISION_UPHELD = 1;       // 申诉成功（撤销原决定）
+  APPEAL_DECISION_DENIED = 2;       // 申诉驳回
+  APPEAL_DECISION_PARTIAL = 3;      // 部分撤销
+}
+
+// ============================================================
+// RPC 请求/响应消息
+// ============================================================
+
+// SubmitReview
+message SubmitReviewRequest {
+  ContentTarget target = 1;
+  ReviewType review_type = 2;
+  ReviewPriority priority = 3;
+}
+
+message SubmitReviewResponse {
+  string case_id = 1;
+  ReviewStatus status = 2;
+  ReviewResult result = 3;            // 自动审核时可能直接返回结果
+  solra.common.v1.SolraError error = 4;
+}
+
+// QueryReviewResult
+message QueryReviewResultRequest {
+  string case_id = 1;
+}
+
+message QueryReviewResultResponse {
+  ReviewCase review_case = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// BatchReview
+message BatchReviewRequest {
+  repeated SubmitReviewRequest reviews = 1;
+}
+
+message BatchReviewResponse {
+  repeated SubmitReviewResponse results = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// GetSafetyScore
+message GetSafetyScoreRequest {
+  ContentTarget target = 1;
+  bool include_detail = 2;            // 是否包含详细评分
+}
+
+message GetSafetyScoreResponse {
+  SafetyScore score = 1;
+  ScoreDetail detail = 2;             // 评分详情（include_detail=true时返回）
+  solra.common.v1.SolraError error = 3;
+}
+
+// SubmitAppeal
+message SubmitAppealRequest {
+  string case_id = 1;
+  solra.common.v1.UserId user_id = 2;
+  string reason = 3;
+  repeated string evidence_urls = 4;
+}
+
+message SubmitAppealResponse {
+  string appeal_id = 1;
+  AppealStatus status = 2;
+  solra.common.v1.SolraError error = 3;
+}
+
+// QueryAppealResult
+message QueryAppealResultRequest {
+  string appeal_id = 1;
+}
+
+message QueryAppealResultResponse {
+  Appeal appeal = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// FilterContent
+message FilterContentRequest {
+  solra.common.v1.UserId user_id = 1;
+  ContentType content_type = 2;
+  string content = 3;               // 文本内容（或base64编码的图片/音频）
+  string content_url = 4;           // 内容URL（URL和content二选一）
+  ContentFilterLevel filter_level = 5;
+  map<string, string> context = 6;  // 上下文信息
+}
+
+// ContentFilterLevel 过滤级别
+enum ContentFilterLevel {
+  CONTENT_FILTER_LEVEL_UNSPECIFIED = 0;
+  CONTENT_FILTER_LEVEL_LENIENT = 1;   // 宽松
+  CONTENT_FILTER_LEVEL_NORMAL = 2;    // 正常
+  CONTENT_FILTER_LEVEL_STRICT = 3;    // 严格
+}
+
+message FilterContentResponse {
+  bool passed = 1;                      // 是否通过过滤
+  SafetyScore score = 2;                // 安全评分
+  repeated PolicyViolation violations = 3; // 违规详情
+  string filtered_content = 4;          // 过滤后的内容（如脱敏文本）
+  solra.common.v1.SolraError error = 5;
+}
+
+reserved 100 to 200;

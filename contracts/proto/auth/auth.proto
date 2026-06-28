@@ -1,0 +1,313 @@
+syntax = "proto3";
+
+package solra.auth.v1;
+
+import "solra/common/v1/common.proto";
+
+option java_package = "com.solra.apis.auth.v1";
+option java_multiple_files = true;
+option go_package = "github.com/solra/apis/gen/go/auth/v1;authv1";
+
+// ============================================================
+// AuthService 身份认证服务
+// ============================================================
+
+service AuthService {
+  // 账号注册
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // 登录
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // 刷新Token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+
+  // 登出
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  // OAuth第三方登录
+  rpc OAuthLogin(OAuthLoginRequest) returns (LoginResponse);
+
+  // 绑定OAuth账号
+  rpc BindOAuth(BindOAuthRequest) returns (BindOAuthResponse);
+
+  // 解绑OAuth账号
+  rpc UnbindOAuth(UnbindOAuthRequest) returns (UnbindOAuthResponse);
+
+  // 获取当前用户信息
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
+
+  // 更新用户信息
+  rpc UpdateUserAccount(UpdateUserAccountRequest) returns (UpdateUserAccountResponse);
+
+  // 验证Token
+  rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse);
+
+  // 权限检查
+  rpc CheckPermission(CheckPermissionRequest) returns (CheckPermissionResponse);
+}
+
+// ============================================================
+// 账户模型
+// ============================================================
+
+// UserAccount 用户账户
+message UserAccount {
+  solra.common.v1.UserId user_id = 1;
+  string username = 2;                      // 用户名（唯一）
+  string display_name = 3;                  // 展示名
+  string email = 4;                         // 邮箱（已验证）
+  string phone = 5;                         // 手机号（已验证）
+  string avatar_url = 6;                    // 头像URL
+  AccountStatus status = 7;
+  repeated OAuthAccount linked_accounts = 8; // 已绑定的第三方账号
+  solra.common.v1.SolraTimestamp created_at = 9;
+  solra.common.v1.SolraTimestamp updated_at = 10;
+  solra.common.v1.SolraTimestamp last_login_at = 11;
+  map<string, string> metadata = 12;
+}
+
+// AccountStatus 账户状态
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  ACCOUNT_STATUS_ACTIVE = 1;
+  ACCOUNT_STATUS_SUSPENDED = 2;
+  ACCOUNT_STATUS_DELETED = 3;
+  ACCOUNT_STATUS_UNVERIFIED = 4;     // 未验证邮箱/手机
+}
+
+// ============================================================
+// 登录会话模型
+// ============================================================
+
+// LoginSession 登录会话
+message LoginSession {
+  solra.common.v1.SessionId session_id = 1;
+  solra.common.v1.UserId user_id = 2;
+  LoginMethod method = 3;
+  string device_info = 4;                 // 设备信息
+  string ip_address = 5;                  // 登录IP
+  solra.common.v1.GeoPoint location = 6;  // 登录位置
+  string access_token = 7;
+  string refresh_token = 8;
+  TokenType token_type = 9;
+  solra.common.v1.SolraTimestamp expires_at = 10;
+  solra.common.v1.SolraTimestamp created_at = 11;
+}
+
+// LoginMethod 登录方式
+enum LoginMethod {
+  LOGIN_METHOD_UNSPECIFIED = 0;
+  LOGIN_METHOD_PASSWORD = 1;      // 密码登录
+  LOGIN_METHOD_PHONE_CODE = 2;    // 手机验证码
+  LOGIN_METHOD_EMAIL_CODE = 3;    // 邮箱验证码
+  LOGIN_METHOD_OAUTH_WECHAT = 4;  // 微信登录
+  LOGIN_METHOD_OAUTH_APPLE = 5;   // Apple登录
+  LOGIN_METHOD_OAUTH_GOOGLE = 6;  // Google登录
+  LOGIN_METHOD_BIOMETRIC = 7;     // 生物识别
+}
+
+// TokenType Token类型
+enum TokenType {
+  TOKEN_TYPE_UNSPECIFIED = 0;
+  TOKEN_TYPE_BEARER = 1;          // JWT Bearer Token
+  TOKEN_TYPE_REFRESH = 2;         // Refresh Token
+}
+
+// OAuthAccount OAuth账号绑定
+message OAuthAccount {
+  OAuthProvider provider = 1;
+  string provider_user_id = 2;    // 第三方平台用户ID
+  string display_name = 3;        // 第三方显示名
+  string email = 4;               // 第三方邮箱
+  string avatar_url = 5;          // 第三方头像
+  string access_token = 6;        // 第三方access_token（加密存储）
+  solra.common.v1.SolraTimestamp expires_at = 7;
+  solra.common.v1.SolraTimestamp bound_at = 8;
+}
+
+// OAuthProvider OAuth提供方
+enum OAuthProvider {
+  OAUTH_PROVIDER_UNSPECIFIED = 0;
+  OAUTH_PROVIDER_WECHAT = 1;
+  OAUTH_PROVIDER_APPLE = 2;
+  OAUTH_PROVIDER_GOOGLE = 3;
+  OAUTH_PROVIDER_FACEBOOK = 4;
+}
+
+// ============================================================
+// 权限模型
+// ============================================================
+
+// Permission 权限
+message Permission {
+  string permission_id = 1;
+  string resource = 2;        // 资源标识
+  string action = 3;          // 操作：read/write/delete/admin
+  string description = 4;
+}
+
+// Role 角色
+message Role {
+  string role_id = 1;
+  string role_name = 2;
+  string description = 3;
+  repeated Permission permissions = 4;
+  int32 priority = 5;         // 优先级
+}
+
+// Policy 访问策略
+message Policy {
+  string policy_id = 1;
+  string effect = 2;          // allow / deny
+  repeated string principals = 3; // 用户/角色/组标识
+  repeated string resources = 4;  // 资源标识
+  repeated string actions = 5;    // 操作
+  Condition condition = 6;        // 条件（可选）
+}
+
+// Condition 策略条件
+message Condition {
+  string expression = 1;      // 条件表达式
+  map<string, string> variables = 2;
+}
+
+// ============================================================
+// RPC 请求/响应消息
+// ============================================================
+
+// Register
+message RegisterRequest {
+  string username = 1;
+  string password = 2;          // 加密后
+  string email = 3;
+  string phone = 4;
+  string display_name = 5;
+  string invite_code = 6;       // 邀请码（可选）
+}
+
+message RegisterResponse {
+  solra.common.v1.UserId user_id = 1;
+  LoginSession session = 2;
+  solra.common.v1.SolraError error = 3;
+}
+
+// Login
+message LoginRequest {
+  string credential = 1;        // 用户名/邮箱/手机号
+  string password = 2;
+  LoginMethod method = 3;
+  string verification_code = 4; // 验证码（手机/邮箱登录）
+  string device_info = 5;
+  string ip_address = 6;
+}
+
+message LoginResponse {
+  LoginSession session = 1;
+  UserAccount account = 2;
+  solra.common.v1.SolraError error = 3;
+}
+
+// RefreshToken
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;       // 轮换后的新refresh_token
+  solra.common.v1.SolraTimestamp expires_at = 3;
+  solra.common.v1.SolraError error = 4;
+}
+
+// Logout
+message LogoutRequest {
+  solra.common.v1.UserId user_id = 1;
+  solra.common.v1.SessionId session_id = 2;
+}
+
+message LogoutResponse {
+  solra.common.v1.SolraError error = 1;
+}
+
+// OAuthLogin
+message OAuthLoginRequest {
+  OAuthProvider provider = 1;
+  string authorization_code = 2; // OAuth authorization code
+  string device_info = 3;
+  string ip_address = 4;
+}
+
+// BindOAuth
+message BindOAuthRequest {
+  solra.common.v1.UserId user_id = 1;
+  OAuthProvider provider = 2;
+  string authorization_code = 3;
+}
+
+message BindOAuthResponse {
+  OAuthAccount bound_account = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// UnbindOAuth
+message UnbindOAuthRequest {
+  solra.common.v1.UserId user_id = 1;
+  OAuthProvider provider = 2;
+}
+
+message UnbindOAuthResponse {
+  solra.common.v1.SolraError error = 1;
+}
+
+// GetCurrentUser
+message GetCurrentUserRequest {
+  // Token 从 gRPC metadata 中获取
+}
+
+message GetCurrentUserResponse {
+  UserAccount account = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// UpdateUserAccount
+message UpdateUserAccountRequest {
+  solra.common.v1.UserId user_id = 1;
+  optional string display_name = 2;
+  optional string email = 3;
+  optional string phone = 4;
+  optional string avatar_url = 5;
+}
+
+message UpdateUserAccountResponse {
+  UserAccount account = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// VerifyToken
+message VerifyTokenRequest {
+  string access_token = 1;
+}
+
+message VerifyTokenResponse {
+  bool valid = 1;
+  solra.common.v1.UserId user_id = 2;
+  repeated string permissions = 3;
+  solra.common.v1.SolraTimestamp expires_at = 4;
+  solra.common.v1.SolraError error = 5;
+}
+
+// CheckPermission
+message CheckPermissionRequest {
+  solra.common.v1.UserId user_id = 1;
+  string resource = 2;
+  string action = 3;
+}
+
+message CheckPermissionResponse {
+  bool allowed = 1;
+  string reason = 2;              // 拒绝原因
+  solra.common.v1.SolraError error = 3;
+}
+
+reserved 100 to 200;

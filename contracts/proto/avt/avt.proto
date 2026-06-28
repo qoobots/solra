@@ -1,0 +1,307 @@
+syntax = "proto3";
+
+package solra.avt.v1;
+
+import "solra/common/v1/common.proto";
+
+option java_package = "com.solra.apis.avt.v1";
+option java_multiple_files = true;
+option go_package = "github.com/solra/apis/gen/go/avt/v1;avtv1";
+
+// ============================================================
+// AvtService 虚拟人交互服务
+// ============================================================
+
+service AvtService {
+  // 发送消息给虚拟人（同步）
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+  // 流式接收虚拟人回复（SSE等价）
+  rpc StreamResponse(StreamResponseRequest) returns (stream DialogueTurn);
+
+  // 获取对话历史
+  rpc GetConversationHistory(GetConversationHistoryRequest) returns (GetConversationHistoryResponse);
+
+  // 获取虚拟人状态
+  rpc GetAvatarState(GetAvatarStateRequest) returns (GetAvatarStateResponse);
+
+  // 更新情感状态
+  rpc UpdateEmotionState(UpdateEmotionStateRequest) returns (UpdateEmotionStateResponse);
+
+  // 查询记忆
+  rpc QueryMemory(QueryMemoryRequest) returns (QueryMemoryResponse);
+}
+
+// ============================================================
+// 对话模型
+// ============================================================
+
+// Conversation 对话
+message Conversation {
+  solra.common.v1.ConversationId conversation_id = 1;
+  solra.common.v1.UserId user_id = 2;
+  solra.common.v1.SpaceId space_id = 3;
+  string avatar_id = 4;
+  ConversationStatus status = 5;
+  solra.common.v1.SolraTimestamp created_at = 6;
+  solra.common.v1.SolraTimestamp updated_at = 7;
+  map<string, string> metadata = 8;
+}
+
+// ConversationStatus 对话状态
+enum ConversationStatus {
+  CONVERSATION_STATUS_UNSPECIFIED = 0;
+  CONVERSATION_STATUS_ACTIVE = 1;
+  CONVERSATION_STATUS_PAUSED = 2;
+  CONVERSATION_STATUS_ENDED = 3;
+}
+
+// DialogueTurn 对话轮次
+message DialogueTurn {
+  string turn_id = 1;
+  string conversation_id = 2;
+  TurnRole role = 3;
+  string content = 4;                     // 文本内容
+  repeated TokenChunk chunks = 5;         // 流式token块
+  solra.common.v1.SolraTimestamp timestamp = 6;
+  map<string, string> metadata = 7;
+}
+
+// TurnRole 对话角色
+enum TurnRole {
+  TURN_ROLE_UNSPECIFIED = 0;
+  TURN_ROLE_USER = 1;
+  TURN_ROLE_AVATAR = 2;
+  TURN_ROLE_SYSTEM = 3;
+}
+
+// TokenChunk 流式Token块
+message TokenChunk {
+  int32 sequence = 1;     // 序号
+  string token = 2;        // 文本token
+  bool is_final = 3;       // 是否最后一块
+}
+
+// ============================================================
+// 虚拟人模型
+// ============================================================
+
+// Avatar 虚拟人
+message Avatar {
+  string avatar_id = 1;
+  string display_name = 2;
+  AvatarConfig config = 3;
+  AvatarState state = 4;
+  AvatarPersonality personality = 5;
+  solra.common.v1.SolraTimestamp created_at = 6;
+  solra.common.v1.SolraTimestamp updated_at = 7;
+}
+
+// AvatarConfig 虚拟人配置
+message AvatarConfig {
+  string model_id = 1;              // 3D模型ID
+  string voice_id = 2;              // 语音模型ID
+  string language_code = 3;         // 主要语言（BCP-47）
+  repeated string supported_languages = 4;
+  AvatarAppearance appearance = 5;   // 外观配置
+  AnimationConfig animation = 6;     // 动画配置
+}
+
+// AvatarAppearance 外观配置
+message AvatarAppearance {
+  string avatar_type = 1;        // 形象类型
+  map<string, string> customizations = 2; // 自定义属性
+}
+
+// AnimationConfig 动画配置
+message AnimationConfig {
+  float gesture_speed = 1;       // 手势速度
+  float expression_intensity = 2; // 表情强度
+  bool auto_blink = 3;           // 自动眨眼
+  bool auto_gesture = 4;         // 自动手势
+}
+
+// AvatarState 虚拟人状态
+message AvatarState {
+  string avatar_id = 1;
+  EmotionState emotion = 2;      // 当前情感
+  ActivityState activity = 3;    // 当前活动
+  solra.common.v1.SolraTimestamp last_active = 4;
+}
+
+// ActivityState 活动状态
+enum ActivityState {
+  ACTIVITY_STATE_UNSPECIFIED = 0;
+  ACTIVITY_STATE_IDLE = 1;
+  ACTIVITY_STATE_SPEAKING = 2;
+  ACTIVITY_STATE_LISTENING = 3;
+  ACTIVITY_STATE_THINKING = 4;
+  ACTIVITY_STATE_GESTURING = 5;
+}
+
+// AvatarPersonality 虚拟人性格
+message AvatarPersonality {
+  string persona_id = 1;
+  string tone = 2;                  // 语气风格
+  repeated string traits = 3;       // 性格特征
+  string background_story = 4;      // 背景故事
+  map<string, string> custom_attributes = 5;
+}
+
+// ============================================================
+// 情感模型
+// ============================================================
+
+// EmotionState 情感状态
+message EmotionState {
+  EmotionCategory primary_emotion = 1;
+  float intensity = 2;                      // 0-1 强度
+  repeated EmotionDimension dimensions = 3; // PAD三维情感向量
+  solra.common.v1.SolraTimestamp detected_at = 4;
+}
+
+// EmotionCategory 情感类别
+enum EmotionCategory {
+  EMOTION_CATEGORY_UNSPECIFIED = 0;
+  EMOTION_CATEGORY_JOY = 1;
+  EMOTION_CATEGORY_SADNESS = 2;
+  EMOTION_CATEGORY_ANGER = 3;
+  EMOTION_CATEGORY_FEAR = 4;
+  EMOTION_CATEGORY_SURPRISE = 5;
+  EMOTION_CATEGORY_DISGUST = 6;
+  EMOTION_CATEGORY_NEUTRAL = 7;
+  EMOTION_CATEGORY_TRUST = 8;
+  EMOTION_CATEGORY_ANTICIPATION = 9;
+}
+
+// EmotionDimension PAD三维情感维度（Pleasure-Arousal-Dominance）
+message EmotionDimension {
+  string dimension_name = 1; // pleasure / arousal / dominance
+  float value = 2;           // -1.0 到 1.0
+}
+
+// EmotionVector 情感向量
+message EmotionVector {
+  string vector_id = 1;
+  repeated float values = 2;
+  string model_version = 3;
+}
+
+// ============================================================
+// 记忆模型
+// ============================================================
+
+// MemoryEntry 记忆条目
+message MemoryEntry {
+  string memory_id = 1;
+  solra.common.v1.UserId user_id = 2;
+  solra.common.v1.ConversationId conversation_id = 3;
+  MemoryType type = 4;
+  string content = 5;
+  float importance = 6;       // 重要度 0-1
+  solra.common.v1.SolraTimestamp created_at = 7;
+  solra.common.v1.SolraTimestamp last_accessed = 8;
+  solra.common.v1.SolraTimestamp expires_at = 9; // 可选过期时间
+  map<string, string> metadata = 10;
+}
+
+// MemoryType 记忆类型
+enum MemoryType {
+  MEMORY_TYPE_UNSPECIFIED = 0;
+  MEMORY_TYPE_EPISODIC = 1;   // 情景记忆
+  MEMORY_TYPE_SEMANTIC = 2;   // 语义记忆
+  MEMORY_TYPE_FACT = 3;        // 事实记忆
+  MEMORY_TYPE_PREFERENCE = 4;  // 偏好记忆
+}
+
+// MemoryQuery 记忆查询
+message MemoryQuery {
+  solra.common.v1.UserId user_id = 1;
+  repeated MemoryType memory_types = 2;
+  string query_text = 3;      // 语义搜索文本
+  float min_importance = 4;   // 最低重要度
+  int32 max_results = 5;      // 最大返回数
+  solra.common.v1.SolraTimestamp time_range_start = 6;
+  solra.common.v1.SolraTimestamp time_range_end = 7;
+}
+
+// ============================================================
+// RPC 请求/响应消息
+// ============================================================
+
+// SendMessage
+message SendMessageRequest {
+  solra.common.v1.UserId user_id = 1;
+  solra.common.v1.SpaceId space_id = 2;
+  string conversation_id = 3;
+  string content = 4;
+  repeated MessageAttachment attachments = 5;
+  map<string, string> context = 6; // 上下文信息
+}
+
+message MessageAttachment {
+  string attachment_type = 1; // image / audio / file
+  string url = 2;
+  string mime_type = 3;
+  int64 size_bytes = 4;
+}
+
+message SendMessageResponse {
+  string conversation_id = 1;
+  DialogueTurn turn = 2;
+  solra.common.v1.SolraError error = 3;
+}
+
+// StreamResponse
+message StreamResponseRequest {
+  solra.common.v1.UserId user_id = 1;
+  string conversation_id = 2;
+  bool resume_from_last = 3;        // 从上次中断处恢复
+  string last_turn_id = 4;
+}
+
+// GetConversationHistory
+message GetConversationHistoryRequest {
+  solra.common.v1.UserId user_id = 1;
+  string conversation_id = 2;
+  solra.common.v1.PageRequest page = 3;
+}
+
+message GetConversationHistoryResponse {
+  repeated DialogueTurn turns = 1;
+  solra.common.v1.PageResponse page = 2;
+  solra.common.v1.SolraError error = 3;
+}
+
+// GetAvatarState
+message GetAvatarStateRequest {
+  string avatar_id = 1;
+}
+
+message GetAvatarStateResponse {
+  AvatarState state = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// UpdateEmotionState
+message UpdateEmotionStateRequest {
+  string avatar_id = 1;
+  EmotionState emotion = 2;
+}
+
+message UpdateEmotionStateResponse {
+  EmotionState updated_emotion = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// QueryMemory
+message QueryMemoryRequest {
+  MemoryQuery query = 1;
+}
+
+message QueryMemoryResponse {
+  repeated MemoryEntry memories = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+reserved 100 to 200;

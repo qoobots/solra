@@ -1,0 +1,306 @@
+syntax = "proto3";
+
+package solra.spc.v1;
+
+import "solra/common/v1/common.proto";
+
+option java_package = "com.solra.apis.spc.v1";
+option java_multiple_files = true;
+option go_package = "github.com/solra/apis/gen/go/spc/v1;spcv1";
+
+// ============================================================
+// SpcService 空间消费服务
+// ============================================================
+
+service SpcService {
+  // 按ID获取空间
+  rpc GetSpace(GetSpaceRequest) returns (GetSpaceResponse);
+
+  // 列出推荐空间
+  rpc ListRecommendSpaces(ListRecommendSpacesRequest) returns (ListRecommendSpacesResponse);
+
+  // 加载空间内容
+  rpc LoadSpace(LoadSpaceRequest) returns (LoadSpaceResponse);
+
+  // 流式加载空间资产
+  rpc StreamSpaceAssets(StreamSpaceAssetsRequest) returns (stream AssetChunk);
+
+  // 获取预览卡片
+  rpc GetPreviewCard(GetPreviewCardRequest) returns (GetPreviewCardResponse);
+
+  // 批量获取预览卡片
+  rpc BatchGetPreviewCards(BatchGetPreviewCardsRequest) returns (BatchGetPreviewCardsResponse);
+
+  // 上报用户行为（用于推荐）
+  rpc ReportUserAction(ReportUserActionRequest) returns (ReportUserActionResponse);
+}
+
+// ============================================================
+// 空间模型
+// ============================================================
+
+// Space 空间
+message Space {
+  solra.common.v1.SpaceId space_id = 1;
+  SpaceMeta meta = 2;
+  SpaceContent content = 3;
+  SpaceStats stats = 4;
+  solra.common.v1.UserId creator_id = 5;
+  SpaceStatus status = 6;
+  solra.common.v1.SolraTimestamp created_at = 7;
+  solra.common.v1.SolraTimestamp updated_at = 8;
+  repeated string tags = 9;
+  map<string, string> metadata = 10;
+}
+
+// SpaceMeta 空间元信息
+message SpaceMeta {
+  string title = 1;                     // 标题
+  string description = 2;               // 描述
+  SpaceCategory category = 3;           // 分类
+  string thumbnail_url = 4;             // 缩略图
+  solra.common.v1.GeoPoint location = 5; // 地理位置（可选）
+  SpacePrivacy privacy = 6;             // 隐私设置
+  string language_code = 7;             // 语言
+}
+
+// SpaceCategory 空间分类
+enum SpaceCategory {
+  SPACE_CATEGORY_UNSPECIFIED = 0;
+  SPACE_CATEGORY_PERSONAL = 1;      // 个人空间
+  SPACE_CATEGORY_SOCIAL = 2;        // 社交空间
+  SPACE_CATEGORY_EDUCATION = 3;     // 教育空间
+  SPACE_CATEGORY_ENTERTAINMENT = 4;  // 娱乐空间
+  SPACE_CATEGORY_BUSINESS = 5;      // 商业空间
+  SPACE_CATEGORY_ART = 6;           // 艺术空间
+}
+
+// SpacePrivacy 隐私设置
+enum SpacePrivacy {
+  SPACE_PRIVACY_UNSPECIFIED = 0;
+  SPACE_PRIVACY_PUBLIC = 1;    // 公开
+  SPACE_PRIVACY_UNLISTED = 2;  // 不公开列表（有链接可访问）
+  SPACE_PRIVACY_PRIVATE = 3;   // 私密
+  SPACE_PRIVACY_FRIENDS = 4;   // 仅好友可见
+}
+
+// SpaceStatus 空间状态
+enum SpaceStatus {
+  SPACE_STATUS_UNSPECIFIED = 0;
+  SPACE_STATUS_DRAFT = 1;
+  SPACE_STATUS_PUBLISHED = 2;
+  SPACE_STATUS_ARCHIVED = 3;
+  SPACE_STATUS_REVIEWING = 4;  // 审核中
+}
+
+// SpaceContent 空间内容
+message SpaceContent {
+  string scene_file_url = 1;           // 3D场景文件
+  repeated SpaceAsset assets = 2;       // 资产列表
+  repeated SpaceModule modules = 3;     // 功能模块
+  string entry_point = 4;              // 入口坐标/视角
+}
+
+// SpaceAsset 空间资产
+message SpaceAsset {
+  solra.common.v1.AssetId asset_id = 1;
+  string asset_type = 2;        // model / texture / audio / script
+  string url = 3;
+  int64 size_bytes = 4;
+  AssetFormat format = 5;
+  int32 lod_level = 6;          // LOD 级别
+}
+
+// AssetFormat 资产格式
+enum AssetFormat {
+  ASSET_FORMAT_UNSPECIFIED = 0;
+  ASSET_FORMAT_GLTF = 1;
+  ASSET_FORMAT_GLB = 2;
+  ASSET_FORMAT_FBX = 3;
+  ASSET_FORMAT_OBJ = 4;
+  ASSET_FORMAT_USDZ = 5;
+}
+
+// SpaceModule 空间功能模块
+message SpaceModule {
+  string module_id = 1;
+  string module_type = 2;       // chat / game / media / commerce
+  string config_json = 3;       // 模块配置（JSON）
+}
+
+// SpaceStats 空间统计
+message SpaceStats {
+  int64 view_count = 1;
+  int64 like_count = 2;
+  int64 share_count = 3;
+  int64 visitor_count = 4;
+  int64 conversation_count = 5;
+  float rating = 6;             // 平均评分 0-5
+}
+
+// ============================================================
+// 推荐模型
+// ============================================================
+
+// Recommendation 推荐条目
+message Recommendation {
+  solra.common.v1.SpaceId space_id = 1;
+  RecommendScore score = 2;
+  repeated string recommend_reasons = 3;  // 推荐理由
+  solra.common.v1.SolraTimestamp generated_at = 4;
+}
+
+// RecommendScore 推荐评分
+message RecommendScore {
+  float relevance = 1;          // 相关性得分
+  float popularity = 2;         // 热门度得分
+  float freshness = 3;          // 新鲜度得分
+  float overall = 4;            // 综合得分
+}
+
+// UserActionType 用户行为类型
+enum UserActionType {
+  USER_ACTION_TYPE_UNSPECIFIED = 0;
+  USER_ACTION_TYPE_VIEW = 1;
+  USER_ACTION_TYPE_LIKE = 2;
+  USER_ACTION_TYPE_SHARE = 3;
+  USER_ACTION_TYPE_ENTER = 4;
+  USER_ACTION_TYPE_DWELL = 5;    // 停留
+  USER_ACTION_TYPE_SKIP = 6;
+  USER_ACTION_TYPE_REPORT = 7;
+}
+
+// ============================================================
+// 预览卡片
+// ============================================================
+
+// PreviewCard 预览卡片
+message PreviewCard {
+  solra.common.v1.SpaceId space_id = 1;
+  SpaceMeta meta = 2;
+  repeated string preview_images = 3;    // 预览图URL列表
+  string preview_video_url = 4;          // 预览视频URL
+  SpaceStats stats = 5;
+  repeated string tags = 6;
+}
+
+// PreviewCardList 预览卡片列表
+message PreviewCardList {
+  string list_id = 1;
+  string list_name = 2;                  // "热门推荐" / "最新" / "为你推荐"
+  repeated PreviewCard cards = 3;
+  solra.common.v1.PageResponse page = 4;
+}
+
+// ============================================================
+// 流式加载模型
+// ============================================================
+
+// AssetChunk 资产分块
+message AssetChunk {
+  solra.common.v1.AssetId asset_id = 1;
+  int32 chunk_index = 2;         // 块序号（从0开始）
+  int32 total_chunks = 3;        // 总块数
+  bytes data = 4;                // 块数据
+  bool is_final = 5;             // 是否最后一块
+  int32 compression_level = 6;   // 压缩等级
+}
+
+// StreamConfig 流式加载配置
+message StreamConfig {
+  int32 max_concurrent_chunks = 1;       // 最大并发块数
+  int32 chunk_size_bytes = 2;            // 块大小
+  repeated string priority_assets = 3;   // 优先加载资产ID
+  bool enable_compression = 4;           // 启用压缩
+  int32 lod_threshold = 5;               // LOD切换阈值
+}
+
+// ============================================================
+// RPC 请求/响应消息
+// ============================================================
+
+// GetSpace
+message GetSpaceRequest {
+  solra.common.v1.SpaceId space_id = 1;
+  bool include_content = 2;      // 是否包含内容详情
+}
+
+message GetSpaceResponse {
+  Space space = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// ListRecommendSpaces
+message ListRecommendSpacesRequest {
+  solra.common.v1.UserId user_id = 1;
+  ListRecommendMode mode = 2;
+  solra.common.v1.PageRequest page = 3;
+  repeated SpaceCategory categories = 4; // 筛选分类
+}
+
+enum ListRecommendMode {
+  LIST_RECOMMEND_MODE_UNSPECIFIED = 0;
+  LIST_RECOMMEND_MODE_POPULAR = 1;      // 热门
+  LIST_RECOMMEND_MODE_PERSONALIZED = 2; // 个性化推荐
+  LIST_RECOMMEND_MODE_NEWEST = 3;       // 最新
+  LIST_RECOMMEND_MODE_TRENDING = 4;     // 趋势
+}
+
+message ListRecommendSpacesResponse {
+  PreviewCardList cards = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// LoadSpace
+message LoadSpaceRequest {
+  solra.common.v1.SpaceId space_id = 1;
+  StreamConfig stream_config = 2;
+}
+
+message LoadSpaceResponse {
+  Space space = 1;
+  repeated AssetChunk initial_chunks = 2; // 初始必要资产块
+  solra.common.v1.SolraError error = 3;
+}
+
+// StreamSpaceAssets
+message StreamSpaceAssetsRequest {
+  solra.common.v1.SpaceId space_id = 1;
+  repeated solra.common.v1.AssetId asset_ids = 2;
+  StreamConfig config = 3;
+}
+
+// GetPreviewCard
+message GetPreviewCardRequest {
+  solra.common.v1.SpaceId space_id = 1;
+}
+
+message GetPreviewCardResponse {
+  PreviewCard card = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// BatchGetPreviewCards
+message BatchGetPreviewCardsRequest {
+  repeated solra.common.v1.SpaceId space_ids = 1;
+}
+
+message BatchGetPreviewCardsResponse {
+  repeated PreviewCard cards = 1;
+  solra.common.v1.SolraError error = 2;
+}
+
+// ReportUserAction
+message ReportUserActionRequest {
+  solra.common.v1.UserId user_id = 1;
+  solra.common.v1.SpaceId space_id = 2;
+  UserActionType action_type = 3;
+  int64 dwell_duration_ms = 4;       // 停留时长（dwell类型）
+  solra.common.v1.SolraTimestamp action_time = 5;
+}
+
+message ReportUserActionResponse {
+  solra.common.v1.SolraError error = 1;
+}
+
+reserved 100 to 200;

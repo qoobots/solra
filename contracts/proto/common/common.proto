@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package solra.common.v1;
+
+option java_package = "com.solra.apis.common.v1";
+option java_multiple_files = true;
+option go_package = "github.com/solra/apis/gen/go/common/v1;commonv1";
+
+// ============================================================
+// 基础标识类型
+// ============================================================
+
+// UserId 用户唯一标识
+message UserId {
+  string value = 1;
+}
+
+// SpaceId 空间唯一标识
+message SpaceId {
+  string value = 1;
+}
+
+// AssetId 资产唯一标识
+message AssetId {
+  string value = 1;
+}
+
+// SessionId 会话唯一标识
+message SessionId {
+  string value = 1;
+}
+
+// ConversationId 对话唯一标识
+message ConversationId {
+  string value = 1;
+}
+
+// ============================================================
+// 时间戳包装
+// ============================================================
+
+// SolraTimestamp 统一时间戳（毫秒精度）
+message SolraTimestamp {
+  int64 epoch_millis = 1; // Unix 毫秒时间戳
+}
+
+// ============================================================
+// 地理位置类型
+// ============================================================
+
+// GeoPoint 地理坐标点
+message GeoPoint {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+// GeoBoundingBox 地理边界框
+message GeoBoundingBox {
+  GeoPoint southwest = 1; // 西南角
+  GeoPoint northeast = 2; // 东北角
+}
+
+// ============================================================
+// 分页模型
+// ============================================================
+
+// PageRequest 分页请求（优先使用游标分页）
+message PageRequest {
+  int32 page = 1;       // 页码（从1开始）
+  int32 size = 2;       // 每页条数（默认20，最大100）
+  string cursor = 3;     // 游标分页（优先使用）
+}
+
+// PageResponse 分页响应
+message PageResponse {
+  int32 total = 1;       // 总记录数
+  bool has_more = 2;    // 是否还有更多
+  string next_cursor = 3; // 下一页游标
+}
+
+// ============================================================
+// 统一错误码
+// ============================================================
+
+// SolraError 统一错误响应
+message SolraError {
+  ErrorCode code = 1;                 // 错误码
+  string message = 2;                 // 人类可读的错误描述
+  map<string, string> details = 3;    // 附加详情
+}
+
+// ErrorCode 统一错误码枚举
+enum ErrorCode {
+  ERROR_UNSPECIFIED = 0;
+
+  // 认证相关 1-19
+  ERROR_UNAUTHORIZED = 1;
+  ERROR_TOKEN_EXPIRED = 2;
+  ERROR_PERMISSION_DENIED = 3;
+
+  // 资源相关 20-39
+  ERROR_NOT_FOUND = 20;
+  ERROR_ALREADY_EXISTS = 21;
+  ERROR_CONFLICT = 22;
+
+  // 请求相关 40-59
+  ERROR_INVALID_ARGUMENT = 40;
+  ERROR_RATE_LIMITED = 41;
+  ERROR_QUOTA_EXCEEDED = 42;
+
+  // 服务相关 60-79
+  ERROR_INTERNAL = 60;
+  ERROR_SERVICE_UNAVAILABLE = 61;
+  ERROR_TIMEOUT = 62;
+
+  // 安全相关 80-99
+  ERROR_CONTENT_REJECTED = 80;
+  ERROR_ACCOUNT_SUSPENDED = 81;
+}
+
+reserved 100 to 200;
