@@ -4,8 +4,6 @@ plugins {
 }
 
 description = "Solra NOT Service - Push Notification System"
-group = "com.solra.not"
-version = "0.1.0"
 
 dependencies {
     implementation(project(":services:common"))
@@ -29,12 +27,4 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:postgresql")
-}
-
-application {
-    mainClass.set("com.solra.not.NotServiceApplication")
-}
-
-docker {
-    name = "solra/not-service:${version}"
 }

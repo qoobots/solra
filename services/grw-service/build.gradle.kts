@@ -4,8 +4,6 @@ plugins {
 }
 
 description = "Solra GRW Service - User Growth & Engagement"
-group = "com.solra.grw"
-version = "0.1.0"
 
 dependencies {
     implementation(project(":services:common"))
@@ -29,12 +27,4 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:postgresql")
-}
-
-application {
-    mainClass.set("com.solra.grw.GrwServiceApplication")
-}
-
-docker {
-    name = "solra/grw-service:${version}"
 }

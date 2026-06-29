@@ -4,8 +4,6 @@ plugins {
 }
 
 description = "Solra SOC Service - Social & Share Engine"
-group = "com.solra.soc"
-version = "0.1.0"
 
 dependencies {
     implementation(project(":services:common"))
@@ -32,12 +30,4 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:postgresql")
-}
-
-application {
-    mainClass.set("com.solra.soc.SocServiceApplication")
-}
-
-docker {
-    name = "solra/soc-service:${version}"
 }

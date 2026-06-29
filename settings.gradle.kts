@@ -10,5 +10,5 @@ file("services").listFiles()?.filter {
     }
 }
 
-// clients/android
-include("clients:android:app")
+// clients/android — 需要 Android SDK，仅在配置了 ANDROID_HOME 时加载
+// include("clients:android:app")
