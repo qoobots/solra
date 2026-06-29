@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package solra.auth.v1;
 
-import "common/common.proto";
+import "solra/common/common.proto";
 
 option java_package = "com.solra.apis.auth.v1";
 option go_package = "github.com/solra/apis/gen/go/auth/v1;authv1";
@@ -25,7 +25,7 @@ service AuthService {
   rpc Logout(LogoutRequest) returns (LogoutResponse);
 
   // OAuth第三方登录
-  rpc OAuthLogin(OAuthLoginRequest) returns (LoginResponse);
+  rpc OAuthLogin(OAuthLoginRequest) returns (OAuthLoginResponse);
 
   // 绑定OAuth账号
   rpc BindOAuth(BindOAuthRequest) returns (BindOAuthResponse);
@@ -235,6 +235,12 @@ message OAuthLoginRequest {
   string authorization_code = 2; // OAuth authorization code
   string device_info = 3;
   string ip_address = 4;
+}
+
+message OAuthLoginResponse {
+  LoginSession session = 1;
+  UserAccount account = 2;
+  solra.common.SolraError error = 3;
 }
 
 // BindOAuth

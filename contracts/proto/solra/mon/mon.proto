@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package solra.mon;
 
-import "common/common.proto";
+import "solra/common/common.proto";
 option java_package = "com.solra.proto.mon";
 // ========== 货币/资产 ==========
 

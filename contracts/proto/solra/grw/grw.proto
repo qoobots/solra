@@ -4,7 +4,7 @@ package solra.grw;
 option java_package = "com.solra.proto.grw";
 option go_package = "solra/contracts/proto/grw;grw";
 
-import "common/common.proto";
+import "solra/common/common.proto";
 
 // ═══════════════════════════════════════════════════════════════
 // 用户成长域 — 用户画像、成就系统、信誉等级与成长体系

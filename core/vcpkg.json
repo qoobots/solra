@@ -30,8 +30,7 @@
       "version>=": "3.11.3"
     },
     {
-      "name": "stb",
-      "version>="": "latest""
+      "name": "stb"
     },
     {
       "name": "zlib",

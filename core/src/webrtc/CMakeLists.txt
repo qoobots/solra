@@ -2,6 +2,9 @@
 
 set(SOLRA_WEBRTC_SOURCES
   webrtc.cpp
+  p2p_data_channel.cpp
+  spatial_audio.cpp
+  turn_stun_signaling.cpp
 )
 
 add_library(solra_core_webrtc STATIC ${SOLRA_WEBRTC_SOURCES})

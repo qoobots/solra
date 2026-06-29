@@ -4,7 +4,7 @@ package solra.soc;
 option java_package = "com.solra.proto.soc";
 option go_package = "solra/contracts/proto/soc;soc";
 
-import "common/common.proto";
+import "solra/common/common.proto";
 
 // ═══════════════════════════════════════════════════════════════
 // 社交在场域 — 多人空间会话、虚拟人姿态同步与社交互动

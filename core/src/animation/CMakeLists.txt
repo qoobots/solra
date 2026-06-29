@@ -2,6 +2,10 @@
 
 set(SOLRA_ANIMATION_SOURCES
   animation.cpp
+  blendshape.cpp
+  limb_ik.cpp
+  lipsync.cpp
+  skeletal_animation.cpp
 )
 
 add_library(solra_core_animation STATIC ${SOLRA_ANIMATION_SOURCES})

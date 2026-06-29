@@ -4,7 +4,7 @@ package solra.not;
 option java_package = "com.solra.proto.not";
 option go_package = "solra/contracts/proto/not;not";
 
-import "common/common.proto";
+import "solra/common/common.proto";
 
 // ═══════════════════════════════════════════════════════════════
 // 通知消息域 — 站内通知、推送消息、收件箱管理

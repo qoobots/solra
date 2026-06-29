@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package solra.avt.v1;
 
-import "common/common.proto";
+import "solra/common/common.proto";
 
 option java_package = "com.solra.apis.avt.v1";
 option go_package = "github.com/solra/apis/gen/go/avt/v1;avtv1";

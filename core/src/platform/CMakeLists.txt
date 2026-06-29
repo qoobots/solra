@@ -3,16 +3,26 @@
 set(SOLRA_PLATFORM_SOURCES)
 
 if(SOLRA_PLATFORM_APPLE)
-  list(APPEND SOLRA_PLATFORM_SOURCES ios/platform_ios.mm)
+  list(APPEND SOLRA_PLATFORM_SOURCES
+    ios_platform.cpp
+    ios/platform_ios.mm
+  )
   if(SOLRA_PLATFORM_APPLE_SILICON)
-    list(APPEND SOLRA_PLATFORM_SOURCES macos/platform_macos.mm)
+    list(APPEND SOLRA_PLATFORM_SOURCES
+      macos_platform.cpp
+      macos/platform_macos.mm
+    )
   endif()
 elseif(SOLRA_PLATFORM_ANDROID)
-  list(APPEND SOLRA_PLATFORM_SOURCES android/platform_android.cpp)
+  list(APPEND SOLRA_PLATFORM_SOURCES
+    android_platform.cpp
+    android/platform_android.cpp
+  )
 elseif(SOLRA_PLATFORM_WINDOWS)
-  list(APPEND SOLRA_PLATFORM_SOURCES windows/platform_windows.cpp)
-elseif(SOLRA_PLATFORM_LINUX)
-  list(APPEND SOLRA_PLATFORM_SOURCES linux/platform_linux.cpp)
+  list(APPEND SOLRA_PLATFORM_SOURCES
+    windows_platform.cpp
+    windows/platform_windows.cpp
+  )
 endif()
 
 add_library(solra_core_platform STATIC ${SOLRA_PLATFORM_SOURCES})

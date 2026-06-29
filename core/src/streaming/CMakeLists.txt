@@ -3,6 +3,10 @@
 set(SOLRA_STREAMING_SOURCES
   streaming.cpp
   cache.cpp
+  lod_streaming.cpp
+  predictive_preload.cpp
+  quic_transport.cpp
+  resumable_download.cpp
 )
 
 add_library(solra_core_streaming STATIC ${SOLRA_STREAMING_SOURCES})

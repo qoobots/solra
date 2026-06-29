@@ -2,6 +2,10 @@
 
 set(SOLRA_INFERENCE_SOURCES
   inference.cpp
+  inference_pipeline.cpp
+  llama_integration.cpp
+  model_ota.cpp
+  npu_backend.cpp
 )
 
 add_library(solra_core_inference STATIC ${SOLRA_INFERENCE_SOURCES})

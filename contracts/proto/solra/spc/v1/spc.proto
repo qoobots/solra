@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package solra.spc.v1;
 
-import "common/common.proto";
+import "solra/common/common.proto";
 
 option java_package = "com.solra.apis.spc.v1";
 option go_package = "github.com/solra/apis/gen/go/spc/v1;spcv1";
