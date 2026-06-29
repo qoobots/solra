@@ -1,26 +1,27 @@
-# SAF Service — Development Profile
+# CRT Service — Development Profile
 spring:
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/solra_saf
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/solra_crt
     username: ${POSTGRES_USER:solra}
     password: ${POSTGRES_PASSWORD:solra_dev}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 1
-
+      maximum-pool-size: 10
+      minimum-idle: 2
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: saf-service
+      group-id: crt-service
       auto-offset-reset: earliest
 
 solra:
@@ -29,7 +30,7 @@ solra:
 
 grpc:
   server:
-    port: ${GRPC_PORT:9084}
+    port: ${GRPC_PORT:9085}
 
 logging:
   level:

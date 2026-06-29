@@ -23,3 +23,28 @@ public class RecordExperienceCommand {
 /** 检测决定性时刻命令 */
 public record DetectMomentsCommand(String userId, java.util.List<String> recentActions,
                                     java.util.Map<String, Object> currentState) {}
+
+/** 评估流失风险命令 */
+public class EvaluateChurnRiskCommand {
+    private String userId;
+    private String avatarName;
+
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
+    public String getAvatarName() { return avatarName; }
+    public void setAvatarName(String avatarName) { this.avatarName = avatarName; }
+}
+
+/** 处理召回回调命令 */
+public class RecallCallbackCommand {
+    private String taskId;
+    private String action; // CLICKED, CONVERTED, EXPIRED, CANCELLED
+
+    public String getTaskId() { return taskId; }
+    public void setTaskId(String taskId) { this.taskId = taskId; }
+    public String getAction() { return action; }
+    public void setAction(String action) { this.action = action; }
+}
+
+/** 批量评估流失风险命令 */
+public record BatchChurnEvaluationCommand(java.util.List<String> userIds) {}

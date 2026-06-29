@@ -17,6 +17,84 @@ spec:
       plugins:
         - name: cors
           enable: true
+---
+# INF-007: 灰度发布与A/B实验 — 金丝雀发布路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-canary-route
+  namespace: solra-dev
+spec:
+  http:
+    # 灰度路由：按 userId % 分流到金丝雀服务版本
+    - name: canary-spc
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /spaces/*
+      backends:
+        # 稳定版本（90%流量）
+        - serviceName: spc-service-stable
+          servicePort: 8083
+          weight: 90
+        # 金丝雀版本（10%流量）
+        - serviceName: spc-service-canary
+          servicePort: 8083
+          weight: 10
+      plugins:
+        - name: cors
+          enable: true
+        - name: traffic-split
+          enable: true
+          config:
+            rules:
+              # 按 HTTP Header x-canary: true 路由到金丝雀
+              - match:
+                  - headers:
+                      x-canary:
+                        value: "true"
+                weighted_upstreams:
+                  - weight: 100
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+              # 默认流量按权重分配
+              - match: []
+                weighted_upstreams:
+                  - weight: 90
+                    upstream:
+                      name: spc-service-stable
+                      port: 8083
+                  - weight: 10
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+---
+# INF-007: Feature Flag 管理 API 路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-feature-flag-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: feature-flags
+      match:
+        hosts:
+          - admin.solra.local
+        paths:
+          - /admin/feature-flags/*
+      backends:
+        - serviceName: admin-service
+          servicePort: 8090
+      plugins:
+        - name: cors
+          enable: true
+        - name: key-auth
+          enable: true
+          config:
+            key: header:X-Admin-API-Key
         - name: limit-req
           enable: true
           config:
@@ -43,6 +121,84 @@ spec:
       plugins:
         - name: cors
           enable: true
+---
+# INF-007: 灰度发布与A/B实验 — 金丝雀发布路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-canary-route
+  namespace: solra-dev
+spec:
+  http:
+    # 灰度路由：按 userId % 分流到金丝雀服务版本
+    - name: canary-spc
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /spaces/*
+      backends:
+        # 稳定版本（90%流量）
+        - serviceName: spc-service-stable
+          servicePort: 8083
+          weight: 90
+        # 金丝雀版本（10%流量）
+        - serviceName: spc-service-canary
+          servicePort: 8083
+          weight: 10
+      plugins:
+        - name: cors
+          enable: true
+        - name: traffic-split
+          enable: true
+          config:
+            rules:
+              # 按 HTTP Header x-canary: true 路由到金丝雀
+              - match:
+                  - headers:
+                      x-canary:
+                        value: "true"
+                weighted_upstreams:
+                  - weight: 100
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+              # 默认流量按权重分配
+              - match: []
+                weighted_upstreams:
+                  - weight: 90
+                    upstream:
+                      name: spc-service-stable
+                      port: 8083
+                  - weight: 10
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+---
+# INF-007: Feature Flag 管理 API 路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-feature-flag-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: feature-flags
+      match:
+        hosts:
+          - admin.solra.local
+        paths:
+          - /admin/feature-flags/*
+      backends:
+        - serviceName: admin-service
+          servicePort: 8090
+      plugins:
+        - name: cors
+          enable: true
+        - name: key-auth
+          enable: true
+          config:
+            key: header:X-Admin-API-Key
         - name: limit-req
           enable: true
           config:
@@ -71,6 +227,84 @@ spec:
         - name: cors
           enable: true
 ---
+# INF-007: 灰度发布与A/B实验 — 金丝雀发布路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-canary-route
+  namespace: solra-dev
+spec:
+  http:
+    # 灰度路由：按 userId % 分流到金丝雀服务版本
+    - name: canary-spc
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /spaces/*
+      backends:
+        # 稳定版本（90%流量）
+        - serviceName: spc-service-stable
+          servicePort: 8083
+          weight: 90
+        # 金丝雀版本（10%流量）
+        - serviceName: spc-service-canary
+          servicePort: 8083
+          weight: 10
+      plugins:
+        - name: cors
+          enable: true
+        - name: traffic-split
+          enable: true
+          config:
+            rules:
+              # 按 HTTP Header x-canary: true 路由到金丝雀
+              - match:
+                  - headers:
+                      x-canary:
+                        value: "true"
+                weighted_upstreams:
+                  - weight: 100
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+              # 默认流量按权重分配
+              - match: []
+                weighted_upstreams:
+                  - weight: 90
+                    upstream:
+                      name: spc-service-stable
+                      port: 8083
+                  - weight: 10
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+---
+# INF-007: Feature Flag 管理 API 路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-feature-flag-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: feature-flags
+      match:
+        hosts:
+          - admin.solra.local
+        paths:
+          - /admin/feature-flags/*
+      backends:
+        - serviceName: admin-service
+          servicePort: 8090
+      plugins:
+        - name: cors
+          enable: true
+        - name: key-auth
+          enable: true
+          config:
+            key: header:X-Admin-API-Key
+---
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
@@ -91,3 +325,129 @@ spec:
       plugins:
         - name: cors
           enable: true
+---
+# INF-007: 灰度发布与A/B实验 — 金丝雀发布路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-canary-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: canary-spc
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /spaces/*
+      backends:
+        - serviceName: spc-service-stable
+          servicePort: 8083
+          weight: 90
+        - serviceName: spc-service-canary
+          servicePort: 8083
+          weight: 10
+      plugins:
+        - name: cors
+          enable: true
+        - name: traffic-split
+          enable: true
+          config:
+            rules:
+              - match:
+                  - headers:
+                      x-canary:
+                        value: "true"
+                weighted_upstreams:
+                  - weight: 100
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+              - match: []
+                weighted_upstreams:
+                  - weight: 90
+                    upstream:
+                      name: spc-service-stable
+                      port: 8083
+                  - weight: 10
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+---
+# INF-007: 灰度发布与A/B实验 — 金丝雀发布路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-canary-route
+  namespace: solra-dev
+spec:
+  http:
+    # 灰度路由：按 userId % 分流到金丝雀服务版本
+    - name: canary-spc
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /spaces/*
+      backends:
+        # 稳定版本（90%流量）
+        - serviceName: spc-service-stable
+          servicePort: 8083
+          weight: 90
+        # 金丝雀版本（10%流量）
+        - serviceName: spc-service-canary
+          servicePort: 8083
+          weight: 10
+      plugins:
+        - name: cors
+          enable: true
+        - name: traffic-split
+          enable: true
+          config:
+            rules:
+              # 按 HTTP Header x-canary: true 路由到金丝雀
+              - match:
+                  - headers:
+                      x-canary:
+                        value: "true"
+                weighted_upstreams:
+                  - weight: 100
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+              # 默认流量按权重分配
+              - match: []
+                weighted_upstreams:
+                  - weight: 90
+                    upstream:
+                      name: spc-service-stable
+                      port: 8083
+                  - weight: 10
+                    upstream:
+                      name: spc-service-canary
+                      port: 8083
+---
+# INF-007: Feature Flag 管理 API 路由
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-feature-flag-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: feature-flags
+      match:
+        hosts:
+          - admin.solra.local
+        paths:
+          - /admin/feature-flags/*
+      backends:
+        - serviceName: admin-service
+          servicePort: 8090
+      plugins:
+        - name: cors
+          enable: true
+        - name: key-auth
+          enable: true
+          config:
+            key: header:X-Admin-API-Key

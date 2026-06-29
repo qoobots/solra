@@ -14,4 +14,9 @@ public final class NotDomainEvents {
     public record DeviceUnregistered(String userId, String platform, String registrationId) {}
     public record PushDelivered(String pushId, String providerMessageId) {}
     public record PushFailed(String pushId, String provider, String reason) {}
+
+    /** 收件箱消息已发送 */
+    public record InboxMessageSent(String messageId, String senderId, String recipientId) {}
+    /** 收件箱消息已读 */
+    public record InboxMessageRead(String messageId, String recipientId) {}
 }

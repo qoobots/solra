@@ -77,4 +77,46 @@ public class NotGrpcService {
     public List<PreferenceResultDTO> getPreferences(String userId) {
         return appService.getPreferences(userId);
     }
+
+    // ── NOT-002: 应用内消息中心 ──
+
+    /** 发送收件箱消息 */
+    public InboxMessageResultDTO sendInboxMessage(SendInboxMessageCommand cmd) {
+        return appService.sendInboxMessage(cmd);
+    }
+
+    /** 获取收件箱 */
+    public InboxPageResultDTO getInbox(String userId, int page, int size) {
+        return appService.getInbox(userId, page, size);
+    }
+
+    /** 获取未读消息列表 */
+    public List<InboxMessageResultDTO> getUnreadMessages(String userId) {
+        return appService.getUnreadMessages(userId);
+    }
+
+    /** 获取收件箱未读计数 */
+    public long getInboxUnreadCount(String userId) {
+        return appService.getInboxUnreadCount(userId);
+    }
+
+    /** 标记收件箱消息已读 */
+    public void markInboxMessageRead(String messageId) {
+        appService.markInboxMessageRead(messageId);
+    }
+
+    /** 全部标记已读 */
+    public void markAllInboxRead(String userId) {
+        appService.markAllInboxRead(userId);
+    }
+
+    /** 删除收件箱消息 */
+    public void deleteInboxMessage(String messageId) {
+        appService.deleteInboxMessage(messageId);
+    }
+
+    /** 获取会话消息 */
+    public List<InboxMessageResultDTO> getConversationMessages(String conversationId, int page, int size) {
+        return appService.getConversationMessages(conversationId, page, size);
+    }
 }

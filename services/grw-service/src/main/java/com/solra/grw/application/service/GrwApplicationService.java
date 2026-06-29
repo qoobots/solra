@@ -9,12 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * GrwApplicationService — GRW-002/GRW-006 用户成长应用层服务。
- * 编排决定性时刻检测和新用户引导流程。
+ * GrwApplicationService — GRW-002/GRW-006/GRW-007 用户成长应用层服务。
+ * 编排决定性时刻检测、新用户引导和用户召回推送流程。
  */
 @Service
 public class GrwApplicationService {
@@ -25,21 +27,30 @@ public class GrwApplicationService {
     private final DecisiveMomentRepository decisiveMomentRepo;
     private final OnboardingPathRepository onboardingPathRepo;
     private final ExperienceEventRepository experienceEventRepo;
+    private final RecallTaskRepository recallTaskRepo;
+    private final RecallStrategyRepository recallStrategyRepo;
     private final DecisiveMomentDetector decisiveMomentDetector;
     private final OnboardingEngine onboardingEngine;
+    private final ReengagementEngine reengagementEngine;
 
     public GrwApplicationService(UserProfileRepository userProfileRepo,
                                   DecisiveMomentRepository decisiveMomentRepo,
                                   OnboardingPathRepository onboardingPathRepo,
                                   ExperienceEventRepository experienceEventRepo,
+                                  RecallTaskRepository recallTaskRepo,
+                                  RecallStrategyRepository recallStrategyRepo,
                                   DecisiveMomentDetector decisiveMomentDetector,
-                                  OnboardingEngine onboardingEngine) {
+                                  OnboardingEngine onboardingEngine,
+                                  ReengagementEngine reengagementEngine) {
         this.userProfileRepo = userProfileRepo;
         this.decisiveMomentRepo = decisiveMomentRepo;
         this.onboardingPathRepo = onboardingPathRepo;
         this.experienceEventRepo = experienceEventRepo;
+        this.recallTaskRepo = recallTaskRepo;
+        this.recallStrategyRepo = recallStrategyRepo;
         this.decisiveMomentDetector = decisiveMomentDetector;
         this.onboardingEngine = onboardingEngine;
+        this.reengagementEngine = reengagementEngine;
     }
 
     // ===== GRW-002 决定性时刻 =====
@@ -157,5 +168,183 @@ public class GrwApplicationService {
         return new OnboardingStepResultDTO(
                 s.getStepNumber(), s.getStepType() != null ? s.getStepType().name() : "UNKNOWN",
                 s.isCompleted(), s.isSkipped());
+    }
+
+    // ===== GRW-007 用户召回推送 =====
+
+    /**
+     * 评估单个用户的流失风险并生成召回任务。
+     */
+    public ChurnRiskResultDTO evaluateChurnRisk(String userId, String avatarName) {
+        UserProfile profile = userProfileRepo.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+        int inactiveDays = (int) ChronoUnit.DAYS.between(profile.getLastActiveAt(), Instant.now());
+        ChurnRiskLevel riskLevel = reengagementEngine.evaluateChurnRisk(
+                userId, inactiveDays, profile.getTotalInteractions(),
+                profile.getFriendsCount(), profile.getPresenceScore());
+
+        // 查找匹配策略
+        List<RecallStrategy> strategies = recallStrategyRepo.findByRiskLevel(riskLevel.name());
+        RecallStrategy strategy = strategies.stream()
+                .filter(RecallStrategy::isActive)
+                .findFirst().orElse(null);
+
+        boolean shouldRecall = false;
+        if (strategy != null) {
+            int previousAttempts = recallTaskRepo.countByUserIdAndStatus(userId, "SENT");
+            // 找最近一次召回时间
+            List<RecallTask> recentTasks = recallTaskRepo.findRecentByUserId(userId, 720, 1);
+            int lastRecallHoursAgo = recentTasks.isEmpty() ? Integer.MAX_VALUE
+                    : (int) ChronoUnit.HOURS.between(recentTasks.get(0).getCreatedAt(), Instant.now());
+            shouldRecall = reengagementEngine.shouldRecall(riskLevel, previousAttempts,
+                    lastRecallHoursAgo, strategy.getCooldownHours(), strategy.getMaxAttempts());
+        }
+
+        double churnProbability = Math.min(0.95, inactiveDays / 100.0
+                + (riskLevel.ordinal() * 0.1)
+                - (profile.getTotalInteractions() * 0.001));
+
+        log.info("GRW-007 churn risk: user={} inactiveDays={} riskLevel={} shouldRecall={}",
+                userId, inactiveDays, riskLevel, shouldRecall);
+
+        return new ChurnRiskResultDTO(userId, riskLevel.name(), inactiveDays,
+                churnProbability, shouldRecall, Instant.now());
+    }
+
+    /**
+     * 为指定用户生成并发送召回任务。
+     */
+    public List<RecallTaskResultDTO> generateRecallTasks(String userId, String avatarName) {
+        UserProfile profile = userProfileRepo.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+        int inactiveDays = (int) ChronoUnit.DAYS.between(profile.getLastActiveAt(), Instant.now());
+        ChurnRiskLevel riskLevel = reengagementEngine.evaluateChurnRisk(
+                userId, inactiveDays, profile.getTotalInteractions(),
+                profile.getFriendsCount(), profile.getPresenceScore());
+
+        if (riskLevel == ChurnRiskLevel.NONE) {
+            log.info("GRW-007 user={} has no churn risk, skipping recall", userId);
+            return List.of();
+        }
+
+        List<RecallTask> tasks = reengagementEngine.generateRecallTasks(
+                userId, riskLevel, inactiveDays, avatarName);
+
+        List<RecallTaskResultDTO> results = new ArrayList<>();
+        for (RecallTask task : tasks) {
+            task.markSent();
+            recallTaskRepo.save(task);
+            results.add(toRecallDTO(task));
+        }
+
+        log.info("GRW-007 generated {} recall tasks for user={}", results.size(), userId);
+        return results;
+    }
+
+    /**
+     * 处理召回任务回调（用户点击/转化等）。
+     */
+    public RecallTaskResultDTO handleRecallCallback(String taskId, String action) {
+        RecallTask task = recallTaskRepo.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Recall task not found: " + taskId));
+
+        switch (action.toUpperCase()) {
+            case "CLICKED":
+                task.markClicked();
+                break;
+            case "CONVERTED":
+                task.markConverted();
+                // 重新激活用户
+                userProfileRepo.findByUserId(task.getUserId()).ifPresent(profile -> {
+                    profile.recordInteraction();
+                    userProfileRepo.save(profile);
+                });
+                break;
+            case "EXPIRED":
+                task.markExpired();
+                break;
+            case "CANCELLED":
+                task.cancel();
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown callback action: " + action);
+        }
+
+        task = recallTaskRepo.save(task);
+        return toRecallDTO(task);
+    }
+
+    /**
+     * 获取用户的召回历史。
+     */
+    public List<RecallTaskResultDTO> getRecallHistory(String userId) {
+        return recallTaskRepo.findByUserId(userId).stream()
+                .map(this::toRecallDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取所有活跃召回策略。
+     */
+    public List<RecallStrategyResultDTO> getRecallStrategies() {
+        return recallStrategyRepo.findActive().stream()
+                .map(s -> new RecallStrategyResultDTO(
+                        s.getStrategyId(), s.getName(), s.getTargetRiskLevel().name(),
+                        s.getInactiveDaysMin(), s.getInactiveDaysMax(),
+                        s.getChannels().stream().map(Enum::name).collect(Collectors.toList()),
+                        s.getMaxAttempts(), s.getCooldownHours(), s.isActive(), s.getCreatedAt()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 创建/更新召回策略。
+     */
+    public RecallStrategyResultDTO saveRecallStrategy(String strategyId, String name,
+                                                       String riskLevel, int inactiveDaysMin,
+                                                       int inactiveDaysMax,
+                                                       String titleTemplate, String messageTemplate,
+                                                       List<String> channels) {
+        ChurnRiskLevel level = ChurnRiskLevel.valueOf(riskLevel);
+        List<RecallChannel> channelList = channels.stream()
+                .map(RecallChannel::valueOf).collect(Collectors.toList());
+
+        RecallStrategy strategy = new RecallStrategy(
+                strategyId, name, level, inactiveDaysMin, inactiveDaysMax,
+                titleTemplate, messageTemplate, channelList);
+        strategy = recallStrategyRepo.save(strategy);
+
+        return new RecallStrategyResultDTO(
+                strategy.getStrategyId(), strategy.getName(), strategy.getTargetRiskLevel().name(),
+                strategy.getInactiveDaysMin(), strategy.getInactiveDaysMax(),
+                strategy.getChannels().stream().map(Enum::name).collect(Collectors.toList()),
+                strategy.getMaxAttempts(), strategy.getCooldownHours(),
+                strategy.isActive(), strategy.getCreatedAt());
+    }
+
+    /**
+     * 获取召回统计数据。
+     */
+    public RecallStatsDTO getRecallStats() {
+        // 此处为简化实现，实际应使用聚合查询
+        List<RecallTask> pendingTasks = recallTaskRepo.findByStatus("SENT", 1000);
+        int sent = (int) pendingTasks.stream().filter(t -> t.getStatus() == RecallTaskStatus.SENT).count();
+        int clicked = (int) pendingTasks.stream().filter(t -> t.getStatus() == RecallTaskStatus.CLICKED).count();
+        int converted = (int) pendingTasks.stream().filter(t -> t.getStatus() == RecallTaskStatus.CONVERTED).count();
+        double rate = sent > 0 ? (double) converted / sent : 0.0;
+
+        return new RecallStatsDTO(0, 0, 0, sent, clicked, converted, rate);
+    }
+
+    private RecallTaskResultDTO toRecallDTO(RecallTask t) {
+        return new RecallTaskResultDTO(
+                t.getTaskId(), t.getUserId(), t.getStrategyId(), t.getStrategyName(),
+                t.getRiskLevel() != null ? t.getRiskLevel().name() : null,
+                t.getInactiveDays(),
+                t.getChannel() != null ? t.getChannel().name() : null,
+                t.getStatus() != null ? t.getStatus().name() : null,
+                t.getTitle(), t.getMessage(), t.getAttemptNumber(),
+                t.getCreatedAt(), t.getSentAt(), t.getClickedAt(), t.getConvertedAt());
     }
 }

@@ -42,3 +42,11 @@ interface NotificationPreferenceJpaRepository extends JpaRepository<Notification
     java.util.Optional<NotificationPreferenceEntity> findByUserIdAndNotificationType(String userId, String notificationType);
     List<NotificationPreferenceEntity> findByUserId(String userId);
 }
+
+@Repository
+interface InboxMessageJpaRepository extends JpaRepository<InboxMessageEntity, String> {
+    List<InboxMessageEntity> findByRecipientIdOrderBySentAtDesc(String recipientId, Pageable pageable);
+    List<InboxMessageEntity> findByRecipientIdAndStatusIn(String recipientId, List<String> statuses);
+    long countByRecipientIdAndStatusIn(String recipientId, List<String> statuses);
+    List<InboxMessageEntity> findByConversationIdOrderBySentAtDesc(String conversationId, Pageable pageable);
+}

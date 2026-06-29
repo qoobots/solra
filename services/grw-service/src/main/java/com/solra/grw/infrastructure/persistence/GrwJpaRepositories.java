@@ -32,3 +32,20 @@ interface ExperienceEventJpaRepository extends JpaRepository<ExperienceEventEnti
             "SELECT COALESCE(SUM(e.value), 0) FROM ExperienceEventEntity e WHERE e.userId = :userId")
     int sumValueByUserId(@org.springframework.data.repository.query.Param("userId") String userId);
 }
+
+@Repository
+interface RecallStrategyJpaRepository extends JpaRepository<RecallStrategyEntity, String> {
+    List<RecallStrategyEntity> findByTargetRiskLevel(String targetRiskLevel);
+    List<RecallStrategyEntity> findByActiveTrue();
+}
+
+@Repository
+interface RecallTaskJpaRepository extends JpaRepository<RecallTaskEntity, String> {
+    List<RecallTaskEntity> findByUserIdOrderByCreatedAtDesc(String userId);
+    List<RecallTaskEntity> findByUserIdAndStatus(String userId, String status);
+    int countByUserIdAndStatus(String userId, String status);
+    List<RecallTaskEntity> findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(String userId, java.time.Instant after,
+            org.springframework.data.domain.Pageable pageable);
+    List<RecallTaskEntity> findByStatusOrderByCreatedAtAsc(String status,
+            org.springframework.data.domain.Pageable pageable);
+}

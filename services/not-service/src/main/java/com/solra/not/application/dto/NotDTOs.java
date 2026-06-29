@@ -66,3 +66,44 @@ public record PreferenceUpdateCommand(
 /** 偏好结果 */
 public record PreferenceResultDTO(
         String prefId, String userId, String notificationType, String channel, boolean enabled) {}
+
+/** 发送收件箱消息命令 */
+public class SendInboxMessageCommand {
+    private String senderId;
+    private String recipientId;
+    private String type;
+    private String title;
+    private String content;
+    private String attachmentUrl;
+    private String metadata;
+    private String conversationId;
+
+    public String getSenderId() { return senderId; }
+    public void setSenderId(String senderId) { this.senderId = senderId; }
+    public String getRecipientId() { return recipientId; }
+    public void setRecipientId(String recipientId) { this.recipientId = recipientId; }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+    public String getAttachmentUrl() { return attachmentUrl; }
+    public void setAttachmentUrl(String attachmentUrl) { this.attachmentUrl = attachmentUrl; }
+    public String getMetadata() { return metadata; }
+    public void setMetadata(String metadata) { this.metadata = metadata; }
+    public String getConversationId() { return conversationId; }
+    public void setConversationId(String conversationId) { this.conversationId = conversationId; }
+}
+
+/** 收件箱消息结果 DTO */
+public record InboxMessageResultDTO(
+        String messageId, String senderId, String recipientId, String type,
+        String status, String title, String content, String attachmentUrl,
+        String conversationId, java.time.Instant sentAt, java.time.Instant readAt
+) {}
+
+/** 收件箱分页 DTO */
+public record InboxPageResultDTO(
+        java.util.List<InboxMessageResultDTO> items, long totalCount, long unreadCount
+) {}

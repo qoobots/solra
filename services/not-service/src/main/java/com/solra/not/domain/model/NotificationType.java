@@ -20,6 +20,7 @@ public enum NotificationType {
 
     // 系统类
     SYSTEM_ANNOUNCEMENT,
+    SYSTEM_ALERT,
     ACHIEVEMENT,
     FAITH_LEVEL_UP,
     REVIEW_RESULT,

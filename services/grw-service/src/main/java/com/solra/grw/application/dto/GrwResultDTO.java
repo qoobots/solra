@@ -63,3 +63,57 @@ public record FaithLevelResultDTO(
         FaithLevel previousLevel,
         boolean changed
 ) {}
+
+/** 流失风险评估结果 DTO */
+public record ChurnRiskResultDTO(
+        String userId,
+        String riskLevel,
+        int inactiveDays,
+        double churnProbability,
+        boolean shouldRecall,
+        java.time.Instant evaluatedAt
+) {}
+
+/** 召回任务结果 DTO */
+public record RecallTaskResultDTO(
+        String taskId,
+        String userId,
+        String strategyId,
+        String strategyName,
+        String riskLevel,
+        int inactiveDays,
+        String channel,
+        String status,
+        String title,
+        String message,
+        int attemptNumber,
+        java.time.Instant createdAt,
+        java.time.Instant sentAt,
+        java.time.Instant clickedAt,
+        java.time.Instant convertedAt
+) {}
+
+/** 召回策略结果 DTO */
+public record RecallStrategyResultDTO(
+        String strategyId,
+        String name,
+        String targetRiskLevel,
+        int inactiveDaysMin,
+        int inactiveDaysMax,
+        java.util.List<String> channels,
+        int maxAttempts,
+        int cooldownHours,
+        boolean active,
+        java.time.Instant createdAt
+) {}
+
+/** 召回统计 DTO */
+public record RecallStatsDTO(
+        int totalEvaluated,
+        int atRisk,
+        int tasksGenerated,
+        int tasksSent,
+        int clicked,
+        int converted,
+        double conversionRate
+) {}

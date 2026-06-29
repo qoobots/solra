@@ -45,6 +45,17 @@ solra:
     access-token-expiration-ms: 900000      # 15 minutes
     refresh-token-expiration-ms: 2592000000  # 30 days
 
+# Kafka
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: auth-service
+      auto-offset-reset: earliest
+
+solra:
+  kafka:
+    enabled: true
+
 # Logging
 logging:
   level:

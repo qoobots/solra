@@ -23,4 +23,16 @@ public final class GrwDomainEvents {
 
     /** 经验增长 */
     public record ExperienceGained(String userId, int amount, String eventType) {}
+
+    /** 用户流失风险被评估 */
+    public record ChurnRiskEvaluated(String userId, String riskLevel, int inactiveDays) {}
+
+    /** 召回任务被创建 */
+    public record RecallTaskGenerated(String taskId, String userId, String channel, String riskLevel) {}
+
+    /** 召回任务已发送 */
+    public record RecallTaskSent(String taskId, String userId, String channel) {}
+
+    /** 用户被成功召回（重新活跃） */
+    public record UserReengaged(String userId, String taskId, int inactiveDays) {}
 }

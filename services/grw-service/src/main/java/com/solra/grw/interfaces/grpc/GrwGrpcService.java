@@ -68,4 +68,46 @@ public class GrwGrpcService {
     public OnboardingPathResultDTO completeOnboarding(String userId) {
         return appService.completeOnboarding(userId);
     }
+
+    // ── GRW-007: 用户召回推送 ──
+
+    /** 评估流失风险 */
+    public ChurnRiskResultDTO evaluateChurnRisk(String userId, String avatarName) {
+        return appService.evaluateChurnRisk(userId, avatarName);
+    }
+
+    /** 生成召回任务 */
+    public List<RecallTaskResultDTO> generateRecallTasks(String userId, String avatarName) {
+        return appService.generateRecallTasks(userId, avatarName);
+    }
+
+    /** 处理召回回调 */
+    public RecallTaskResultDTO handleRecallCallback(String taskId, String action) {
+        return appService.handleRecallCallback(taskId, action);
+    }
+
+    /** 获取召回历史 */
+    public List<RecallTaskResultDTO> getRecallHistory(String userId) {
+        return appService.getRecallHistory(userId);
+    }
+
+    /** 获取召回策略列表 */
+    public List<RecallStrategyResultDTO> getRecallStrategies() {
+        return appService.getRecallStrategies();
+    }
+
+    /** 创建/更新召回策略 */
+    public RecallStrategyResultDTO saveRecallStrategy(String strategyId, String name,
+                                                       String riskLevel, int inactiveDaysMin,
+                                                       int inactiveDaysMax,
+                                                       String titleTemplate, String messageTemplate,
+                                                       List<String> channels) {
+        return appService.saveRecallStrategy(strategyId, name, riskLevel, inactiveDaysMin,
+                inactiveDaysMax, titleTemplate, messageTemplate, channels);
+    }
+
+    /** 获取召回统计 */
+    public RecallStatsDTO getRecallStats() {
+        return appService.getRecallStats();
+    }
 }

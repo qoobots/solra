@@ -14,7 +14,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * NotApplicationService — NOT-001 推送通知应用层服务。
+ * NotApplicationService — NOT-001/002 通知消息应用层服务。
+ * 编排推送通知和应用内消息中心流程。
  */
 @Service
 public class NotApplicationService {
@@ -25,17 +26,20 @@ public class NotApplicationService {
     private final PushMessageRepository pushMessageRepo;
     private final DeviceRegistrationRepository deviceRepo;
     private final NotificationPreferenceRepository prefRepo;
+    private final InboxMessageRepository inboxRepo;
     private final NotificationService notificationService;
 
     public NotApplicationService(NotificationRepository notificationRepo,
                                   PushMessageRepository pushMessageRepo,
                                   DeviceRegistrationRepository deviceRepo,
                                   NotificationPreferenceRepository prefRepo,
+                                  InboxMessageRepository inboxRepo,
                                   NotificationService notificationService) {
         this.notificationRepo = notificationRepo;
         this.pushMessageRepo = pushMessageRepo;
         this.deviceRepo = deviceRepo;
         this.prefRepo = prefRepo;
+        this.inboxRepo = inboxRepo;
         this.notificationService = notificationService;
     }
 
@@ -162,5 +166,94 @@ public class NotApplicationService {
                 .map(p -> new PreferenceResultDTO(p.getPrefId(), p.getUserId(),
                         p.getNotificationType().name(), p.getChannel().name(), p.isEnabled()))
                 .collect(Collectors.toList());
+    }
+
+    // ===== NOT-002: 应用内消息中心 =====
+
+    /**
+     * 发送收件箱消息。
+     */
+    public InboxMessageResultDTO sendInboxMessage(SendInboxMessageCommand cmd) {
+        log.info("NOT-002 sendInboxMessage: from={} to={} type={}", cmd.getSenderId(), cmd.getRecipientId(), cmd.getType());
+
+        MessageType type = cmd.getType() != null ? MessageType.valueOf(cmd.getType()) : MessageType.TEXT;
+        InboxMessage message = new InboxMessage(
+                UUID.randomUUID().toString(), cmd.getSenderId(), cmd.getRecipientId(),
+                type, cmd.getTitle(), cmd.getContent());
+        message.setAttachmentUrl(cmd.getAttachmentUrl());
+        message.setMetadata(cmd.getMetadata());
+        message.setConversationId(cmd.getConversationId());
+
+        message = inboxRepo.save(message);
+        return toInboxDTO(message);
+    }
+
+    /**
+     * 获取用户收件箱。
+     */
+    public InboxPageResultDTO getInbox(String userId, int page, int size) {
+        List<InboxMessage> messages = inboxRepo.findByRecipientId(userId, page, size);
+        long unreadCount = inboxRepo.countUnreadByRecipientId(userId);
+
+        List<InboxMessageResultDTO> items = messages.stream()
+                .map(this::toInboxDTO)
+                .collect(Collectors.toList());
+
+        return new InboxPageResultDTO(items, items.size(), unreadCount);
+    }
+
+    /**
+     * 获取未读消息列表。
+     */
+    public List<InboxMessageResultDTO> getUnreadMessages(String userId) {
+        return inboxRepo.findUnreadByRecipientId(userId).stream()
+                .map(this::toInboxDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取未读消息计数。
+     */
+    public long getInboxUnreadCount(String userId) {
+        return inboxRepo.countUnreadByRecipientId(userId);
+    }
+
+    /**
+     * 标记收件箱消息已读。
+     */
+    public void markInboxMessageRead(String messageId) {
+        inboxRepo.markAsRead(messageId);
+    }
+
+    /**
+     * 全部标记已读。
+     */
+    public void markAllInboxRead(String userId) {
+        inboxRepo.markAllAsRead(userId);
+    }
+
+    /**
+     * 删除收件箱消息。
+     */
+    public void deleteInboxMessage(String messageId) {
+        inboxRepo.deleteById(messageId);
+    }
+
+    /**
+     * 获取会话消息列表。
+     */
+    public List<InboxMessageResultDTO> getConversationMessages(String conversationId, int page, int size) {
+        return inboxRepo.findByConversationId(conversationId, page, size).stream()
+                .map(this::toInboxDTO)
+                .collect(Collectors.toList());
+    }
+
+    private InboxMessageResultDTO toInboxDTO(InboxMessage m) {
+        return new InboxMessageResultDTO(
+                m.getMessageId(), m.getSenderId(), m.getRecipientId(),
+                m.getType() != null ? m.getType().name() : null,
+                m.getStatus() != null ? m.getStatus().name() : null,
+                m.getTitle(), m.getContent(), m.getAttachmentUrl(),
+                m.getConversationId(), m.getSentAt(), m.getReadAt());
     }
 }
