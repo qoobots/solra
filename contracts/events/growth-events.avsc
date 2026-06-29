@@ -1,0 +1,37 @@
+/**
+ * Solra Growth Domain Events — Avro Schema
+ * 用户成长/成就/信仰等级相关事件
+ */
+
+{
+  "type": "record",
+  "name": "AchievementUnlocked",
+  "namespace": "com.solra.events.growth",
+  "doc": "成就解锁事件",
+  "fields": [
+    { "name": "eventId",         "type": "string" },
+    { "name": "userId",          "type": "string" },
+    { "name": "achievementId",   "type": "string" },
+    { "name": "achievementName", "type": "string" },
+    { "name": "tier",            "type": "int", "doc": "成就等级 1/2/3", "default": 1 },
+    { "name": "progress",        "type": "double", "doc": "当前进度 0.0-1.0", "default": 1.0 },
+    { "name": "timestamp",       "type": "long" }
+  ]
+}
+
+---
+{
+  "type": "record",
+  "name": "FaithLevelChanged",
+  "namespace": "com.solra.events.growth",
+  "doc": "信仰等级变化事件",
+  "fields": [
+    { "name": "eventId",      "type": "string" },
+    { "name": "userId",       "type": "string" },
+    { "name": "oldLevel",     "type": "int" },
+    { "name": "newLevel",     "type": "int" },
+    { "name": "experience",   "type": "long", "doc": "累积经验值" },
+    { "name": "reason",       "type": "string", "doc": "升级原因: daily_checkin/interaction/creation/referral", "default": "interaction" },
+    { "name": "timestamp",    "type": "long" }
+  ]
+}

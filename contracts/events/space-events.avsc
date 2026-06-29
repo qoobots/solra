@@ -1,0 +1,21 @@
+/**
+ * Solra Space Domain Events — Avro Schema
+ * 跨服务事件通道：每当空间状态变化时，通过 Kafka 发布对应事件。
+ * Schema 版本：v1.0
+ */
+
+{
+  "type": "record",
+  "name": "SpaceEntered",
+  "namespace": "com.solra.events.space",
+  "doc": "用户进入空间事件",
+  "fields": [
+    { "name": "eventId",    "type": "string", "doc": "事件唯一ID" },
+    { "name": "spaceId",    "type": "string", "doc": "空间ID" },
+    { "name": "userId",     "type": "string", "doc": "用户ID" },
+    { "name": "avatarId",   "type": "string", "doc": "虚拟人ID", "default": "" },
+    { "name": "position",   "type": { "type": "array", "items": "float" }, "doc": "初始位置 [x,y,z]", "default": [0.0, 0.0, 0.0] },
+    { "name": "deviceType", "type": "string", "doc": "设备类型 iOS/Android/Web/Desktop", "default": "unknown" },
+    { "name": "timestamp",  "type": "long", "doc": "Unix 毫秒时间戳" }
+  ]
+}

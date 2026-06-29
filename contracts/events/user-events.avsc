@@ -1,0 +1,19 @@
+/**
+ * Solra User Domain Events — Avro Schema
+ * 用户身份/成长/社交相关跨服务事件
+ */
+
+{
+  "type": "record",
+  "name": "UserLeftSpace",
+  "namespace": "com.solra.events.user",
+  "doc": "用户离开空间事件",
+  "fields": [
+    { "name": "eventId",    "type": "string" },
+    { "name": "spaceId",    "type": "string" },
+    { "name": "userId",     "type": "string" },
+    { "name": "duration",   "type": "long",   "doc": "停留时长(ms)" },
+    { "name": "reason",     "type": "string", "doc": "离开原因: disconnect/tab_switch/idle_timeout/manual", "default": "manual" },
+    { "name": "timestamp",  "type": "long" }
+  ]
+}

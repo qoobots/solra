@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+package solra.mon;
+
+import "proto/common/common.proto";
+option java_package = "com.solra.proto.mon";
+option java_multiple_files = true;
+
+// ========== 货币/资产 ==========
+
+enum CurrencyType {
+  CURRENCY_UNSPECIFIED = 0;
+  CURRENCY_GOLD = 1;        // 金币（免费获得）
+  CURRENCY_DIAMOND = 2;     // 钻石（付费/高级活动）
+  CURRENCY_FAITH_POINT = 3; // 信仰积分
+}
+
+message VirtualWallet {
+  string user_id = 1;
+  map<int32, int64> balances = 2; // CurrencyType -> 余额
+  int64 updated_at = 3;
+}
+
+// ========== 订单 ==========
+
+enum OrderStatus {
+  ORDER_UNSPECIFIED = 0;
+  ORDER_PENDING = 1;
+  ORDER_COMPLETED = 2;
+  ORDER_FAILED = 3;
+  ORDER_REFUNDED = 4;
+}
+
+message Order {
+  string order_id = 1;
+  string user_id = 2;
+  repeated OrderItem items = 3;
+  int64 total_amount = 4;    // 单位：分
+  CurrencyType currency = 5;
+  OrderStatus status = 6;
+  string payment_channel = 7; // apple/google/alipay/wechat
+  string transaction_id = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message OrderItem {
+  string product_id = 1;
+  string product_name = 2;
+  int32 quantity = 3;
+  int64 unit_price = 4;     // 单位：分
+}
+
+// ========== 订阅 ==========
+
+enum SubscriptionTier {
+  SUB_UNSPECIFIED = 0;
+  SUB_FREE = 1;
+  SUB_PREMIUM = 2;          // 高级会员
+  SUB_CREATOR = 3;          // 创作者会员
+  SUB_ENTERPRISE = 4;        // 企业版
+}
+
+enum SubscriptionStatus {
+  SUB_STATUS_UNSPECIFIED = 0;
+  SUB_STATUS_ACTIVE = 1;
+  SUB_STATUS_EXPIRED = 2;
+  SUB_STATUS_CANCELLED = 3;
+  SUB_STATUS_GRACE_PERIOD = 4;
+}
+
+message Subscription {
+  string subscription_id = 1;
+  string user_id = 2;
+  SubscriptionTier tier = 3;
+  SubscriptionStatus status = 4;
+  int64 start_at = 5;
+  int64 expire_at = 6;
+  bool auto_renew = 7;
+  string original_order_id = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message SubscriptionPlan {
+  SubscriptionTier tier = 1;
+  string name = 2;
+  string description = 3;
+  int64 price_per_month = 4;     // 单位：分
+  int64 price_per_year = 5;      // 单位：分
+  repeated string benefits = 6;  // 权益描述列表
+  CurrencyType currency = 7;
+}
+
+// ========== 虚拟物品 ==========
+
+enum VirtualItemType {
+  ITEM_UNSPECIFIED = 0;
+  ITEM_AVATAR_SKIN = 1;       // 虚拟人皮肤
+  ITEM_SPACE_TEMPLATE = 2;    // 空间模板
+  ITEM_EMOTE = 3;             // 表情/动作
+  ITEM_GIFT = 4;              // 虚拟礼物
+  ITEM_EFFECT = 5;            // 特效
+  ITEM_BADGE = 6;             // 徽章/称号
+}
+
+message VirtualItem {
+  string item_id = 1;
+  string name = 2;
+  string description = 3;
+  VirtualItemType type = 4;
+  int64 price = 5;             // 单位：分
+  CurrencyType currency = 6;
+  bool is_limited = 7;         // 限量
+  int64 available_until = 8;   // 限时下架时间
+  string preview_url = 9;
+  repeated string tags = 10;
+}
+
+message UserInventory {
+  string user_id = 1;
+  repeated InventoryEntry entries = 2;
+}
+
+message InventoryEntry {
+  string item_id = 1;
+  int32 quantity = 2;
+  int64 acquired_at = 3;
+  int64 expires_at = 4;       // 0=永久
+}
+
+// ========== 购买记录 ==========
+
+message PurchaseRecord {
+  string purchase_id = 1;
+  string user_id = 2;
+  string item_id = 3;
+  int32 quantity = 4;
+  int64 amount = 5;           // 单位：分
+  CurrencyType currency = 6;
+  string order_id = 7;
+  int64 purchased_at = 8;
+}
+
+// ========== RPC 服务 ==========
+
+service MonService {
+  // 钱包
+  rpc GetWallet(GetWalletRequest) returns (GetWalletResponse);
+  rpc AddBalance(AddBalanceRequest) returns (AddBalanceResponse);
+  rpc DeductBalance(DeductBalanceRequest) returns (DeductBalanceResponse);
+
+  // 订单
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (Order);
+  rpc VerifyPayment(VerifyPaymentRequest) returns (VerifyPaymentResponse);
+
+  // 订阅
+  rpc ListSubscriptionPlans(google.protobuf.Empty) returns (ListSubscriptionPlansResponse);
+  rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
+  rpc CancelSubscription(CancelSubscriptionRequest) returns (Subscription);
+
+  // 虚拟物品
+  rpc ListVirtualItems(ListVirtualItemsRequest) returns (ListVirtualItemsResponse);
+  rpc PurchaseItem(PurchaseItemRequest) returns (PurchaseItemResponse);
+  rpc GetUserInventory(GetUserInventoryRequest) returns (UserInventory);
+}
+
+// ========== 请求/响应 ==========
+
+message GetWalletRequest { string user_id = 1; }
+message GetWalletResponse { VirtualWallet wallet = 1; }
+
+message AddBalanceRequest {
+  string user_id = 1;
+  CurrencyType currency = 2;
+  int64 amount = 3;
+  string reason = 4;
+}
+message AddBalanceResponse { VirtualWallet wallet = 1; }
+
+message DeductBalanceRequest {
+  string user_id = 1;
+  CurrencyType currency = 2;
+  int64 amount = 3;
+  string reason = 4;
+}
+message DeductBalanceResponse { VirtualWallet wallet = 1; }
+
+message CreateOrderRequest {
+  string user_id = 1;
+  repeated OrderItem items = 2;
+  CurrencyType currency = 3;
+}
+message CreateOrderResponse { Order order = 1; }
+
+message GetOrderRequest { string order_id = 1; }
+
+message VerifyPaymentRequest {
+  string order_id = 1;
+  string payment_channel = 2;
+  string receipt = 3; // 支付平台回执
+}
+message VerifyPaymentResponse {
+  bool verified = 1;
+  Order order = 2;
+}
+
+message ListSubscriptionPlansResponse { repeated SubscriptionPlan plans = 1; }
+
+message SubscribeRequest {
+  string user_id = 1;
+  SubscriptionTier tier = 2;
+  bool yearly = 3;
+  string payment_channel = 4;
+}
+message SubscribeResponse {
+  Subscription subscription = 1;
+  Order order = 2;
+}
+
+message CancelSubscriptionRequest {
+  string user_id = 1;
+  string reason = 2;
+}
+
+message ListVirtualItemsRequest {
+  VirtualItemType type_filter = 1;
+  solra.common.PaginationRequest pagination = 2;
+}
+message ListVirtualItemsResponse {
+  repeated VirtualItem items = 1;
+  solra.common.PaginationResponse pagination = 2;
+}
+
+message PurchaseItemRequest {
+  string user_id = 1;
+  string item_id = 2;
+  int32 quantity = 3;
+  CurrencyType currency = 4;
+}
+message PurchaseItemResponse {
+  PurchaseRecord record = 1;
+  UserInventory inventory = 2;
+}
+
+message GetUserInventoryRequest { string user_id = 1; }

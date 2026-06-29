@@ -1,0 +1,39 @@
+/**
+ * Solra Avatar Domain Events — Avro Schema
+ * 虚拟人状态/交互/对话相关事件
+ */
+
+{
+  "type": "record",
+  "name": "AvatarStateChanged",
+  "namespace": "com.solra.events.avatar",
+  "doc": "虚拟人状态变化事件",
+  "fields": [
+    { "name": "eventId",    "type": "string" },
+    { "name": "avatarId",   "type": "string" },
+    { "name": "spaceId",    "type": "string", "doc": "所在空间ID", "default": "" },
+    { "name": "emotion",    "type": "string", "doc": "当前情绪标签", "default": "neutral" },
+    { "name": "gesture",    "type": "string", "doc": "当前手势/动作", "default": "idle" },
+    { "name": "speaking",   "type": "boolean", "doc": "是否正在说话", "default": false },
+    { "name": "timestamp",  "type": "long" }
+  ]
+}
+
+---
+{
+  "type": "record",
+  "name": "ConversationMessage",
+  "namespace": "com.solra.events.avatar",
+  "doc": "对话消息事件 — 用户与虚拟人之间的单轮对话",
+  "fields": [
+    { "name": "eventId",        "type": "string" },
+    { "name": "conversationId", "type": "string" },
+    { "name": "avatarId",       "type": "string" },
+    { "name": "userId",         "type": "string" },
+    { "name": "role",           "type": { "type": "enum", "name": "MessageRole", "symbols": ["USER", "AVATAR", "SYSTEM"] } },
+    { "name": "content",        "type": "string", "doc": "消息文本" },
+    { "name": "contentType",    "type": "string", "doc": "text/voice/image", "default": "text" },
+    { "name": "emotion",        "type": "string", "doc": "附带情绪标签", "default": "neutral" },
+    { "name": "timestamp",      "type": "long" }
+  ]
+}

@@ -1,0 +1,35 @@
+/**
+ * Solra Social Domain Events — Avro Schema
+ * 社交在场/互动/好友关系相关事件
+ */
+
+{
+  "type": "record",
+  "name": "UserPresenceChanged",
+  "namespace": "com.solra.events.social",
+  "doc": "用户在线状态变化事件",
+  "fields": [
+    { "name": "eventId",    "type": "string" },
+    { "name": "userId",     "type": "string" },
+    { "name": "presence",   "type": { "type": "enum", "name": "PresenceState", "symbols": ["ONLINE", "AWAY", "DO_NOT_DISTURB", "OFFLINE"] } },
+    { "name": "spaceId",    "type": "string", "doc": "当前所在空间(online时有效)", "default": "" },
+    { "name": "timestamp",  "type": "long" }
+  ]
+}
+
+---
+{
+  "type": "record",
+  "name": "SocialInteraction",
+  "namespace": "com.solra.events.social",
+  "doc": "社交互动事件 — 点赞/表情/关注等",
+  "fields": [
+    { "name": "eventId",        "type": "string" },
+    { "name": "fromUserId",     "type": "string" },
+    { "name": "toUserId",       "type": "string" },
+    { "name": "interactionType", "type": { "type": "enum", "name": "InteractionType", "symbols": ["LIKE", "EMOJI", "WAVE", "DANCE", "GIFT", "FOLLOW", "MENTION"] } },
+    { "name": "payload",        "type": "string", "doc": "附加数据JSON(emoji/giftId/等)", "default": "{}" },
+    { "name": "spaceId",        "type": "string", "doc": "发生空间ID" },
+    { "name": "timestamp",      "type": "long" }
+  ]
+}
