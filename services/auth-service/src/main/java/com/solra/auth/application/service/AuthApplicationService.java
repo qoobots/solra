@@ -16,8 +16,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Application service — orchestrates the auth workflow across domain & infrastructure.
@@ -158,7 +160,8 @@ public class AuthApplicationService {
     }
 
     /**
-     * Refresh access token using refresh token.
+     * AUTH-005: Refresh access token — device-level refresh.
+     * Instead of revoking all sessions, only refreshes the session associated with this refresh token.
      */
     @Transactional
     public AuthResultDTO refreshToken(String refreshTokenStr) {
@@ -172,20 +175,29 @@ public class AuthApplicationService {
         String newAccessToken = tokenService.generateAccessToken(userId, roles);
         String newRefreshToken = tokenService.generateRefreshToken(userId);
 
-        authDomainService.revokeUserSessions(userId);
-        authDomainService.createSession(userId, LoginMethod.PASSWORD,
-                "token-refresh", "0.0.0.0", newAccessToken, newRefreshToken,
+        // AUTH-005: Device-level refresh — only refresh this session, keep other devices alive
+        LoginSession refreshedSession = authDomainService.refreshSession(
+                refreshTokenStr, newAccessToken, newRefreshToken,
                 tokenService.getAccessTokenExpirationSeconds());
 
+        log.debug("AUTH-005: Session refreshed for user={} device={}", userId, refreshedSession.getDeviceId());
         return toAuthResult(account, newAccessToken, newRefreshToken, roles);
     }
 
     /**
-     * Logout and revoke session.
+     * AUTH-005: Global logout — revoke all sessions for the user.
      */
     public void logout(String userId) {
         authDomainService.revokeUserSessions(userId);
-        log.info("User {} logged out", userId);
+        log.info("AUTH-005: User {} logged out from all devices", userId);
+    }
+
+    /**
+     * AUTH-005: Logout from a specific device.
+     */
+    public void logoutDevice(String userId, String deviceId) {
+        authDomainService.revokeDeviceSessions(userId, deviceId);
+        log.info("AUTH-005: User {} logged out from device {}", userId, deviceId);
     }
 
     /**
@@ -390,6 +402,79 @@ public class AuthApplicationService {
         return new ArrayList<>(permissionEngine.getAllPredefinedRoles());
     }
 
+    // ===== AUTH-005: Device Binding & Multi-Device Management =====
+
+    /**
+     * AUTH-005: Get all registered devices for a user.
+     */
+    public DeviceBindingResult getUserDevices(String userId) {
+        DeviceBinding binding = authDomainService.getDeviceBinding(userId);
+        List<LoginSession> sessions = authDomainService.getUserSessions(userId);
+
+        List<DeviceSessionInfo> deviceSessions = binding.getDevices().stream()
+                .map(device -> {
+                    List<LoginSession> deviceSess = sessions.stream()
+                            .filter(s -> device.getDeviceId().equals(s.getDeviceId()))
+                            .collect(Collectors.toList());
+                    return new DeviceSessionInfo(
+                            device.getDeviceId(),
+                            device.getDeviceName(),
+                            device.getPlatform(),
+                            device.getDeviceModel(),
+                            device.getFirstSeenAt(),
+                            device.getLastSeenAt(),
+                            !deviceSess.isEmpty(),
+                            deviceSess.size()
+                    );
+                })
+                .collect(Collectors.toList());
+
+        return new DeviceBindingResult(
+                userId,
+                binding.deviceCount(),
+                DeviceBinding.MAX_DEVICES,
+                binding.canRegisterDevice(),
+                deviceSessions
+        );
+    }
+
+    /**
+     * AUTH-005: Remove a device from user's binding (kicks that device).
+     */
+    @Transactional
+    public DeviceBindingResult removeDevice(String operatorUserId, String targetUserId, String deviceId) {
+        // Permission check: user can remove their own devices; admin can remove anyone's
+        if (!operatorUserId.equals(targetUserId)) {
+            Set<String> operatorRoles = authDomainService.getUserRoles(operatorUserId);
+            if (!permissionEngine.hasRole(operatorRoles, "ROLE_ADMIN")
+                    && !permissionEngine.hasRole(operatorRoles, "ROLE_SUPER_ADMIN")) {
+                throw new SolraException.PermissionDeniedException("Cannot manage other user's devices");
+            }
+        }
+
+        authDomainService.removeDeviceFromBinding(targetUserId, deviceId);
+        log.info("AUTH-005: Device {} removed for user {} by {}", deviceId, targetUserId, operatorUserId);
+        return getUserDevices(targetUserId);
+    }
+
+    /**
+     * AUTH-005: Get active sessions for a user.
+     */
+    public List<SessionInfo> getUserSessions(String userId) {
+        return authDomainService.getUserSessions(userId).stream()
+                .map(s -> new SessionInfo(
+                        s.getSessionId(),
+                        s.getDeviceId(),
+                        s.getDeviceInfo(),
+                        s.getIpAddress(),
+                        s.getLoginMethod().name(),
+                        s.getCreatedAt(),
+                        s.getExpiresAt(),
+                        s.isExpired()
+                ))
+                .collect(Collectors.toList());
+    }
+
     // -- Private helpers --
 
     private AuthResultDTO toAuthResult(UserAccount account, String accessToken,
@@ -437,4 +522,43 @@ public class AuthApplicationService {
      * AUTH-003: Role operation result.
      */
     public record RoleOperationResult(String userId, List<String> roles, String message) {}
+
+    /**
+     * AUTH-005: Device binding overview result.
+     */
+    public record DeviceBindingResult(
+            String userId,
+            int deviceCount,
+            int maxDevices,
+            boolean canRegister,
+            List<DeviceSessionInfo> devices
+    ) {}
+
+    /**
+     * AUTH-005: Individual device session info.
+     */
+    public record DeviceSessionInfo(
+            String deviceId,
+            String deviceName,
+            String platform,
+            String deviceModel,
+            Instant firstSeenAt,
+            Instant lastSeenAt,
+            boolean hasActiveSession,
+            int activeSessionCount
+    ) {}
+
+    /**
+     * AUTH-005: Login session info for display.
+     */
+    public record SessionInfo(
+            String sessionId,
+            String deviceId,
+            String deviceInfo,
+            String ipAddress,
+            String loginMethod,
+            Instant createdAt,
+            Instant expiresAt,
+            boolean expired
+    ) {}
 }

@@ -124,11 +124,25 @@ public class AuthGrpcService {
     }
 
     /**
-     * Handle Logout RPC.
+     * AUTH-005: Handle Logout RPC — supports global or device-specific logout.
+     * Device-specific logout is triggered when sessionId contains a deviceId pattern.
      */
     public void logout(LogoutRequest request, StreamObserver<LogoutResponse> responseObserver) {
         try {
-            authAppService.logout(request.getUserId().getValue());
+            String userId = request.getUserId().getValue();
+            String sessionId = request.getSessionId().getValue();
+
+            if (!sessionId.isEmpty() && sessionId.startsWith("dev_")) {
+                // AUTH-005: Device-specific logout
+                String deviceId = sessionId.substring(4); // strip "dev_" prefix
+                authAppService.logoutDevice(userId, deviceId);
+                log.info("AUTH-005: Device logout user={} device={}", userId, deviceId);
+            } else {
+                // Global logout
+                authAppService.logout(userId);
+                log.info("AUTH-005: Global logout user={}", userId);
+            }
+
             responseObserver.onNext(LogoutResponse.newBuilder().build());
             responseObserver.onCompleted();
         } catch (SolraException e) {
@@ -262,7 +276,8 @@ public class AuthGrpcService {
 
     private LoginSession toProtoLoginSession(AuthResultDTO result) {
         return LoginSession.newBuilder()
-                .setSessionId(com.solra.apis.common.v1.SessionId.newBuilder().setValue("sess_" + result.userId()).build())
+                .setSessionId(com.solra.apis.common.v1.SessionId.newBuilder()
+                        .setValue("sess_" + result.userId()).build())
                 .setUserId(toProtoUserId(result.userId()))
                 .setAccessToken(result.accessToken())
                 .setRefreshToken(result.refreshToken())

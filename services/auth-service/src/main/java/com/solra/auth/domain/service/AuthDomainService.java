@@ -1,12 +1,14 @@
 package com.solra.auth.domain.service;
 
 import com.solra.auth.domain.model.*;
+import com.solra.auth.domain.repository.DeviceBindingRepository;
 import com.solra.auth.domain.repository.LoginSessionRepository;
 import com.solra.auth.domain.repository.UserAccountRepository;
 import com.solra.common.exception.SolraException;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Domain service — encapsulates core authentication business logic.
@@ -17,6 +19,7 @@ public class AuthDomainService {
 
     private final UserAccountRepository userAccountRepository;
     private final LoginSessionRepository loginSessionRepository;
+    private final DeviceBindingRepository deviceBindingRepository;
     private final PasswordEncoder passwordEncoder;
 
     public interface PasswordEncoder {
@@ -26,9 +29,11 @@ public class AuthDomainService {
 
     public AuthDomainService(UserAccountRepository userAccountRepository,
                               LoginSessionRepository loginSessionRepository,
+                              DeviceBindingRepository deviceBindingRepository,
                               PasswordEncoder passwordEncoder) {
         this.userAccountRepository = userAccountRepository;
         this.loginSessionRepository = loginSessionRepository;
+        this.deviceBindingRepository = deviceBindingRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -169,22 +174,122 @@ public class AuthDomainService {
         return userAccountRepository.save(account);
     }
 
+    // ===== AUTH-005: Multi-Device Session Management =====
+
+    /**
+     * AUTH-005: Create a session with device association.
+     * Replaces old single-device strategy: now keeps up to 3 device sessions.
+     */
     public LoginSession createSession(String userId, LoginMethod method,
                                        String deviceInfo, String ipAddress,
                                        String accessToken, String refreshToken,
                                        long expiresInSeconds) {
-        revokeUserSessions(userId);
+        // Derive deviceId from raw deviceInfo
+        String deviceId = DeviceInfo.fingerprint(deviceInfo);
+        return createSessionWithDevice(userId, method, deviceInfo, ipAddress,
+                accessToken, refreshToken, expiresInSeconds, deviceId);
+    }
+
+    /**
+     * AUTH-005: Create a session with explicit deviceId and enforce device limit.
+     */
+    public LoginSession createSessionWithDevice(String userId, LoginMethod method,
+                                                 String deviceInfo, String ipAddress,
+                                                 String accessToken, String refreshToken,
+                                                 long expiresInSeconds, String deviceId) {
+        // Get or create device binding
+        DeviceBinding binding = deviceBindingRepository.findByUserId(userId)
+                .orElseGet(() -> DeviceBinding.create(userId));
+
+        // Parse device info and register
+        DeviceInfo parsedDevice = DeviceInfo.fromRaw(deviceInfo);
+        DeviceInfo registeredDevice = binding.registerDevice(
+                new DeviceInfo.Builder()
+                        .deviceId(deviceId)
+                        .deviceName(parsedDevice.getDeviceName())
+                        .platform(parsedDevice.getPlatform())
+                        .osVersion(parsedDevice.getOsVersion())
+                        .appVersion(parsedDevice.getAppVersion())
+                        .deviceModel(parsedDevice.getDeviceModel())
+                        .build());
+        deviceBindingRepository.save(binding);
+
+        // Remove old sessions for this specific device (same device re-login)
+        loginSessionRepository.deleteByUserIdAndDeviceId(userId, deviceId);
+
+        // Create new session with device association
         LoginSession session = LoginSession.create(userId, method, deviceInfo, ipAddress,
-                accessToken, refreshToken, expiresInSeconds);
+                accessToken, refreshToken, expiresInSeconds, deviceId);
         return loginSessionRepository.save(session);
     }
 
+    /**
+     * AUTH-005: Refresh tokens for a specific device session.
+     */
+    public LoginSession refreshSession(String refreshTokenStr, String newAccessToken,
+                                        String newRefreshToken, long expiresInSeconds) {
+        LoginSession session = loginSessionRepository.findByRefreshToken(refreshTokenStr)
+                .orElseThrow(() -> new SolraException.TokenExpiredException("Invalid refresh token"));
+        if (session.isExpired()) {
+            loginSessionRepository.deleteById(session.getSessionId());
+            throw new SolraException.TokenExpiredException("Session expired");
+        }
+        session.refreshTokens(newAccessToken, newRefreshToken, expiresInSeconds);
+        return loginSessionRepository.save(session);
+    }
+
+    /**
+     * AUTH-005: Revoke all sessions for a user (global logout).
+     */
     public void revokeUserSessions(String userId) {
         loginSessionRepository.deleteByUserId(userId);
     }
 
+    /**
+     * AUTH-005: Revoke sessions for a specific device (single-device logout).
+     */
+    public void revokeDeviceSessions(String userId, String deviceId) {
+        loginSessionRepository.deleteByUserIdAndDeviceId(userId, deviceId);
+        // Also remove from device binding
+        deviceBindingRepository.findByUserId(userId).ifPresent(binding -> {
+            binding.removeDevice(deviceId);
+            deviceBindingRepository.save(binding);
+        });
+    }
+
+    /**
+     * AUTH-005: Revoke a single session by sessionId.
+     */
     public void revokeSession(String sessionId) {
         loginSessionRepository.deleteById(sessionId);
+    }
+
+    /**
+     * AUTH-005: Get all active sessions for a user.
+     */
+    public List<LoginSession> getUserSessions(String userId) {
+        return loginSessionRepository.findByUserId(userId).stream()
+                .filter(s -> !s.isExpired())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * AUTH-005: Get device binding info for a user.
+     */
+    public DeviceBinding getDeviceBinding(String userId) {
+        return deviceBindingRepository.findByUserId(userId)
+                .orElseGet(() -> DeviceBinding.create(userId));
+    }
+
+    /**
+     * AUTH-005: Remove a device from user's device binding (admin/manual operation).
+     */
+    public DeviceBinding removeDeviceFromBinding(String userId, String deviceId) {
+        DeviceBinding binding = deviceBindingRepository.findByUserId(userId)
+                .orElseThrow(() -> new SolraException.NotFoundException("No device binding found"));
+        binding.removeDevice(deviceId);
+        loginSessionRepository.deleteByUserIdAndDeviceId(userId, deviceId);
+        return deviceBindingRepository.save(binding);
     }
 
     // ===== AUTH-003: RBAC Role Management =====
