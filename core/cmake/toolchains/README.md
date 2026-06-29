@@ -8,8 +8,12 @@
 |------|------|------|-----------|--------|
 | iOS | arm64 | Metal + CoreML | `ios.toolchain.cmake` | Apple Clang |
 | Android | arm64-v8a | Vulkan + NNAPI | `android.toolchain.cmake` | NDK Clang |
-| Windows | x86_64 | Vulkan / DirectX | `windows.toolchain.cmake` | MSVC 2022 |
+| Windows | x86_64 | Vulkan | `windows.toolchain.cmake` | MSVC 2022 |
 | macOS | arm64+x86_64 | Metal | `macos.toolchain.cmake` | Apple Clang |
+
+> **宏命名约定**：所有工具链统一使用 `SOLRA_ENABLE_*` 宏（如 `SOLRA_ENABLE_METAL`、`SOLRA_ENABLE_VULKAN`），不再使用 `SOLRA_GPU_*`。
+> **iOS 部署目标**：统一为 16.0（不再支持 bitcode，Apple 自 Xcode 14 起已弃用）。
+> **Android**：不再全局禁用异常和 RTTI，保持与其他平台一致的编译策略。
 
 ## 快速开始
 

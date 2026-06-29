@@ -15,8 +15,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_definitions(-DSOLRA_PLATFORM_ANDROID=1 -DSOLRA_GPU_VULKAN=1)
-add_compile_options(-fPIC -fno-exceptions -fno-rtti)
+add_compile_definitions(SOLRA_PLATFORM_ANDROID=1)
+add_compile_definitions(SOLRA_ENABLE_VULKAN=1)
+add_compile_definitions(SOLRA_ENABLE_OPENGLES=1)
+add_compile_definitions(SOLRA_ENABLE_NNAPI=1)
+add_compile_options(-fPIC)
 
 # Use Neon SIMD intrinsics
 add_compile_options(-mfpu=neon)

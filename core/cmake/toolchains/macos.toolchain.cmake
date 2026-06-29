@@ -11,7 +11,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_definitions(-DSOLRA_PLATFORM_MACOS=1 -DSOLRA_GPU_METAL=1)
+add_compile_definitions(SOLRA_PLATFORM_MACOS=1)
+add_compile_definitions(SOLRA_ENABLE_METAL=1)
+add_compile_definitions(SOLRA_ENABLE_COREML=1)
 
 # Universal binary flags - build fat binary
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")

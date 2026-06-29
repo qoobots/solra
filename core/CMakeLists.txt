@@ -52,7 +52,7 @@ endif()
 if(SOLRA_PLATFORM_APPLE)
   set(SOLRA_ENABLE_METAL ON CACHE BOOL "Enable Metal rendering backend" FORCE)
   set(SOLRA_ENABLE_COREML ON CACHE BOOL "Enable CoreML NPU backend" FORCE)
-  set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS/iOS deployment target")
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "16.0" CACHE STRING "Minimum macOS/iOS deployment target")
 endif()
 
 if(SOLRA_PLATFORM_ANDROID)
@@ -73,20 +73,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # ============================================================
-# Dependencies via vcpkg
+# Dependencies via vcpkg + platform-specific
 # ============================================================
-find_package(glm CONFIG REQUIRED)
-find_package(spdlog CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
-find_package(Protobuf REQUIRED)
-find_package(ZLIB REQUIRED)
-find_package(OpenSSL REQUIRED)
-
-# Optional: GTest and Benchmark
-if(SOLRA_BUILD_TESTS)
-  find_package(GTest CONFIG REQUIRED)
-  find_package(benchmark CONFIG REQUIRED)
-endif()
+include(cmake/FindDependencies.cmake)
 
 # ============================================================
 # Public Headers
@@ -154,7 +143,7 @@ install(DIRECTORY include/solra
   FILES_MATCHING PATTERN "*.h"
 )
 
-install(TARGETS solra_core
+install(TARGETS solra_core_core
   EXPORT solraCoreTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -17,9 +17,6 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
-add_compile_options(-fembed-bitcode)
-add_definitions(-DSOLRA_PLATFORM_IOS=1 -DSOLRA_GPU_METAL=1)
-
-# bitcode embedding for App Store
-set(CMAKE_XCODE_ATTRIBUTE_ENABLE_BITCODE "YES")
-set(CMAKE_XCODE_ATTRIBUTE_BITCODE_GENERATION_MODE "bitcode")
+add_compile_definitions(SOLRA_PLATFORM_IOS=1)
+add_compile_definitions(SOLRA_ENABLE_METAL=1)
+add_compile_definitions(SOLRA_ENABLE_COREML=1)
