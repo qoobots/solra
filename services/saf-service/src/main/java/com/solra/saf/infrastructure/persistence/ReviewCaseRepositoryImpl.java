@@ -39,6 +39,13 @@ public class ReviewCaseRepositoryImpl implements ReviewCaseRepository {
     }
 
     @Override
+    public List<ReviewCase> findByStatusAndReviewType(ReviewStatus status, ReviewType reviewType, int limit) {
+        return jpaRepository.findByStatusAndReviewTypeOrderByCreatedAtAsc(
+                        status.name(), reviewType.name())
+                .stream().limit(limit).map(this::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
     public ReviewCase save(ReviewCase reviewCase) {
         ReviewCaseEntity entity = toEntity(reviewCase);
         entity = jpaRepository.save(entity);
@@ -48,6 +55,11 @@ public class ReviewCaseRepositoryImpl implements ReviewCaseRepository {
     @Override
     public long countByUserId(String userId) {
         return jpaRepository.countByUserId(userId);
+    }
+
+    @Override
+    public long countByStatus(ReviewStatus status) {
+        return jpaRepository.countByStatus(status.name());
     }
 
     private ReviewCaseEntity toEntity(ReviewCase domain) {

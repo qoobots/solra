@@ -29,6 +29,23 @@ service AvtService {
 
   // 查询记忆
   rpc QueryMemory(QueryMemoryRequest) returns (QueryMemoryResponse);
+
+  // AVT-003: 长期记忆
+  rpc GetLongTermMemory(GetLongTermMemoryRequest) returns (GetLongTermMemoryResponse);
+  rpc AddMemorySnapshot(AddMemorySnapshotRequest) returns (AddMemorySnapshotResponse);
+  rpc RetrieveMemories(RetrieveMemoriesRequest) returns (RetrieveMemoriesResponse);
+
+  // AVT-004: 5维情感模型
+  rpc GetEmotionState(GetEmotionStateRequest) returns (GetEmotionStateResponse);
+  rpc ApplyEmotionEvent(ApplyEmotionEventRequest) returns (ApplyEmotionEventResponse);
+  rpc DecayEmotions(DecayEmotionsRequest) returns (DecayEmotionsResponse);
+
+  // AVT-006: 肢体与表情表达
+  rpc GetAvatarExpression(GetAvatarExpressionRequest) returns (GetAvatarExpressionResponse);
+
+  // AVT-008: 惊喜时刻
+  rpc EvaluateSurprise(EvaluateSurpriseRequest) returns (EvaluateSurpriseResponse);
+  rpc GetSurpriseStats(GetSurpriseStatsRequest) returns (GetSurpriseStatsResponse);
 }
 
 // ============================================================
@@ -302,5 +319,178 @@ message QueryMemoryResponse {
   repeated MemoryEntry memories = 1;
   solra.common.SolraError error = 2;
 }
+
+// ============================================================
+// AVT-003: Long-Term Memory
+// ============================================================
+
+message GetLongTermMemoryRequest {
+  solra.common.UserId user_id = 1;
+  string avatar_id = 2;
+}
+
+message GetLongTermMemoryResponse {
+  MemorySummaryDTO summary = 1;
+  repeated MemorySnapshotDTO snapshots = 2;
+  solra.common.SolraError error = 3;
+}
+
+message MemorySummaryDTO {
+  repeated string known_facts = 1;
+  repeated string preferences = 2;
+  repeated string topics = 3;
+  string relationship_stage = 4;
+  int32 total_interactions = 5;
+}
+
+message MemorySnapshotDTO {
+  string snapshot_id = 1;
+  string conversation_id = 2;
+  string content = 3;
+  string type = 4;
+  float importance = 5;
+  string emotion_context = 6;
+  solra.common.SolraTimestamp captured_at = 7;
+}
+
+message AddMemorySnapshotRequest {
+  solra.common.UserId user_id = 1;
+  string avatar_id = 2;
+  string conversation_id = 3;
+  string content = 4;
+  string snapshot_type = 5;  // EPISODIC/SEMANTIC/FACT/PREFERENCE/EMOTIONAL/SUMMARY
+  float importance = 6;
+  string emotion_context = 7;
+}
+
+message AddMemorySnapshotResponse {
+  bool success = 1;
+  solra.common.SolraError error = 2;
+}
+
+message RetrieveMemoriesRequest {
+  solra.common.UserId user_id = 1;
+  string avatar_id = 2;
+  string query = 3;
+  int32 max_results = 4;
+}
+
+message RetrieveMemoriesResponse {
+  repeated MemorySnapshotDTO snapshots = 1;
+  solra.common.SolraError error = 2;
+}
+
+// ============================================================
+// AVT-004: 5D Emotion Model
+// ============================================================
+
+message GetEmotionStateRequest {
+  string avatar_id = 1;
+}
+
+message GetEmotionStateResponse {
+  FiveDEmotionState emotion = 1;
+  solra.common.SolraError error = 2;
+}
+
+message FiveDEmotionState {
+  float joy = 1;
+  float curiosity = 2;
+  float coldness = 3;
+  float jealousy = 4;
+  float sadness = 5;
+  string dominant_dimension = 6;
+  string current_mood = 7;
+  solra.common.SolraTimestamp last_updated = 8;
+}
+
+message ApplyEmotionEventRequest {
+  string avatar_id = 1;
+  string event_type = 2;  // USER_COMPLIMENT/USER_INSULT/USER_IGNORED/...
+  float intensity = 3;
+}
+
+message ApplyEmotionEventResponse {
+  FiveDEmotionState emotion = 1;
+  solra.common.SolraError error = 2;
+}
+
+message DecayEmotionsRequest {
+  string avatar_id = 1;
+  float rate = 2;  // 0..1 decay rate
+}
+
+message DecayEmotionsResponse {
+  FiveDEmotionState emotion = 1;
+  solra.common.SolraError error = 2;
+}
+
+// ============================================================
+// AVT-006: Avatar Expression
+// ============================================================
+
+message GetAvatarExpressionRequest {
+  string avatar_id = 1;
+  string expression_type = 2;  // optional: specific type override
+  float intensity = 3;          // optional: specific intensity override
+}
+
+message GetAvatarExpressionResponse {
+  AvatarExpressionDTO expression = 1;
+  solra.common.SolraError error = 2;
+}
+
+message AvatarExpressionDTO {
+  string expression_id = 1;
+  string expression_type = 2;
+  float intensity = 3;
+  repeated BlendshapeWeightDTO blendshapes = 4;
+  string gesture = 5;
+  string animation_clip = 6;
+}
+
+message BlendshapeWeightDTO {
+  string blendshape_name = 1;
+  float weight = 2;
+}
+
+// ============================================================
+// AVT-008: Surprise Engine
+// ============================================================
+
+message EvaluateSurpriseRequest {
+  solra.common.UserId user_id = 1;
+  string conversation_id = 2;
+  string avatar_id = 3;
+}
+
+message EvaluateSurpriseResponse {
+  bool triggered = 1;
+  SurpriseMomentDTO moment = 2;
+  solra.common.SolraError error = 3;
+}
+
+message SurpriseMomentDTO {
+  string surprise_id = 1;
+  string user_id = 2;
+  string conversation_id = 3;
+  string surprise_type = 4;  // MEMORY_RECALL/EMOTIONAL_EXPRESSION/PERSONALIZED_INTERACTION/RANDOM_SURPRISE
+  string message = 5;
+  AvatarExpressionDTO expression = 6;
+  solra.common.SolraTimestamp generated_at = 7;
+}
+
+message GetSurpriseStatsRequest {
+  solra.common.UserId user_id = 1;
+}
+
+message GetSurpriseStatsResponse {
+  string user_id = 1;
+  int32 total_surprises = 2;
+  int32 today_surprises = 3;
+  solra.common.SolraError error = 4;
+}
+
+
 
 

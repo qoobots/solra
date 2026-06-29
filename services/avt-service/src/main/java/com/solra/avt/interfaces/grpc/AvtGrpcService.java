@@ -197,6 +197,246 @@ public class AvtGrpcService extends com.solra.apis.avt.v1.AvtServiceGrpc.AvtServ
         }
     }
 
+    // ========== AVT-003: Long-Term Memory ==========
+
+    @Override
+    public void getLongTermMemory(com.solra.apis.avt.v1.GetLongTermMemoryRequest request,
+                                   StreamObserver<com.solra.apis.avt.v1.GetLongTermMemoryResponse> responseObserver) {
+        try {
+            var result = appService.getLongTermMemory(request.getUserId().getValue(), request.getAvatarId());
+
+            var summaryBuilder = com.solra.apis.avt.v1.MemorySummaryDTO.newBuilder()
+                    .addAllKnownFacts(result.summary().knownFacts())
+                    .addAllPreferences(result.summary().preferences())
+                    .addAllTopics(result.summary().topics())
+                    .setRelationshipStage(result.summary().relationshipStage())
+                    .setTotalInteractions(result.summary().totalInteractions());
+
+            List<com.solra.apis.avt.v1.MemorySnapshotDTO> protoSnapshots = new ArrayList<>();
+            for (var s : result.snapshots()) {
+                protoSnapshots.add(com.solra.apis.avt.v1.MemorySnapshotDTO.newBuilder()
+                        .setSnapshotId(s.snapshotId())
+                        .setConversationId(s.conversationId())
+                        .setContent(nn(s.content()))
+                        .setType(s.type())
+                        .setImportance(s.importance())
+                        .setEmotionContext(nn(s.emotionContext()))
+                        .setCapturedAt(ts(s.capturedAt())).build());
+            }
+
+            responseObserver.onNext(com.solra.apis.avt.v1.GetLongTermMemoryResponse.newBuilder()
+                    .setSummary(summaryBuilder.build())
+                    .addAllSnapshots(protoSnapshots).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetLongTermMemory failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void addMemorySnapshot(com.solra.apis.avt.v1.AddMemorySnapshotRequest request,
+                                   StreamObserver<com.solra.apis.avt.v1.AddMemorySnapshotResponse> responseObserver) {
+        try {
+            appService.addMemorySnapshot(request.getUserId().getValue(), request.getAvatarId(),
+                    request.getConversationId(), request.getContent(),
+                    request.getSnapshotType(), request.getImportance(),
+                    request.getEmotionContext());
+            responseObserver.onNext(com.solra.apis.avt.v1.AddMemorySnapshotResponse.newBuilder()
+                    .setSuccess(true).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("AddMemorySnapshot failed", e);
+            responseObserver.onNext(com.solra.apis.avt.v1.AddMemorySnapshotResponse.newBuilder()
+                    .setSuccess(false)
+                    .setError(Common.SolraError.newBuilder().setMessage(e.getMessage()).build()).build());
+            responseObserver.onCompleted();
+        }
+    }
+
+    @Override
+    public void retrieveMemories(com.solra.apis.avt.v1.RetrieveMemoriesRequest request,
+                                  StreamObserver<com.solra.apis.avt.v1.RetrieveMemoriesResponse> responseObserver) {
+        try {
+            int max = request.getMaxResults() > 0 ? request.getMaxResults() : 5;
+            var results = appService.retrieveMemories(request.getUserId().getValue(),
+                    request.getAvatarId(), request.getQuery(), max);
+
+            List<com.solra.apis.avt.v1.MemorySnapshotDTO> protoSnapshots = new ArrayList<>();
+            for (var s : results) {
+                protoSnapshots.add(com.solra.apis.avt.v1.MemorySnapshotDTO.newBuilder()
+                        .setSnapshotId(s.snapshotId())
+                        .setConversationId(s.conversationId())
+                        .setContent(nn(s.content()))
+                        .setType(s.type())
+                        .setImportance(s.importance())
+                        .setEmotionContext(nn(s.emotionContext()))
+                        .setCapturedAt(ts(s.capturedAt())).build());
+            }
+
+            responseObserver.onNext(com.solra.apis.avt.v1.RetrieveMemoriesResponse.newBuilder()
+                    .addAllSnapshots(protoSnapshots).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("RetrieveMemories failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    // ========== AVT-004: 5D Emotion Model ==========
+
+    @Override
+    public void getEmotionState(com.solra.apis.avt.v1.GetEmotionStateRequest request,
+                                 StreamObserver<com.solra.apis.avt.v1.GetEmotionStateResponse> responseObserver) {
+        try {
+            var em = appService.getEmotionState(request.getAvatarId());
+            responseObserver.onNext(com.solra.apis.avt.v1.GetEmotionStateResponse.newBuilder()
+                    .setEmotion(com.solra.apis.avt.v1.FiveDEmotionState.newBuilder()
+                            .setJoy(em.joy()).setCuriosity(em.curiosity())
+                            .setColdness(em.coldness()).setJealousy(em.jealousy())
+                            .setSadness(em.sadness())
+                            .setDominantDimension(nn(em.dominantDimension()))
+                            .setCurrentMood(nn(em.currentMood()))
+                            .setLastUpdated(ts(em.lastUpdated())).build()).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetEmotionState failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void applyEmotionEvent(com.solra.apis.avt.v1.ApplyEmotionEventRequest request,
+                                   StreamObserver<com.solra.apis.avt.v1.ApplyEmotionEventResponse> responseObserver) {
+        try {
+            var em = appService.applyEmotionEvent(request.getAvatarId(),
+                    request.getEventType(), request.getIntensity());
+            responseObserver.onNext(com.solra.apis.avt.v1.ApplyEmotionEventResponse.newBuilder()
+                    .setEmotion(com.solra.apis.avt.v1.FiveDEmotionState.newBuilder()
+                            .setJoy(em.joy()).setCuriosity(em.curiosity())
+                            .setColdness(em.coldness()).setJealousy(em.jealousy())
+                            .setSadness(em.sadness())
+                            .setDominantDimension(nn(em.dominantDimension()))
+                            .setCurrentMood(nn(em.currentMood()))
+                            .setLastUpdated(ts(em.lastUpdated())).build()).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("ApplyEmotionEvent failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void decayEmotions(com.solra.apis.avt.v1.DecayEmotionsRequest request,
+                               StreamObserver<com.solra.apis.avt.v1.DecayEmotionsResponse> responseObserver) {
+        try {
+            var em = appService.decayEmotions(request.getAvatarId(), request.getRate());
+            responseObserver.onNext(com.solra.apis.avt.v1.DecayEmotionsResponse.newBuilder()
+                    .setEmotion(com.solra.apis.avt.v1.FiveDEmotionState.newBuilder()
+                            .setJoy(em.joy()).setCuriosity(em.curiosity())
+                            .setColdness(em.coldness()).setJealousy(em.jealousy())
+                            .setSadness(em.sadness())
+                            .setDominantDimension(nn(em.dominantDimension()))
+                            .setCurrentMood(nn(em.currentMood()))
+                            .setLastUpdated(ts(em.lastUpdated())).build()).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("DecayEmotions failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    // ========== AVT-006: Avatar Expression ==========
+
+    @Override
+    public void getAvatarExpression(com.solra.apis.avt.v1.GetAvatarExpressionRequest request,
+                                     StreamObserver<com.solra.apis.avt.v1.GetAvatarExpressionResponse> responseObserver) {
+        try {
+            var expr = appService.getAvatarExpression(request.getAvatarId(),
+                    request.getExpressionType(), request.getIntensity());
+
+            List<com.solra.apis.avt.v1.BlendshapeWeightDTO> protoBlendshapes = new ArrayList<>();
+            for (var b : expr.blendshapes()) {
+                protoBlendshapes.add(com.solra.apis.avt.v1.BlendshapeWeightDTO.newBuilder()
+                        .setBlendshapeName(b.blendshapeName()).setWeight(b.weight()).build());
+            }
+
+            responseObserver.onNext(com.solra.apis.avt.v1.GetAvatarExpressionResponse.newBuilder()
+                    .setExpression(com.solra.apis.avt.v1.AvatarExpressionDTO.newBuilder()
+                            .setExpressionId(expr.expressionId())
+                            .setExpressionType(expr.expressionType())
+                            .setIntensity(expr.intensity())
+                            .addAllBlendshapes(protoBlendshapes)
+                            .setGesture(nn(expr.gesture()))
+                            .setAnimationClip(nn(expr.animationClip())).build()).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetAvatarExpression failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    // ========== AVT-008: Surprise Engine ==========
+
+    @Override
+    public void evaluateSurprise(com.solra.apis.avt.v1.EvaluateSurpriseRequest request,
+                                  StreamObserver<com.solra.apis.avt.v1.EvaluateSurpriseResponse> responseObserver) {
+        try {
+            var moment = appService.evaluateSurprise(request.getUserId().getValue(),
+                    request.getConversationId(), request.getAvatarId());
+
+            var builder = com.solra.apis.avt.v1.EvaluateSurpriseResponse.newBuilder()
+                    .setTriggered(moment != null);
+
+            if (moment != null) {
+                List<com.solra.apis.avt.v1.BlendshapeWeightDTO> protoBlendshapes = new ArrayList<>();
+                for (var b : moment.expression().blendshapes()) {
+                    protoBlendshapes.add(com.solra.apis.avt.v1.BlendshapeWeightDTO.newBuilder()
+                            .setBlendshapeName(b.blendshapeName()).setWeight(b.weight()).build());
+                }
+
+                var exprDTO = com.solra.apis.avt.v1.AvatarExpressionDTO.newBuilder()
+                        .setExpressionId(moment.expression().expressionId())
+                        .setExpressionType(moment.expression().expressionType())
+                        .setIntensity(moment.expression().intensity())
+                        .addAllBlendshapes(protoBlendshapes)
+                        .setGesture(nn(moment.expression().gesture()))
+                        .setAnimationClip(nn(moment.expression().animationClip())).build();
+
+                builder.setMoment(com.solra.apis.avt.v1.SurpriseMomentDTO.newBuilder()
+                        .setSurpriseId(moment.surpriseId())
+                        .setUserId(moment.userId())
+                        .setConversationId(moment.conversationId())
+                        .setSurpriseType(moment.surpriseType())
+                        .setMessage(moment.message())
+                        .setExpression(exprDTO)
+                        .setGeneratedAt(ts(moment.generatedAt())).build());
+            }
+
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("EvaluateSurprise failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void getSurpriseStats(com.solra.apis.avt.v1.GetSurpriseStatsRequest request,
+                                  StreamObserver<com.solra.apis.avt.v1.GetSurpriseStatsResponse> responseObserver) {
+        try {
+            var stats = appService.getSurpriseStats(request.getUserId().getValue());
+            responseObserver.onNext(com.solra.apis.avt.v1.GetSurpriseStatsResponse.newBuilder()
+                    .setUserId(stats.userId())
+                    .setTotalSurprises(stats.totalSurprises())
+                    .setTodaySurprises(stats.todaySurprises()).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetSurpriseStats failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
     // ---- mapping helpers ----
     private com.solra.apis.avt.v1.TurnRole mapTurnRole(TurnRole r) {
         return switch (r) {

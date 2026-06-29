@@ -78,4 +78,87 @@ public class AvtApplicationService {
         return domainService.queryMemory(userId, types, minImportance, maxResults)
                 .stream().map(AvtResultDTO.MemoryDTO::from).collect(Collectors.toList());
     }
+
+    // ========== AVT-003: Long-Term Memory ==========
+
+    /** 获取长期记忆摘要 */
+    public AvtResultDTO.LongTermMemoryDTO getLongTermMemory(String userId, String avatarId) {
+        LongTermMemory ltm = domainService.getOrCreateLongTermMemory(userId, avatarId);
+        return AvtResultDTO.LongTermMemoryDTO.from(ltm);
+    }
+
+    /** 添加记忆快照 */
+    public void addMemorySnapshot(String userId, String avatarId, String conversationId,
+                                   String content, String snapshotType, float importance,
+                                   String emotionContext) {
+        LongTermMemory.MemorySnapshotType type = LongTermMemory.MemorySnapshotType.valueOf(
+                snapshotType.toUpperCase());
+        domainService.addMemorySnapshot(userId, avatarId, conversationId,
+                content, type, importance, emotionContext);
+    }
+
+    /** 检索相关记忆 */
+    public List<AvtResultDTO.MemorySnapshotDTO> retrieveMemories(String userId, String avatarId,
+                                                                   String query, int maxResults) {
+        return domainService.retrieveMemories(userId, avatarId, query, maxResults)
+                .stream().map(AvtResultDTO.MemorySnapshotDTO::from)
+                .collect(Collectors.toList());
+    }
+
+    // ========== AVT-004: 5D Emotion Model ==========
+
+    /** 获取5维情感状态 */
+    public AvtResultDTO.FiveDEmotionDTO getEmotionState(String avatarId) {
+        FiveDimensionalEmotion emotion = domainService.getOrCreateEmotionState(avatarId);
+        return AvtResultDTO.FiveDEmotionDTO.from(emotion);
+    }
+
+    /** 应用情感事件 */
+    public AvtResultDTO.FiveDEmotionDTO applyEmotionEvent(String avatarId,
+                                                           String eventType, float intensity) {
+        FiveDimensionalEmotion.EmotionEventType type =
+                FiveDimensionalEmotion.EmotionEventType.valueOf(eventType.toUpperCase());
+        FiveDimensionalEmotion emotion = domainService.applyEmotionEvent(avatarId, type, intensity);
+        return AvtResultDTO.FiveDEmotionDTO.from(emotion);
+    }
+
+    /** 情感衰减 */
+    public AvtResultDTO.FiveDEmotionDTO decayEmotions(String avatarId, float rate) {
+        domainService.decayEmotions(avatarId, rate);
+        return getEmotionState(avatarId);
+    }
+
+    // ========== AVT-006: Avatar Expression ==========
+
+    /** 获取虚拟人表情 */
+    public AvtResultDTO.AvatarExpressionDTO getAvatarExpression(String avatarId,
+                                                                  String expressionType,
+                                                                  float intensity) {
+        if (expressionType != null && !expressionType.isBlank()) {
+            AvatarExpression.ExpressionType type =
+                    AvatarExpression.ExpressionType.valueOf(expressionType.toUpperCase());
+            AvatarExpression expr = domainService.generateExpression(type,
+                    intensity > 0 ? intensity : 0.8f);
+            return AvtResultDTO.AvatarExpressionDTO.from(expr);
+        }
+        AvatarExpression expr = domainService.getExpressionFromEmotion(avatarId);
+        return AvtResultDTO.AvatarExpressionDTO.from(expr);
+    }
+
+    // ========== AVT-008: Surprise Engine ==========
+
+    /** 评估并触发惊喜时刻 */
+    public AvtResultDTO.SurpriseMomentDTO evaluateSurprise(String userId,
+                                                             String conversationId,
+                                                             String avatarId) {
+        return domainService.evaluateSurprise(userId, conversationId, avatarId)
+                .map(AvtResultDTO.SurpriseMomentDTO::from)
+                .orElse(null);
+    }
+
+    /** 获取惊喜统计 */
+    public AvtResultDTO.SurpriseStatsDTO getSurpriseStats(String userId) {
+        SurpriseEngine.SurpriseStats stats = domainService.getSurpriseStats(userId);
+        return AvtResultDTO.SurpriseStatsDTO.from(stats);
+    }
 }

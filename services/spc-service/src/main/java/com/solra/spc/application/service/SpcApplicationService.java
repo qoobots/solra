@@ -82,4 +82,76 @@ public class SpcApplicationService {
     public StreamingLoader getStreamingLoader() {
         return streamingLoader;
     }
+
+    // ========== SPC-004: Space Search ==========
+
+    /** 关键词搜索空间 */
+    public SpaceSearchService.SearchResult searchSpaces(String keyword,
+                                                         List<SpaceCategory> categories,
+                                                         String sortBy, int offset, int limit) {
+        return domainService.searchSpaces(keyword, categories, sortBy, offset, limit);
+    }
+
+    /** 分类浏览空间 */
+    public List<SpcResultDTO.SpaceDTO> browseByCategory(List<SpaceCategory> categories,
+                                                          String sortBy, int offset, int limit) {
+        return domainService.browseByCategory(categories, sortBy, offset, limit)
+                .stream().map(SpcResultDTO.SpaceDTO::from).collect(Collectors.toList());
+    }
+
+    /** 获取搜索筛选面板 */
+    public SpaceSearchService.SearchFacets getSearchFacets() {
+        return domainService.getSearchFacets();
+    }
+
+    // ========== SPC-005: Preload ==========
+
+    /** 预测性预加载 */
+    public PreloadManager.PreloadPrediction predictPreload(String userId,
+                                                             String currentSpaceId, int count) {
+        return domainService.predictPreload(userId, currentSpaceId, count);
+    }
+
+    /** 获取预加载统计 */
+    public PreloadManager.PreloadStats getPreloadStats() {
+        return domainService.getPreloadStats();
+    }
+
+    // ========== SPC-006: Loading Transition ==========
+
+    /** 获取空间加载过渡配置 */
+    public TransitionService.LoadingTransition getLoadingTransition(String spaceId) {
+        return domainService.getLoadingTransition(spaceId);
+    }
+
+    /** 获取过渡预设列表 */
+    public List<TransitionService.TransitionPreset> getTransitionPresets() {
+        return domainService.getTransitionPresets();
+    }
+
+    // ========== SPC-007: Exit Flow ==========
+
+    /** 获取空间退出过渡+下一预览卡片流 */
+    public TransitionService.ExitFlow getExitFlow(String userId, String currentSpaceId,
+                                                    List<String> nextCandidates) {
+        return domainService.getExitFlow(userId, currentSpaceId, nextCandidates);
+    }
+
+    // ========== SPC-011: CDN Distribution ==========
+
+    /** 获取空间CDN分发清单 */
+    public CdnDistributionService.CdnManifest getCdnManifest(String spaceId,
+                                                               String clientRegion) {
+        return domainService.getCdnManifest(spaceId, clientRegion);
+    }
+
+    /** 获取多区域CDN分发清单 */
+    public CdnDistributionService.MultiRegionManifest getMultiRegionManifest(String spaceId) {
+        return domainService.getMultiRegionManifest(spaceId);
+    }
+
+    /** 获取CDN统计 */
+    public CdnDistributionService.CdnStats getCdnStats() {
+        return domainService.getCdnStats();
+    }
 }

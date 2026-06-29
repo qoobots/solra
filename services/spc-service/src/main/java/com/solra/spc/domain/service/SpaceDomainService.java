@@ -20,13 +20,23 @@ public class SpaceDomainService {
     private final UserActionRepository actionRepo;
     private final StreamingLoader streamingLoader;
     private final RecommendationEngine recommendationEngine;
+    private final SpaceSearchService searchService;
+    private final PreloadManager preloadManager;
+    private final TransitionService transitionService;
+    private final CdnDistributionService cdnService;
 
     public SpaceDomainService(SpaceRepository spaceRepo, UserActionRepository actionRepo,
-                               StreamingLoader streamingLoader, RecommendationEngine recommendationEngine) {
+                               StreamingLoader streamingLoader, RecommendationEngine recommendationEngine,
+                               SpaceSearchService searchService, PreloadManager preloadManager,
+                               TransitionService transitionService, CdnDistributionService cdnService) {
         this.spaceRepo = spaceRepo;
         this.actionRepo = actionRepo;
         this.streamingLoader = streamingLoader;
         this.recommendationEngine = recommendationEngine;
+        this.searchService = searchService;
+        this.preloadManager = preloadManager;
+        this.transitionService = transitionService;
+        this.cdnService = cdnService;
     }
 
     /** SPC-001 + SPC-010: 获取空间并准备流式加载 */
@@ -111,5 +121,84 @@ public class SpaceDomainService {
             card.setPreviewImages(List.of(space.getMeta().getThumbnailUrl()));
         }
         return card;
+    }
+
+    // ========== SPC-004: Space Search ==========
+
+    /** 关键词搜索空间 */
+    public SpaceSearchService.SearchResult searchSpaces(String keyword, List<SpaceCategory> categories,
+                                                         String sortBy, int offset, int limit) {
+        return searchService.search(keyword, categories, sortBy, offset, limit);
+    }
+
+    /** 分类浏览空间 */
+    public List<Space> browseByCategory(List<SpaceCategory> categories, String sortBy,
+                                         int offset, int limit) {
+        return searchService.browseByCategory(categories, sortBy, offset, limit);
+    }
+
+    /** 获取搜索筛选面板 */
+    public SpaceSearchService.SearchFacets getSearchFacets() {
+        return searchService.getFacets();
+    }
+
+    // ========== SPC-005: Preload ==========
+
+    /** 预测性预加载 */
+    public PreloadManager.PreloadPrediction predictPreload(String userId,
+                                                             String currentSpaceId, int count) {
+        return preloadManager.predict(userId, currentSpaceId, count);
+    }
+
+    /** 获取缓存预加载预测 */
+    public Optional<PreloadManager.PreloadPrediction> getCachedPreload(String userId) {
+        return preloadManager.getCachedPrediction(userId);
+    }
+
+    /** 获取预加载统计 */
+    public PreloadManager.PreloadStats getPreloadStats() {
+        return preloadManager.getStats();
+    }
+
+    // ========== SPC-006: Loading Transition ==========
+
+    /** 获取空间加载过渡配置 */
+    public TransitionService.LoadingTransition getLoadingTransition(String spaceId) {
+        return transitionService.getLoadingTransition(spaceId);
+    }
+
+    /** 获取过渡预设列表 */
+    public List<TransitionService.TransitionPreset> getTransitionPresets() {
+        return transitionService.getPresets();
+    }
+
+    // ========== SPC-007: Exit Flow ==========
+
+    /** 获取空间退出过渡+下一预览卡片流 */
+    public TransitionService.ExitFlow getExitFlow(String userId, String currentSpaceId,
+                                                    List<String> nextCandidates) {
+        return transitionService.getExitFlow(userId, currentSpaceId, nextCandidates);
+    }
+
+    // ========== SPC-011: CDN Distribution ==========
+
+    /** 获取空间CDN分发清单 */
+    public CdnDistributionService.CdnManifest getCdnManifest(String spaceId, String clientRegion) {
+        return cdnService.getSpaceCdnManifest(spaceId, clientRegion);
+    }
+
+    /** 获取多区域CDN分发清单 */
+    public CdnDistributionService.MultiRegionManifest getMultiRegionManifest(String spaceId) {
+        return cdnService.getMultiRegionManifest(spaceId);
+    }
+
+    /** 获取CDN统计 */
+    public CdnDistributionService.CdnStats getCdnStats() {
+        return cdnService.getStats();
+    }
+
+    /** 清除CDN缓存 */
+    public void purgeCdnCache(String spaceId) {
+        cdnService.purgeCache(spaceId);
     }
 }

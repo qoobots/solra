@@ -203,6 +203,267 @@ public class SpcGrpcService extends com.solra.apis.spc.v1.SpcServiceGrpc.SpcServ
         }
     }
 
+    // ========== SPC-004: Space Search ==========
+
+    @Override
+    public void searchSpaces(com.solra.apis.spc.v1.SearchSpacesRequest request,
+                              StreamObserver<com.solra.apis.spc.v1.SearchSpacesResponse> responseObserver) {
+        try {
+            var cats = request.getCategoriesList().stream()
+                    .map(c -> SpaceCategory.valueOf(c.name().replace("SPACE_CATEGORY_", ""))).toList();
+            int off = request.hasPage() ? (int) request.getPage().getPage() * (int) request.getPage().getSize() : 0;
+            int lim = request.hasPage() ? (int) request.getPage().getSize() : 20;
+
+            var result = appService.searchSpaces(request.getKeyword(), cats,
+                    request.getSortBy(), off, lim);
+
+            List<com.solra.apis.spc.v1.Space> protoSpaces = result.spaces().stream()
+                    .map(s -> buildProtoSpace(SpcResultDTO.SpaceDTO.from(s))).toList();
+
+            responseObserver.onNext(com.solra.apis.spc.v1.SearchSpacesResponse.newBuilder()
+                    .addAllSpaces(protoSpaces)
+                    .setTotalResults(result.total())
+                    .setPage(Common.PageResponse.newBuilder()
+                            .setPage(request.hasPage() ? request.getPage().getPage() : 0)
+                            .setSize(lim).setTotalItems(result.total()).build())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("SearchSpaces failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void browseByCategory(com.solra.apis.spc.v1.BrowseByCategoryRequest request,
+                                  StreamObserver<com.solra.apis.spc.v1.BrowseByCategoryResponse> responseObserver) {
+        try {
+            var cats = request.getCategoriesList().stream()
+                    .map(c -> SpaceCategory.valueOf(c.name().replace("SPACE_CATEGORY_", ""))).toList();
+            int off = request.hasPage() ? (int) request.getPage().getPage() * (int) request.getPage().getSize() : 0;
+            int lim = request.hasPage() ? (int) request.getPage().getSize() : 20;
+
+            var spaces = appService.browseByCategory(cats, request.getSortBy(), off, lim);
+            List<com.solra.apis.spc.v1.Space> protoSpaces = spaces.stream()
+                    .map(this::buildProtoSpace).toList();
+
+            responseObserver.onNext(com.solra.apis.spc.v1.BrowseByCategoryResponse.newBuilder()
+                    .addAllSpaces(protoSpaces)
+                    .setPage(Common.PageResponse.newBuilder()
+                            .setPage(request.hasPage() ? request.getPage().getPage() : 0)
+                            .setSize(lim).setTotalItems(protoSpaces.size()).build())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("BrowseByCategory failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void getSearchFacets(com.solra.apis.spc.v1.GetSearchFacetsRequest request,
+                                 StreamObserver<com.solra.apis.spc.v1.GetSearchFacetsResponse> responseObserver) {
+        try {
+            var facets = appService.getSearchFacets();
+
+            var catCounts = com.solra.apis.spc.v1.GetSearchFacetsResponse.newBuilder();
+            facets.categoryCounts().forEach((cat, count) ->
+                    catCounts.putCategoryCounts("SPACE_CATEGORY_" + cat.name(), count));
+            facets.topTags().forEach(catCounts::putTopTags);
+
+            responseObserver.onNext(catCounts.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetSearchFacets failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    // ========== SPC-005: Preload ==========
+
+    @Override
+    public void predictPreload(com.solra.apis.spc.v1.PredictPreloadRequest request,
+                                StreamObserver<com.solra.apis.spc.v1.PredictPreloadResponse> responseObserver) {
+        try {
+            int count = request.getCount() > 0 ? request.getCount() : 3;
+            var prediction = appService.predictPreload(request.getUserId().getValue(),
+                    request.getCurrentSpaceId().getValue(), count);
+
+            responseObserver.onNext(com.solra.apis.spc.v1.PredictPreloadResponse.newBuilder()
+                    .addAllPredictedSpaceIds(prediction.predictedSpaceIds())
+                    .putAllLoadTimeEstimatesMs(prediction.loadTimeEstimatesMs())
+                    .setPreloadCoverageRate(prediction.preloadCoverageRate())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("PredictPreload failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void getPreloadStats(com.solra.apis.spc.v1.GetPreloadStatsRequest request,
+                                 StreamObserver<com.solra.apis.spc.v1.GetPreloadStatsResponse> responseObserver) {
+        try {
+            var stats = appService.getPreloadStats();
+            responseObserver.onNext(com.solra.apis.spc.v1.GetPreloadStatsResponse.newBuilder()
+                    .setActiveUsers(stats.activeUsers())
+                    .setTotalPredictions(stats.totalPredictions())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetPreloadStats failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    // ========== SPC-006: Loading Transition ==========
+
+    @Override
+    public void getLoadingTransition(com.solra.apis.spc.v1.GetLoadingTransitionRequest request,
+                                      StreamObserver<com.solra.apis.spc.v1.GetLoadingTransitionResponse> responseObserver) {
+        try {
+            var transition = appService.getLoadingTransition(request.getSpaceId().getValue());
+
+            List<com.solra.apis.spc.v1.TransitionKeyframeDTO> protoKeyframes = new ArrayList<>();
+            for (var kf : transition.keyframes()) {
+                protoKeyframes.add(com.solra.apis.spc.v1.TransitionKeyframeDTO.newBuilder()
+                        .setProgress(kf.progress())
+                        .setCssTransform(kf.cssTransform()).build());
+            }
+
+            responseObserver.onNext(com.solra.apis.spc.v1.GetLoadingTransitionResponse.newBuilder()
+                    .setTransition(com.solra.apis.spc.v1.LoadingTransitionDTO.newBuilder()
+                            .setSpaceId(transition.spaceId())
+                            .setEffect(transition.effect().name())
+                            .setDurationMs(transition.durationMs())
+                            .setEasing(transition.easing())
+                            .addAllKeyframes(protoKeyframes)
+                            .setThumbnailUrl(nn(transition.thumbnailUrl())).build())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetLoadingTransition failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void getTransitionPresets(com.solra.apis.spc.v1.GetTransitionPresetsRequest request,
+                                      StreamObserver<com.solra.apis.spc.v1.GetTransitionPresetsResponse> responseObserver) {
+        try {
+            var presets = appService.getTransitionPresets();
+            List<com.solra.apis.spc.v1.TransitionPresetDTO> protoPresets = new ArrayList<>();
+            for (var p : presets) {
+                protoPresets.add(com.solra.apis.spc.v1.TransitionPresetDTO.newBuilder()
+                        .setId(p.id()).setName(p.name()).setEffect(p.effect().name())
+                        .setDefaultDurationMs(p.defaultDurationMs())
+                        .setEasing(p.easing()).setDescription(p.description()).build());
+            }
+            responseObserver.onNext(com.solra.apis.spc.v1.GetTransitionPresetsResponse.newBuilder()
+                    .addAllPresets(protoPresets).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetTransitionPresets failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    // ========== SPC-007: Exit Flow ==========
+
+    @Override
+    public void getExitFlow(com.solra.apis.spc.v1.GetExitFlowRequest request,
+                             StreamObserver<com.solra.apis.spc.v1.GetExitFlowResponse> responseObserver) {
+        try {
+            List<String> candidates = request.getNextCandidatesList().stream()
+                    .map(Common.SpaceId::getValue).toList();
+
+            var exitFlow = appService.getExitFlow(request.getUserId().getValue(),
+                    request.getCurrentSpaceId().getValue(), candidates);
+
+            // Build exit transition
+            List<com.solra.apis.spc.v1.TransitionKeyframeDTO> protoKfs = new ArrayList<>();
+            for (var kf : exitFlow.exit().keyframes()) {
+                protoKfs.add(com.solra.apis.spc.v1.TransitionKeyframeDTO.newBuilder()
+                        .setProgress(kf.progress()).setCssTransform(kf.cssTransform()).build());
+            }
+
+            var exitTransition = com.solra.apis.spc.v1.ExitTransitionDTO.newBuilder()
+                    .setSpaceId(exitFlow.exit().spaceId())
+                    .setEffect(exitFlow.exit().effect().name())
+                    .setDurationMs(exitFlow.exit().durationMs())
+                    .setEasing(exitFlow.exit().easing())
+                    .addAllKeyframes(protoKfs).build();
+
+            // Build next preview card (if available)
+            var builder = com.solra.apis.spc.v1.GetExitFlowResponse.newBuilder()
+                    .setExitTransition(exitTransition)
+                    .setTotalDurationMs(exitFlow.totalDurationMs());
+
+            if (exitFlow.nextPreview() != null) {
+                builder.setNextPreview(buildProtoPreviewCard(
+                        SpcResultDTO.PreviewCardDTO.from(exitFlow.nextPreview())));
+            }
+
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetExitFlow failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    // ========== SPC-011: CDN Distribution ==========
+
+    @Override
+    public void getCdnManifest(com.solra.apis.spc.v1.GetCdnManifestRequest request,
+                                StreamObserver<com.solra.apis.spc.v1.GetCdnManifestResponse> responseObserver) {
+        try {
+            var manifest = appService.getCdnManifest(request.getSpaceId().getValue(),
+                    request.getClientRegion());
+
+            List<com.solra.apis.spc.v1.CdnAssetUrlDTO> protoUrls = new ArrayList<>();
+            for (var au : manifest.assetUrls()) {
+                protoUrls.add(com.solra.apis.spc.v1.CdnAssetUrlDTO.newBuilder()
+                        .setAssetId(au.assetId()).setSignedUrl(au.signedUrl())
+                        .setRegion(au.region()).setEdgeBaseUrl(au.edgeBaseUrl()).build());
+            }
+
+            responseObserver.onNext(com.solra.apis.spc.v1.GetCdnManifestResponse.newBuilder()
+                    .setSpaceId(manifest.spaceId())
+                    .setEdgeNode(manifest.edgeNode())
+                    .setRegion(manifest.region())
+                    .addAllAssetUrls(protoUrls)
+                    .setCachePolicy(com.solra.apis.spc.v1.CdnCachePolicyDTO.newBuilder()
+                            .setTtlSeconds(manifest.cachePolicy().ttlSeconds())
+                            .setEnableCompression(manifest.cachePolicy().enableCompression())
+                            .setCacheControlHeader(manifest.cachePolicy().cacheControlHeader())
+                            .setContentEncoding(manifest.cachePolicy().contentEncoding()).build())
+                    .setGeneratedAt(ts(manifest.generatedAt())).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetCdnManifest failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void getCdnStats(com.solra.apis.spc.v1.GetCdnStatsRequest request,
+                             StreamObserver<com.solra.apis.spc.v1.GetCdnStatsResponse> responseObserver) {
+        try {
+            var stats = appService.getCdnStats();
+            responseObserver.onNext(com.solra.apis.spc.v1.GetCdnStatsResponse.newBuilder()
+                    .setTotalNodes(stats.totalNodes())
+                    .setHealthyNodes(stats.healthyNodes())
+                    .setCachedUrls(stats.cachedUrls())
+                    .setHealthRate(stats.healthRate()).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetCdnStats failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
     // ==================== 映射工具方法 ====================
 
     private com.solra.apis.spc.v1.Space buildProtoSpace(SpcResultDTO.SpaceDTO dto) {

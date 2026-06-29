@@ -24,6 +24,13 @@ public class UserActionRepositoryImpl implements UserActionRepository {
     }
 
     @Override
+    public List<UserAction> findByUserId(String userId, int offset, int limit) {
+        int page = offset / Math.max(1, limit);
+        return jpa.findByUserIdOrderByActionTimeDesc(userId, PageRequest.of(page, limit))
+                .stream().map(this::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
     public List<UserAction> findBySpaceId(String spaceId, int limit) {
         return jpa.findBySpaceIdOrderByActionTimeDesc(spaceId, PageRequest.of(0, limit))
                 .stream().map(this::toDomain).collect(Collectors.toList());

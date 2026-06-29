@@ -9,5 +9,7 @@ import java.util.List;
 public interface ReviewCaseJpaRepository extends JpaRepository<ReviewCaseEntity, String> {
     List<ReviewCaseEntity> findByUserId(String userId);
     List<ReviewCaseEntity> findByStatusOrderByCreatedAtAsc(String status);
+    List<ReviewCaseEntity> findByStatusAndReviewTypeOrderByCreatedAtAsc(String status, String reviewType);
     long countByUserId(String userId);
+    long countByStatus(String status);
 }

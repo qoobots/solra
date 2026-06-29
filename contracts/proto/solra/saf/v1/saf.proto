@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package solra.saf.v1;
 
+import "google/protobuf/timestamp.proto";
 import "solra/common/common.proto";
 
 option java_package = "com.solra.apis.saf.v1";
@@ -32,6 +33,21 @@ service SafService {
 
   // 实时内容过滤（文本/图片/音频）
   rpc FilterContent(FilterContentRequest) returns (FilterContentResponse);
+
+  // 提交用户举报
+  rpc SubmitReport(SubmitReportRequest) returns (SubmitReportResponse);
+
+  // 查询举报处理结果
+  rpc QueryReportResult(QueryReportResultRequest) returns (QueryReportResultResponse);
+
+  // 获取审核工作台队列
+  rpc GetWorkQueue(GetWorkQueueRequest) returns (GetWorkQueueResponse);
+
+  // 认领审核项
+  rpc ClaimReviewItem(ClaimReviewItemRequest) returns (ClaimReviewItemResponse);
+
+  // 提交人工审核决定
+  rpc SubmitManualReview(SubmitManualReviewRequest) returns (SubmitManualReviewResponse);
 }
 
 // ============================================================
@@ -325,5 +341,113 @@ message FilterContentResponse {
   string filtered_content = 4;          // 过滤后的内容（如脱敏文本）
   solra.common.SolraError error = 5;
 }
+
+// ============================================================
+// SAF-003: 用户举报模型
+// ============================================================
+
+// ReportCategory 举报类别
+enum ReportCategory {
+  REPORT_CATEGORY_UNSPECIFIED = 0;
+  REPORT_CATEGORY_ILLEGAL = 1;          // 违法违规
+  REPORT_CATEGORY_NSFW = 2;             // 色情内容
+  REPORT_CATEGORY_HATE_SPEECH = 3;       // 仇恨言论
+  REPORT_CATEGORY_HARASSMENT = 4;        // 骚扰
+  REPORT_CATEGORY_SPAM = 5;             // 垃圾信息
+  REPORT_CATEGORY_COPYRIGHT = 6;         // 版权侵权
+  REPORT_CATEGORY_MINOR_SAFETY = 7;      // 未成年人安全
+  REPORT_CATEGORY_OTHER = 8;            // 其他
+}
+
+// SubmitReport 提交举报
+message SubmitReportRequest {
+  solra.common.UserId reporter_user_id = 1;
+  solra.common.UserId reported_user_id = 2;
+  string reported_content_id = 3;
+  string reason = 4;
+  ReportCategory category = 5;
+  repeated string evidence_urls = 6;
+}
+
+message SubmitReportResponse {
+  string report_id = 1;
+  ReportStatus report_status = 2;
+  solra.common.SolraError error = 3;
+}
+
+// ReportStatus 举报状态
+enum ReportStatus {
+  REPORT_STATUS_UNSPECIFIED = 0;
+  REPORT_STATUS_SUBMITTED = 1;
+  REPORT_STATUS_PENDING_REVIEW = 2;
+  REPORT_STATUS_IN_REVIEW = 3;
+  REPORT_STATUS_RESOLVED = 4;
+}
+
+// QueryReportResult 查询举报结果
+message QueryReportResultRequest {
+  string report_id = 1;
+}
+
+message QueryReportResultResponse {
+  string report_id = 1;
+  ReportStatus status = 2;
+  ReviewDecision decision = 3;
+  string decision_reason = 4;
+  solra.common.SolraError error = 5;
+}
+
+// ============================================================
+// SAF-004: 人工审核工作台模型
+// ============================================================
+
+// ReviewWorkbenchItem 审核工作台条目
+message ReviewWorkbenchItem {
+  string item_id = 1;
+  string case_id = 2;
+  string content_preview = 3;           // 内容预览（前200字符）
+  ContentType content_type = 4;
+  ReviewPriority priority = 5;
+  google.protobuf.Timestamp queued_at = 6;
+}
+
+// GetWorkQueue 获取工作队列
+message GetWorkQueueRequest {
+  string reviewer_id = 1;
+  int32 limit = 2;                      // 默认20，最大100
+}
+
+message GetWorkQueueResponse {
+  repeated ReviewWorkbenchItem items = 1;
+  solra.common.SolraError error = 2;
+}
+
+// ClaimReviewItem 认领审核项
+message ClaimReviewItemRequest {
+  string case_id = 1;
+  string reviewer_id = 2;
+}
+
+message ClaimReviewItemResponse {
+  string item_id = 1;
+  bool claimed = 2;
+  solra.common.SolraError error = 3;
+}
+
+// SubmitManualReview 提交人工审核决定
+message SubmitManualReviewRequest {
+  string case_id = 1;
+  ReviewDecision decision = 2;
+  string reason = 3;
+  string reviewer_id = 4;
+}
+
+message SubmitManualReviewResponse {
+  string case_id = 1;
+  ReviewStatus status = 2;
+  solra.common.SolraError error = 3;
+}
+
+
 
 

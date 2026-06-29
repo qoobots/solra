@@ -32,6 +32,26 @@ service SpcService {
 
   // 上报用户行为（用于推荐）
   rpc ReportUserAction(ReportUserActionRequest) returns (ReportUserActionResponse);
+
+  // SPC-004: 空间搜索
+  rpc SearchSpaces(SearchSpacesRequest) returns (SearchSpacesResponse);
+  rpc BrowseByCategory(BrowseByCategoryRequest) returns (BrowseByCategoryResponse);
+  rpc GetSearchFacets(GetSearchFacetsRequest) returns (GetSearchFacetsResponse);
+
+  // SPC-005: 预测性预加载
+  rpc PredictPreload(PredictPreloadRequest) returns (PredictPreloadResponse);
+  rpc GetPreloadStats(GetPreloadStatsRequest) returns (GetPreloadStatsResponse);
+
+  // SPC-006: 加载过渡动效
+  rpc GetLoadingTransition(GetLoadingTransitionRequest) returns (GetLoadingTransitionResponse);
+  rpc GetTransitionPresets(GetTransitionPresetsRequest) returns (GetTransitionPresetsResponse);
+
+  // SPC-007: 退出过渡与卡片流
+  rpc GetExitFlow(GetExitFlowRequest) returns (GetExitFlowResponse);
+
+  // SPC-011: CDN分发
+  rpc GetCdnManifest(GetCdnManifestRequest) returns (GetCdnManifestResponse);
+  rpc GetCdnStats(GetCdnStatsRequest) returns (GetCdnStatsResponse);
 }
 
 // ============================================================
@@ -301,5 +321,181 @@ message ReportUserActionRequest {
 message ReportUserActionResponse {
   solra.common.SolraError error = 1;
 }
+
+// ============================================================
+// SPC-004: Space Search
+// ============================================================
+
+message SearchSpacesRequest {
+  string keyword = 1;
+  repeated SpaceCategory categories = 2;
+  string sort_by = 3;               // relevance / popular / newest
+  solra.common.PageRequest page = 4;
+}
+
+message SearchSpacesResponse {
+  repeated Space spaces = 1;
+  int32 total_results = 2;
+  solra.common.PageResponse page = 3;
+  solra.common.SolraError error = 4;
+}
+
+message BrowseByCategoryRequest {
+  repeated SpaceCategory categories = 1;
+  string sort_by = 2;               // popular / newest / trending
+  solra.common.PageRequest page = 3;
+}
+
+message BrowseByCategoryResponse {
+  repeated Space spaces = 1;
+  solra.common.PageResponse page = 2;
+  solra.common.SolraError error = 3;
+}
+
+message GetSearchFacetsRequest {}
+
+message GetSearchFacetsResponse {
+  map<string, int64> category_counts = 1;   // category name -> count
+  map<string, int64> top_tags = 2;          // tag -> count
+  solra.common.SolraError error = 3;
+}
+
+// ============================================================
+// SPC-005: Predictive Preload
+// ============================================================
+
+message PredictPreloadRequest {
+  solra.common.UserId user_id = 1;
+  solra.common.SpaceId current_space_id = 2;
+  int32 count = 3;                  // 预加载目标数
+}
+
+message PredictPreloadResponse {
+  repeated string predicted_space_ids = 1;
+  map<string, int64> load_time_estimates_ms = 2;  // spaceId -> estimate ms
+  double preload_coverage_rate = 3; // 预加载覆盖率
+  solra.common.SolraError error = 4;
+}
+
+message GetPreloadStatsRequest {}
+
+message GetPreloadStatsResponse {
+  int32 active_users = 1;
+  int64 total_predictions = 2;
+  solra.common.SolraError error = 3;
+}
+
+// ============================================================
+// SPC-006: Loading Transition
+// ============================================================
+
+message GetLoadingTransitionRequest {
+  solra.common.SpaceId space_id = 1;
+}
+
+message GetLoadingTransitionResponse {
+  LoadingTransitionDTO transition = 1;
+  solra.common.SolraError error = 2;
+}
+
+message LoadingTransitionDTO {
+  string space_id = 1;
+  string effect = 2;                // FADE_IN / CARD_EXPAND / ZOOM_IN / SLIDE_UP / CROSS_FADE
+  int32 duration_ms = 3;            // 过渡时长（毫秒）
+  string easing = 4;                // ease-out / ease-in / ease-in-out / linear
+  repeated TransitionKeyframeDTO keyframes = 5;
+  string thumbnail_url = 6;
+}
+
+message TransitionKeyframeDTO {
+  float progress = 1;               // 0..1
+  string css_transform = 2;         // CSS transform string
+}
+
+message GetTransitionPresetsRequest {}
+
+message GetTransitionPresetsResponse {
+  repeated TransitionPresetDTO presets = 1;
+  solra.common.SolraError error = 2;
+}
+
+message TransitionPresetDTO {
+  string id = 1;
+  string name = 2;
+  string effect = 3;
+  int32 default_duration_ms = 4;
+  string easing = 5;
+  string description = 6;
+}
+
+// ============================================================
+// SPC-007: Exit Flow
+// ============================================================
+
+message GetExitFlowRequest {
+  solra.common.UserId user_id = 1;
+  solra.common.SpaceId current_space_id = 2;
+  repeated solra.common.SpaceId next_candidates = 3;
+}
+
+message GetExitFlowResponse {
+  ExitTransitionDTO exit_transition = 1;
+  PreviewCard next_preview = 2;
+  int32 total_duration_ms = 3;      // 退出+预览衔接总时长
+  solra.common.SolraError error = 4;
+}
+
+message ExitTransitionDTO {
+  string space_id = 1;
+  string effect = 2;                // FADE_OUT_ZOOM
+  int32 duration_ms = 3;
+  string easing = 4;
+  repeated TransitionKeyframeDTO keyframes = 5;
+}
+
+// ============================================================
+// SPC-011: CDN Distribution
+// ============================================================
+
+message GetCdnManifestRequest {
+  solra.common.SpaceId space_id = 1;
+  string client_region = 2;         // e.g., ap-shanghai, us-west-1
+}
+
+message GetCdnManifestResponse {
+  string space_id = 1;
+  string edge_node = 2;
+  string region = 3;
+  repeated CdnAssetUrlDTO asset_urls = 4;
+  CdnCachePolicyDTO cache_policy = 5;
+  solra.common.SolraTimestamp generated_at = 6;
+  solra.common.SolraError error = 7;
+}
+
+message CdnAssetUrlDTO {
+  string asset_id = 1;
+  string signed_url = 2;
+  string region = 3;
+  string edge_base_url = 4;
+}
+
+message CdnCachePolicyDTO {
+  int32 ttl_seconds = 1;
+  bool enable_compression = 2;
+  string cache_control_header = 3;
+  string content_encoding = 4;
+}
+
+message GetCdnStatsRequest {}
+
+message GetCdnStatsResponse {
+  int32 total_nodes = 1;
+  int32 healthy_nodes = 2;
+  int64 cached_urls = 3;
+  double health_rate = 4;
+  solra.common.SolraError error = 5;
+}
+
+
 
 

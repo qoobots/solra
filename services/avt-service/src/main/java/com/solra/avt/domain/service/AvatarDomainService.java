@@ -10,6 +10,10 @@ import java.util.*;
 /**
  * AvatarDomainService — 虚拟人交互核心领域服务。
  * 编排对话流程：接收消息 → 推理 → 记忆存储 → 情感更新 → 返回响应。
+ *
+ * Covers: AVT-001 (实时对话), AVT-002 (社交主动性), AVT-003 (长期记忆),
+ *         AVT-004 (5维情感模型), AVT-006 (肢体表情), AVT-008 (惊喜时刻),
+ *         AVT-012 (安全过滤).
  */
 public class AvatarDomainService {
 
@@ -20,17 +24,26 @@ public class AvatarDomainService {
     private final DialogueTurnRepository turnRepo;
     private final AvatarRepository avatarRepo;
     private final MemoryRepository memoryRepo;
+    private final SurpriseEngine surpriseEngine;
+
+    // AVT-004: 5D emotion state per avatar
+    private final Map<String, FiveDimensionalEmotion> emotionStates = new HashMap<>();
+
+    // AVT-003: Long-term memory per user+avatar
+    private final Map<String, LongTermMemory> longTermMemories = new HashMap<>();
 
     public AvatarDomainService(InferenceEngine inferenceEngine,
                                ConversationRepository conversationRepo,
                                DialogueTurnRepository turnRepo,
                                AvatarRepository avatarRepo,
-                               MemoryRepository memoryRepo) {
+                               MemoryRepository memoryRepo,
+                               SurpriseEngine surpriseEngine) {
         this.inferenceEngine = inferenceEngine;
         this.conversationRepo = conversationRepo;
         this.turnRepo = turnRepo;
         this.avatarRepo = avatarRepo;
         this.memoryRepo = memoryRepo;
+        this.surpriseEngine = surpriseEngine;
     }
 
     /** AVT-001: 发送消息 → 虚拟人同步响应 */
@@ -180,5 +193,119 @@ public class AvatarDomainService {
 
     private String truncate(String s, int maxLen) {
         return s.length() <= maxLen ? s : s.substring(0, maxLen - 3) + "...";
+    }
+
+    // ========== AVT-003: Long-Term Memory ==========
+
+    /**
+     * AVT-003: Get or create long-term memory for a user+avatar pair.
+     */
+    public LongTermMemory getOrCreateLongTermMemory(String userId, String avatarId) {
+        String key = userId + "::" + avatarId;
+        return longTermMemories.computeIfAbsent(key,
+                k -> LongTermMemory.create(userId, avatarId));
+    }
+
+    /**
+     * AVT-003: Add a memory snapshot after conversation.
+     */
+    public void addMemorySnapshot(String userId, String avatarId, String conversationId,
+                                   String content, LongTermMemory.MemorySnapshotType type,
+                                   float importance, String emotionContext) {
+        LongTermMemory ltm = getOrCreateLongTermMemory(userId, avatarId);
+        ltm.addSnapshot(conversationId, content, type, importance, emotionContext);
+
+        if (ltm.needsConsolidation()) {
+            ltm.consolidate();
+            log.info("AVT-003 memory consolidated: user={} avatar={} totalMemories={}",
+                    userId, avatarId, ltm.getTotalMemories());
+        }
+    }
+
+    /**
+     * AVT-003: Retrieve relevant long-term memories for context.
+     */
+    public List<LongTermMemory.MemorySnapshot> retrieveMemories(String userId, String avatarId,
+                                                                  String query, int maxResults) {
+        LongTermMemory ltm = getOrCreateLongTermMemory(userId, avatarId);
+        return ltm.retrieveRelevant(query, maxResults);
+    }
+
+    /**
+     * AVT-003: Get memory summary (what avatar knows about user).
+     */
+    public LongTermMemory.MemorySummary getMemorySummary(String userId, String avatarId) {
+        return getOrCreateLongTermMemory(userId, avatarId).getSummary();
+    }
+
+    // ========== AVT-004: 5D Emotion Model ==========
+
+    /**
+     * AVT-004: Get or create 5D emotion state for an avatar.
+     */
+    public FiveDimensionalEmotion getOrCreateEmotionState(String avatarId) {
+        return emotionStates.computeIfAbsent(avatarId, k -> new FiveDimensionalEmotion());
+    }
+
+    /**
+     * AVT-004: Apply an emotion event to the avatar's 5D state.
+     */
+    public FiveDimensionalEmotion applyEmotionEvent(String avatarId,
+                                                     FiveDimensionalEmotion.EmotionEventType eventType,
+                                                     float intensity) {
+        FiveDimensionalEmotion emotion = getOrCreateEmotionState(avatarId);
+        emotion.applyEvent(eventType, intensity);
+        log.debug("AVT-004 emotion event: avatar={} event={} mood={}",
+                avatarId, eventType, emotion.getCurrentMood());
+        return emotion;
+    }
+
+    /**
+     * AVT-004: Decay emotions towards neutral (called periodically).
+     */
+    public void decayEmotions(String avatarId, float rate) {
+        FiveDimensionalEmotion emotion = emotionStates.get(avatarId);
+        if (emotion != null) {
+            emotion.decay(rate);
+        }
+    }
+
+    // ========== AVT-006: Avatar Expression ==========
+
+    /**
+     * AVT-006: Generate expression from 5D emotion state.
+     */
+    public AvatarExpression getExpressionFromEmotion(String avatarId) {
+        FiveDimensionalEmotion emotion = getOrCreateEmotionState(avatarId);
+        return AvatarExpression.fromEmotion(emotion);
+    }
+
+    /**
+     * AVT-006: Generate specific expression by type.
+     */
+    public AvatarExpression generateExpression(AvatarExpression.ExpressionType type, float intensity) {
+        return AvatarExpression.fromType(type, intensity);
+    }
+
+    // ========== AVT-008: Surprise Engine ==========
+
+    /**
+     * AVT-008: Evaluate and potentially trigger a surprise moment.
+     */
+    public Optional<SurpriseEngine.SurpriseMoment> evaluateSurprise(String userId,
+                                                                      String conversationId,
+                                                                      String avatarId) {
+        List<DialogueTurn> recentHistory = turnRepo.findByConversationId(conversationId, 0, 10);
+        List<LongTermMemory.MemorySnapshot> memories = retrieveMemories(userId, avatarId, "", 5);
+        FiveDimensionalEmotion emotion = getOrCreateEmotionState(avatarId);
+
+        return surpriseEngine.evaluate(userId, conversationId, recentHistory, memories, emotion);
+    }
+
+    /**
+     * AVT-008: Get surprise statistics for a user.
+     */
+    public SurpriseEngine.SurpriseStats getSurpriseStats(String userId) {
+        return surpriseEngine.getStats(userId);
     }
 }
