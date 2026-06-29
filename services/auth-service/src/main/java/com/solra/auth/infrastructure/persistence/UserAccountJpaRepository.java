@@ -1,6 +1,7 @@
 package com.solra.auth.infrastructure.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -16,4 +17,8 @@ public interface UserAccountJpaRepository extends JpaRepository<UserAccountEntit
     boolean existsByPhone(String phone);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
+
+    /** AUTH-002: Find user by OAuth provider + providerUserId in linked_accounts_json */
+    @Query(value = "SELECT e FROM UserAccountEntity e WHERE e.linkedAccountsJson LIKE %:providerUserId%")
+    Optional<UserAccountEntity> findByOAuthProviderUserId(String providerUserId);
 }

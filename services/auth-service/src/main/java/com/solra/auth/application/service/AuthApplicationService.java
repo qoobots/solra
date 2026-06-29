@@ -4,6 +4,7 @@ import com.solra.auth.application.dto.*;
 import com.solra.auth.domain.event.AuthDomainEvents.*;
 import com.solra.auth.domain.model.*;
 import com.solra.auth.domain.service.AuthDomainService;
+import com.solra.auth.domain.service.OAuthAuthenticationService;
 import com.solra.auth.infrastructure.security.AuthTokenService;
 import com.solra.auth.infrastructure.sms.SmsProvider;
 import com.solra.common.exception.SolraException;
@@ -22,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Application service — orchestrates the auth workflow across domain & infrastructure.
- * Covers: AUTH-001 (registration/login), AUTH-004 (real-name verification).
+ * Covers: AUTH-001 (registration/login), AUTH-002 (third-party OAuth login), AUTH-004 (real-name verification).
  */
 @Service
 public class AuthApplicationService {
@@ -30,6 +31,7 @@ public class AuthApplicationService {
     private static final Logger log = LoggerFactory.getLogger(AuthApplicationService.class);
 
     private final AuthDomainService authDomainService;
+    private final OAuthAuthenticationService oauthService;
     private final AuthTokenService tokenService;
     private final SmsProvider smsProvider;
     private final ApplicationEventPublisher eventPublisher;
@@ -38,10 +40,12 @@ public class AuthApplicationService {
     private final Map<String, VerificationCodeEntry> verificationCodes = new ConcurrentHashMap<>();
 
     public AuthApplicationService(AuthDomainService authDomainService,
+                                   OAuthAuthenticationService oauthService,
                                    AuthTokenService tokenService,
                                    SmsProvider smsProvider,
                                    ApplicationEventPublisher eventPublisher) {
         this.authDomainService = authDomainService;
+        this.oauthService = oauthService;
         this.tokenService = tokenService;
         this.smsProvider = smsProvider;
         this.eventPublisher = eventPublisher;
@@ -220,6 +224,65 @@ public class AuthApplicationService {
             case ADULT -> RealNameVerificationResultDTO.adult(userId,
                     account.getRealNameInfo().getAge());
         };
+    }
+
+    // ===== AUTH-002: Third-Party OAuth Login =====
+
+    /**
+     * AUTH-002: Login/register via OAuth provider (微信/Apple/Google/Facebook).
+     */
+    @Transactional
+    public AuthResultDTO loginByOAuth(OAuthLoginCommand cmd) {
+        log.info("AUTH-002 OAuth login: provider={} providerUserId={}", cmd.provider(), cmd.providerUserId());
+
+        UserAccount account = oauthService.loginByOAuth(
+                cmd.provider(), cmd.providerUserId(), cmd.displayName(),
+                cmd.email(), cmd.avatarUrl(), cmd.accessToken(), cmd.expiresAt());
+
+        List<String> roles = new ArrayList<>(account.getRoles());
+        String accessToken = tokenService.generateAccessToken(account.getUserId(), roles);
+        String refreshToken = tokenService.generateRefreshToken(account.getUserId());
+
+        authDomainService.createSession(account.getUserId(),
+                LoginMethod.valueOf("OAUTH_" + cmd.provider().toUpperCase()),
+                cmd.deviceInfo(), cmd.ipAddress(), accessToken, refreshToken,
+                tokenService.getAccessTokenExpirationSeconds());
+
+        account.recordLogin(cmd.ipAddress(), cmd.deviceInfo());
+
+        eventPublisher.publishEvent(new UserLoggedInEvent(
+                account.getUserId(), cmd.provider(), LoginMethod.PASSWORD, cmd.ipAddress(),
+                java.time.Instant.now()));
+
+        return toAuthResult(account, accessToken, refreshToken, roles);
+    }
+
+    /**
+     * AUTH-002: Bind OAuth account to existing user.
+     */
+    @Transactional
+    public AuthResultDTO bindOAuth(OAuthBindCommand cmd) {
+        log.info("AUTH-002 bindOAuth: user={} provider={}", cmd.userId(), cmd.provider());
+
+        UserAccount account = oauthService.bindOAuth(
+                cmd.userId(), cmd.provider(), cmd.providerUserId(),
+                cmd.displayName(), cmd.email(), cmd.avatarUrl(), cmd.accessToken(), cmd.expiresAt());
+
+        List<String> roles = new ArrayList<>(account.getRoles());
+        return toAuthResult(account, null, null, roles);
+    }
+
+    /**
+     * AUTH-002: Unbind OAuth account from user.
+     */
+    @Transactional
+    public AuthResultDTO unbindOAuth(OAuthUnbindCommand cmd) {
+        log.info("AUTH-002 unbindOAuth: user={} provider={}", cmd.userId(), cmd.provider());
+
+        UserAccount account = oauthService.unbindOAuth(cmd.userId(), cmd.provider());
+
+        List<String> roles = new ArrayList<>(account.getRoles());
+        return toAuthResult(account, null, null, roles);
     }
 
     /**

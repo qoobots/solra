@@ -1,9 +1,12 @@
 package com.solra.auth.infrastructure.persistence;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solra.auth.domain.model.*;
 import com.solra.auth.domain.repository.UserAccountRepository;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -17,6 +20,7 @@ import java.util.stream.Collectors;
 public class UserAccountRepositoryImpl implements UserAccountRepository {
 
     private final UserAccountJpaRepository jpaRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public UserAccountRepositoryImpl(UserAccountJpaRepository jpaRepository) {
         this.jpaRepository = jpaRepository;
@@ -40,6 +44,20 @@ public class UserAccountRepositoryImpl implements UserAccountRepository {
     @Override
     public Optional<UserAccount> findByEmail(String email) {
         return jpaRepository.findByEmail(email).map(this::toDomain);
+    }
+
+    @Override
+    public Optional<UserAccount> findByOAuthProviderAndId(String provider, String providerUserId) {
+        // Search through JSON linked accounts for matching provider + providerUserId
+        return jpaRepository.findByOAuthProviderUserId(providerUserId)
+                .filter(e -> e.getLinkedAccountsJson() != null)
+                .filter(e -> {
+                    List<Map<String, Object>> accounts = parseLinkedAccounts(e.getLinkedAccountsJson());
+                    return accounts.stream().anyMatch(a ->
+                            provider.equalsIgnoreCase(String.valueOf(a.get("provider"))) &&
+                            providerUserId.equals(String.valueOf(a.get("providerUserId"))));
+                })
+                .map(this::toDomain);
     }
 
     @Override
@@ -86,6 +104,24 @@ public class UserAccountRepositoryImpl implements UserAccountRepository {
         entity.setLastLoginAt(domain.getLastLoginAt());
         entity.setRoles(String.join(",", domain.getRoles()));
 
+        // Serialize linked OAuth accounts to JSON
+        List<Map<String, Object>> oauthList = new ArrayList<>();
+        for (OAuthAccount oa : domain.getLinkedAccounts()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("provider", oa.getProvider().name());
+            map.put("providerUserId", oa.getProviderUserId());
+            map.put("displayName", oa.getDisplayName());
+            map.put("email", oa.getEmail());
+            map.put("avatarUrl", oa.getAvatarUrl());
+            map.put("boundAt", oa.getBoundAt() != null ? oa.getBoundAt().toString() : null);
+            oauthList.add(map);
+        }
+        try {
+            entity.setLinkedAccountsJson(objectMapper.writeValueAsString(oauthList));
+        } catch (Exception ex) {
+            entity.setLinkedAccountsJson("[]");
+        }
+
         RealNameInfo rn = domain.getRealNameInfo();
         if (rn != null) {
             entity.setRealName(rn.getRealName());
@@ -119,7 +155,25 @@ public class UserAccountRepositoryImpl implements UserAccountRepository {
                     case "avatarUrl" -> field.set(domain, entity.getAvatarUrl());
                     case "passwordHash" -> field.set(domain, entity.getPasswordHash());
                     case "status" -> field.set(domain, AccountStatus.valueOf(entity.getStatus()));
-                    case "linkedAccounts" -> field.set(domain, new ArrayList<>());
+                    case "linkedAccounts" -> {
+                        List<OAuthAccount> accounts = new ArrayList<>();
+                        if (entity.getLinkedAccountsJson() != null && !entity.getLinkedAccountsJson().isEmpty()) {
+                            for (Map<String, Object> map : parseLinkedAccounts(entity.getLinkedAccountsJson())) {
+                                OAuthAccount.Provider provider = OAuthAccount.Provider.valueOf(
+                                        String.valueOf(map.get("provider")).toUpperCase());
+                                OAuthAccount oa = OAuthAccount.bind(
+                                        provider,
+                                        String.valueOf(map.get("providerUserId")),
+                                        String.valueOf(map.getOrDefault("displayName", "")),
+                                        String.valueOf(map.getOrDefault("email", "")),
+                                        String.valueOf(map.getOrDefault("avatarUrl", "")),
+                                        "",
+                                        null);
+                                accounts.add(oa);
+                            }
+                        }
+                        field.set(domain, accounts);
+                    }
                     case "createdAt" -> field.set(domain, entity.getCreatedAt());
                     case "updatedAt" -> field.set(domain, entity.getUpdatedAt());
                     case "lastLoginAt" -> field.set(domain, entity.getLastLoginAt());
@@ -147,6 +201,15 @@ public class UserAccountRepositoryImpl implements UserAccountRepository {
             }
         } catch (IllegalAccessException e) {
             throw new RuntimeException("Failed to map entity to domain", e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseLinkedAccounts(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
         }
     }
 }

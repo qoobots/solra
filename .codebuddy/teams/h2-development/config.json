@@ -1,0 +1,33 @@
+{
+  "name": "h2-development",
+  "leadAgentId": "71bce61914ba4e569565ade77af57121",
+  "workspacePath": "d:/05workspaces/solra",
+  "createdAt": "2026-06-29T02:41:51.513Z",
+  "options": {
+    "workspacePath": "d:/05workspaces/solra",
+    "isAutoTeam": false
+  },
+  "members": [
+    {
+      "memberId": "team-lead@h2-development",
+      "name": "team-lead",
+      "role": "Team Lead - coordinates the team and interacts with the user"
+    },
+    {
+      "memberId": "soc-dev@h2-development",
+      "name": "soc-dev",
+      "role": "Build soc-service DDD layers"
+    },
+    {
+      "memberId": "grw-dev@h2-development",
+      "name": "grw-dev",
+      "role": "Build grw-service DDD layers"
+    },
+    {
+      "memberId": "not-dev@h2-development",
+      "name": "not-dev",
+      "role": "Build not-service DDD layers"
+    }
+  ],
+  "isAutoTeam": false
+}

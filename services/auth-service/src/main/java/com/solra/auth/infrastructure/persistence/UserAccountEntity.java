@@ -59,6 +59,9 @@ public class UserAccountEntity {
     @Column(name = "roles", length = 512)
     private String roles; // comma-separated
 
+    @Column(name = "linked_accounts_json", columnDefinition = "TEXT")
+    private String linkedAccountsJson; // JSON array of OAuthAccount
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -111,6 +114,9 @@ public class UserAccountEntity {
 
     public String getRoles() { return roles; }
     public void setRoles(String roles) { this.roles = roles; }
+
+    public String getLinkedAccountsJson() { return linkedAccountsJson; }
+    public void setLinkedAccountsJson(String linkedAccountsJson) { this.linkedAccountsJson = linkedAccountsJson; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
