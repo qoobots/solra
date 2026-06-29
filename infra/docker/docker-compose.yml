@@ -1,0 +1,179 @@
+# Solra — 本地开发环境 Docker Compose
+# 包含：PostgreSQL + Redis + Kafka + MinIO + APISIX Gateway
+#
+# 启动: docker-compose -f infra/docker/docker-compose.yml up -d
+# 停止: docker-compose -f infra/docker/docker-compose.yml down -v
+
+version: "3.8"
+
+services:
+  # ============================================================
+  # 数据库 — PostgreSQL 16
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: solra-postgres
+    environment:
+      POSTGRES_USER: solra
+      POSTGRES_PASSWORD: solra_dev
+      POSTGRES_MULTIPLE_DATABASES: solra_auth,solra_saf,solra_avt,solra_spc,solra_soc,solra_grw,solra_not,solra_crt,solra_mon
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker-compose/init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U solra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - solra-dev
+    restart: unless-stopped
+
+  # ============================================================
+  # 缓存 — Redis 7
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: solra-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - solra-dev
+    restart: unless-stopped
+
+  # ============================================================
+  # 消息队列 — Kafka (KRaft mode, no Zookeeper)
+  # ============================================================
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: solra-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - solra-dev
+    restart: unless-stopped
+
+  # ============================================================
+  # 对象存储 — MinIO (S3-compatible)
+  # ============================================================
+  minio:
+    image: minio/minio:RELEASE.2024-06-11T03-13-26Z
+    container_name: solra-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: solra_admin
+      MINIO_ROOT_PASSWORD: solra_minio_dev
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - solra-dev
+    restart: unless-stopped
+
+  # ============================================================
+  # API 网关 — APISIX
+  # ============================================================
+  apisix:
+    image: apache/apisix:3.9.0-debian
+    container_name: solra-apisix
+    environment:
+      APISIX_STAND_ALONE: "true"
+    ports:
+      - "9080:9080"   # Gateway HTTP
+      - "9443:9443"   # Gateway HTTPS
+      - "9091:9091"   # Prometheus metrics
+    volumes:
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - solra-dev
+    restart: unless-stopped
+
+  # ============================================================
+  # 可观测 — Prometheus + Grafana (开发用精简版)
+  # ============================================================
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: solra-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_dev_data:/prometheus
+    networks:
+      - solra-dev
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: solra-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - solra-dev
+    restart: unless-stopped
+
+networks:
+  solra-dev:
+    name: solra-dev
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+  minio_data:
+  prometheus_dev_data:
+  grafana_dev_data:

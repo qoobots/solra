@@ -1,0 +1,106 @@
+# APISIX declarative configuration — local dev routes
+# Mirror of routes.yaml adapted for standalone mode.
+
+routes:
+  # ── Health ─────────────────────────────────────────────────────
+  - id: health-check
+    uri: /*
+    methods: [GET]
+    priority: 1
+    plugins:
+      redirect:
+        uri: /health
+        ret_code: 302
+
+  # ── BFF Client API ─────────────────────────────────────────────
+  - id: bff-client-api
+    uri: /v1/*
+    methods: [GET, POST, PUT, DELETE, PATCH]
+    priority: 10
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8080": 1
+    plugins:
+      cors: {}
+      limit-req:
+        rate: 100
+        burst: 50
+        key: remote_addr
+      prometheus: {}
+
+  # ── Internal services ──────────────────────────────────────────
+  - id: internal-safety
+    uri: /internal/safety/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8084": 1
+    plugins:
+      prometheus: {}
+
+  - id: internal-auth
+    uri: /internal/auth/*
+    methods: [GET, POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8081": 1
+    plugins:
+      prometheus: {}
+
+  # ── AI Service routes ─────────────────────────────────────────
+  - id: ai-safety-model
+    uri: /ai/safety/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:9094": 1
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["/ai/safety/(.*)", "/api/v1/$1"]
+      prometheus: {}
+    timeout:
+      connect: 10
+      send: 120
+      read: 120
+
+  - id: ai-llm
+    uri: /ai/llm/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8000": 1
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["/ai/llm/(.*)", "/$1"]
+      prometheus: {}
+    timeout:
+      connect: 10
+      send: 120
+      read: 120
+
+  - id: ai-tts
+    uri: /ai/tts/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:9093": 1
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["/ai/tts/(.*)", "/$1"]
+      prometheus: {}
+    timeout:
+      connect: 10
+      send: 60
+      read: 60
+# end

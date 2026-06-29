@@ -1,0 +1,177 @@
+# Solra K8s — GPU 推理节点池配置
+# 用于 LLM 推理、Embedding、TTS 等 GPU 密集型 AI 服务
+#
+# 前置：集群已安装 NVIDIA Device Plugin + GPU Operator
+
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: solra-gpu-inference
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand", "spot"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            # NVIDIA T4 (16GB) — embedding, safety model
+            - g5.xlarge
+            - g5.2xlarge
+            # NVIDIA A10G (24GB) — LLM 7B inference
+            - g5.4xlarge
+            - g5.8xlarge
+            # NVIDIA L40S (48GB) — LLM 13B, TTS
+            - g6.4xlarge
+      nodeClassRef:
+        name: solra-gpu
+      taints:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+      labels:
+        solra.io/compute-tier: gpu
+        solra.io/workload: inference
+
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    consolidateAfter: 5m
+
+  limits:
+    cpu: "128"
+    memory: 512Gi
+    nvidia.com/gpu: "16"
+---
+# ── GPU NodeClass ──────────────────────────────────────────────
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: solra-gpu
+  namespace: kube-system
+spec:
+  amiFamily: AL2
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: solra-dev
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: solra-dev
+  role: solra-karpenter-node
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        iops: 3000
+        deleteOnTermination: true
+  metadataOptions:
+    httpEndpoint: enabled
+    httpTokens: required
+---
+# ── NVIDIA GPU Operator Helm values (参考) ─────────────────────
+# helm install gpu-operator nvidia/gpu-operator -n gpu-operator \
+#   --set driver.enabled=true \
+#   --set toolkit.enabled=true \
+#   --set devicePlugin.enabled=true \
+#   --set migManager.enabled=true \
+#   --set dcgmExporter.enabled=true
+---
+# ── GPU 服务资源配置示例 ──────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gpu-service-presets
+  namespace: solra-dev
+data:
+  llm-7b: |
+    resources:
+      requests:
+        cpu: 4000m
+        memory: 16Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 8000m
+        memory: 32Gi
+        nvidia.com/gpu: 1
+    nodeSelector:
+      solra.io/compute-tier: gpu
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+  llm-13b: |
+    resources:
+      requests:
+        cpu: 8000m
+        memory: 32Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 16000m
+        memory: 64Gi
+        nvidia.com/gpu: 1
+    nodeSelector:
+      solra.io/compute-tier: gpu
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+  embedding: |
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 4000m
+        memory: 16Gi
+        nvidia.com/gpu: 1
+    nodeSelector:
+      solra.io/compute-tier: gpu
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+  tts: |
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 4000m
+        memory: 16Gi
+        nvidia.com/gpu: 1
+    nodeSelector:
+      solra.io/compute-tier: gpu
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+  safety: |
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+    nodeSelector:
+      solra.io/compute-tier: gpu
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule

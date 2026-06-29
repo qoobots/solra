@@ -1,0 +1,31 @@
+# APISIX standalone mode configuration
+# Used by docker-compose for local development with declarative config.
+
+apisix:
+  node_listen: 9080
+  enable_admin: false
+  enable_control: false
+  enable_debug: false
+  config_center: yaml
+
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+
+nginx_config:
+  worker_processes: auto
+  worker_rlimit_nofile: 20480
+  error_log: /dev/stderr
+  event:
+    worker_connections: 10620
+  http_configuration_snippet: |
+    server {
+        listen 9091;
+        location /apisix/prometheus/metrics {
+            content_by_lua_block {
+                local prometheus = require("apisix.plugins.prometheus")
+                prometheus.export_metrics()
+            }
+        }
+    }
