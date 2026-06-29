@@ -220,13 +220,16 @@ public class AuthGrpcService {
 
     public void checkPermission(CheckPermissionRequest request, StreamObserver<CheckPermissionResponse> responseObserver) {
         try {
-            boolean allowed = authAppService.checkPermission(
+            var result = authAppService.checkPermission(
                     request.getUserId().getValue(), request.getResource(), request.getAction());
             responseObserver.onNext(CheckPermissionResponse.newBuilder()
-                    .setAllowed(allowed)
-                    .setReason(allowed ? "" : "Permission denied")
+                    .setAllowed(result.allowed())
+                    .setReason(result.reason())
                     .build());
             responseObserver.onCompleted();
+
+            log.debug("AUTH-003: Permission check user={} resource={} action={} -> {}",
+                    request.getUserId().getValue(), request.getResource(), request.getAction(), result.allowed());
         } catch (SolraException e) {
             responseObserver.onNext(CheckPermissionResponse.newBuilder()
                     .setError(ProtoErrorMapper.toProtoError(e))

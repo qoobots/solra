@@ -136,6 +136,35 @@ public class UserAccount {
         return this.roles.contains(role);
     }
 
+    /**
+     * AUTH-003: Assign a role to the user.
+     */
+    public void assignRole(String role) {
+        if (role == null || role.isBlank()) {
+            throw new IllegalArgumentException("Role cannot be empty");
+        }
+        this.roles.add(role);
+        this.updatedAt = Instant.now();
+    }
+
+    /**
+     * AUTH-003: Remove a role from the user.
+     */
+    public void removeRole(String role) {
+        if (role == null || role.isBlank()) {
+            throw new IllegalArgumentException("Role cannot be empty");
+        }
+        this.roles.remove(role);
+        this.updatedAt = Instant.now();
+    }
+
+    /**
+     * AUTH-003: Check if user has any of the given roles.
+     */
+    public boolean hasAnyRole(Set<String> checkRoles) {
+        return checkRoles != null && checkRoles.stream().anyMatch(this.roles::contains);
+    }
+
     // -- Getters --
 
     public String getUserId() { return userId; }

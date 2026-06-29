@@ -5,6 +5,7 @@ import com.solra.auth.domain.event.AuthDomainEvents.*;
 import com.solra.auth.domain.model.*;
 import com.solra.auth.domain.service.AuthDomainService;
 import com.solra.auth.domain.service.OAuthAuthenticationService;
+import com.solra.auth.domain.service.PermissionEngine;
 import com.solra.auth.infrastructure.security.AuthTokenService;
 import com.solra.auth.infrastructure.sms.SmsProvider;
 import com.solra.common.exception.SolraException;
@@ -16,10 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 
 /**
  * Application service — orchestrates the auth workflow across domain & infrastructure.
@@ -34,6 +32,7 @@ public class AuthApplicationService {
     private final OAuthAuthenticationService oauthService;
     private final AuthTokenService tokenService;
     private final SmsProvider smsProvider;
+    private final PermissionEngine permissionEngine;
     private final ApplicationEventPublisher eventPublisher;
 
     // In-memory verification code store (production: use Redis with TTL)
@@ -43,11 +42,13 @@ public class AuthApplicationService {
                                    OAuthAuthenticationService oauthService,
                                    AuthTokenService tokenService,
                                    SmsProvider smsProvider,
+                                   PermissionEngine permissionEngine,
                                    ApplicationEventPublisher eventPublisher) {
         this.authDomainService = authDomainService;
         this.oauthService = oauthService;
         this.tokenService = tokenService;
         this.smsProvider = smsProvider;
+        this.permissionEngine = permissionEngine;
         this.eventPublisher = eventPublisher;
     }
 
@@ -292,17 +293,101 @@ public class AuthApplicationService {
         return tokenService.validateToken(token);
     }
 
+    // ===== AUTH-003: RBAC Permission Management =====
+
     /**
-     * Check if user has a specific permission.
+     * AUTH-003: Check if user has a specific permission using the RBAC engine.
      */
-    public boolean checkPermission(String userId, String resource, String action) {
-        UserAccount account = authDomainService.getById(userId);
-        // RBAC: admin has all permissions
-        if (account.hasRole("ROLE_ADMIN")) return true;
-        // Verified users can access restricted resources
-        if ("restricted_content".equals(resource) && account.hasRole("ROLE_VERIFIED")) return true;
-        // Default: check role-based access
-        return account.hasRole("ROLE_" + action.toUpperCase());
+    public PermissionCheckResult checkPermission(String userId, String resource, String action) {
+        Set<String> roles = authDomainService.getUserRoles(userId);
+        PermissionEngine.PermissionResult result = permissionEngine.evaluate(roles, resource, action);
+        return new PermissionCheckResult(result.allowed(), result.reason(), new ArrayList<>(roles));
+    }
+
+    /**
+     * AUTH-003: Get effective permissions for a user.
+     */
+    public Set<String> getUserPermissions(String userId) {
+        Set<String> roles = authDomainService.getUserRoles(userId);
+        return permissionEngine.getEffectivePermissions(roles);
+    }
+
+    /**
+     * AUTH-003: Assign a role to a user.
+     */
+    @Transactional
+    public RoleOperationResult assignRole(String operatorUserId, String targetUserId, String role) {
+        // Only SUPER_ADMIN or ADMIN can assign roles
+        Set<String> operatorRoles = authDomainService.getUserRoles(operatorUserId);
+        if (!permissionEngine.hasRole(operatorRoles, "ROLE_SUPER_ADMIN")
+                && !permissionEngine.hasRole(operatorRoles, "ROLE_ADMIN")) {
+            throw new SolraException.PermissionDeniedException("Only administrators can assign roles");
+        }
+
+        // Only SUPER_ADMIN can assign SUPER_ADMIN role
+        if ("ROLE_SUPER_ADMIN".equals(role)
+                && !permissionEngine.hasRole(operatorRoles, "ROLE_SUPER_ADMIN")) {
+            throw new SolraException.PermissionDeniedException("Only super admin can assign SUPER_ADMIN role");
+        }
+
+        // Validate the assignment
+        Set<String> targetRoles = authDomainService.getUserRoles(targetUserId);
+        PermissionEngine.RoleAssignmentResult validation =
+                permissionEngine.validateRoleAssignment(targetRoles, role);
+        if (!validation.allowed()) {
+            throw new SolraException.InvalidArgumentException(validation.reason());
+        }
+
+        authDomainService.assignRole(targetUserId, role);
+        Set<String> newRoles = authDomainService.getUserRoles(targetUserId);
+
+        log.info("AUTH-003: Role {} assigned to user {} by {}", role, targetUserId, operatorUserId);
+        return new RoleOperationResult(targetUserId, new ArrayList<>(newRoles), "Role assigned: " + role);
+    }
+
+    /**
+     * AUTH-003: Remove a role from a user.
+     */
+    @Transactional
+    public RoleOperationResult removeRole(String operatorUserId, String targetUserId, String role) {
+        Set<String> operatorRoles = authDomainService.getUserRoles(operatorUserId);
+        if (!permissionEngine.hasRole(operatorRoles, "ROLE_SUPER_ADMIN")
+                && !permissionEngine.hasRole(operatorRoles, "ROLE_ADMIN")) {
+            throw new SolraException.PermissionDeniedException("Only administrators can remove roles");
+        }
+
+        // Only SUPER_ADMIN can remove SUPER_ADMIN role
+        if ("ROLE_SUPER_ADMIN".equals(role)
+                && !permissionEngine.hasRole(operatorRoles, "ROLE_SUPER_ADMIN")) {
+            throw new SolraException.PermissionDeniedException("Only super admin can remove SUPER_ADMIN role");
+        }
+
+        Set<String> targetRoles = authDomainService.getUserRoles(targetUserId);
+        PermissionEngine.RoleAssignmentResult validation =
+                permissionEngine.validateRoleRemoval(targetRoles, role);
+        if (!validation.allowed()) {
+            throw new SolraException.InvalidArgumentException(validation.reason());
+        }
+
+        authDomainService.removeRole(targetUserId, role);
+        Set<String> newRoles = authDomainService.getUserRoles(targetUserId);
+
+        log.info("AUTH-003: Role {} removed from user {} by {}", role, targetUserId, operatorUserId);
+        return new RoleOperationResult(targetUserId, new ArrayList<>(newRoles), "Role removed: " + role);
+    }
+
+    /**
+     * AUTH-003: Get all roles for a user.
+     */
+    public List<String> getUserRoles(String userId) {
+        return new ArrayList<>(authDomainService.getUserRoles(userId));
+    }
+
+    /**
+     * AUTH-003: Get all predefined role definitions.
+     */
+    public List<RoleDefinition> getAllRoles() {
+        return new ArrayList<>(permissionEngine.getAllPredefinedRoles());
     }
 
     // -- Private helpers --
@@ -335,11 +420,21 @@ public class AuthApplicationService {
                 account.getRealNameInfo().getAge());
     }
 
-    // -- Inner class --
+    // -- Inner types --
 
     private record VerificationCodeEntry(String code, long expiresAt) {
         boolean isExpired() {
             return System.currentTimeMillis() > expiresAt;
         }
     }
+
+    /**
+     * AUTH-003: Permission check result.
+     */
+    public record PermissionCheckResult(boolean allowed, String reason, List<String> roles) {}
+
+    /**
+     * AUTH-003: Role operation result.
+     */
+    public record RoleOperationResult(String userId, List<String> roles, String message) {}
 }

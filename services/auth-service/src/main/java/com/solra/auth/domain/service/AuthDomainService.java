@@ -187,6 +187,34 @@ public class AuthDomainService {
         loginSessionRepository.deleteById(sessionId);
     }
 
+    // ===== AUTH-003: RBAC Role Management =====
+
+    /**
+     * AUTH-003: Assign a role to a user.
+     */
+    public UserAccount assignRole(String userId, String role) {
+        UserAccount account = getById(userId);
+        account.assignRole(role);
+        return userAccountRepository.save(account);
+    }
+
+    /**
+     * AUTH-003: Remove a role from a user.
+     */
+    public UserAccount removeRole(String userId, String role) {
+        UserAccount account = getById(userId);
+        account.removeRole(role);
+        return userAccountRepository.save(account);
+    }
+
+    /**
+     * AUTH-003: Get user's roles.
+     */
+    public Set<String> getUserRoles(String userId) {
+        UserAccount account = getById(userId);
+        return account.getRoles();
+    }
+
     private void authenticate(UserAccount account, String rawPassword) {
         if (!account.isActive()) {
             throw new SolraException.UnauthorizedException("Account is " + account.getStatus().name().toLowerCase());
