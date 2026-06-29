@@ -331,4 +331,168 @@ public class SocGrpcService {
     public SpatialAudioEngine.AudioEngineStats getAudioEngineStats() {
         return appService.getAudioEngineStats();
     }
+
+    // ===== SOC-004 好友系统增强 =====
+
+    /** 创建好友分组 */
+    public FriendGroupDTO createFriendGroup(String userId, String groupName, int sortOrder) {
+        return appService.createFriendGroup(userId, groupName, sortOrder);
+    }
+
+    /** 获取好友分组列表 */
+    public List<FriendGroupDTO> getFriendGroups(String userId) {
+        return appService.getFriendGroups(userId);
+    }
+
+    /** 获取指定分组 */
+    public FriendGroupDTO getFriendGroup(String groupId) {
+        return appService.getFriendGroup(groupId);
+    }
+
+    /** 删除好友分组 */
+    public void deleteFriendGroup(String groupId) {
+        appService.deleteFriendGroup(groupId);
+    }
+
+    /** 添加好友到分组 */
+    public void addFriendToGroup(String groupId, String friendUserId) {
+        appService.addFriendToGroup(groupId, friendUserId);
+    }
+
+    /** 从分组移除好友 */
+    public void removeFriendFromGroup(String groupId, String friendUserId) {
+        appService.removeFriendFromGroup(groupId, friendUserId);
+    }
+
+    /** 获取好友所属分组 */
+    public List<FriendGroupDTO> getFriendGroupMembership(String userId, String friendUserId) {
+        return appService.getFriendGroupMembership(userId, friendUserId);
+    }
+
+    /** 用户上线 */
+    public void userOnline(String userId, String spaceId, String spaceName) {
+        appService.userOnline(userId, spaceId, spaceName);
+    }
+
+    /** 用户下线 */
+    public void userOffline(String userId) {
+        appService.userOffline(userId);
+    }
+
+    /** 获取好友在线状态 */
+    public FriendPresenceDTO getFriendPresence(String userId, String friendUserId) {
+        return appService.getFriendPresence(userId, friendUserId);
+    }
+
+    /** 获取在线好友列表 */
+    public List<FriendPresenceDTO> getOnlineFriends(String userId) {
+        return appService.getOnlineFriends(userId);
+    }
+
+    /** 获取同空间好友 */
+    public List<FriendPresenceDTO> getFriendsInSameSpace(String userId, String spaceId) {
+        return appService.getFriendsInSameSpace(userId, spaceId);
+    }
+
+    /** 获取所有好友在线状态（分页） */
+    public List<FriendPresenceDTO> getAllFriendsPresence(String userId, int page, int size) {
+        return appService.getAllFriendsPresence(userId, page, size);
+    }
+
+    /** 获取好友统计 */
+    public FriendStatsDTO getFriendStats(String userId) {
+        return appService.getFriendStats(userId);
+    }
+
+    // ===== SOC-008 虚拟人主持人机制 =====
+
+    /** 创建虚拟人主持人 */
+    public HostAvatarDTO createHostAvatar(String sessionId, String avatarId, String avatarName, String mode) {
+        return appService.createHostAvatar(sessionId, avatarId, avatarName, mode);
+    }
+
+    /** 获取会话主持人 */
+    public HostAvatarDTO getHostAvatar(String sessionId) {
+        return appService.getHostAvatar(sessionId);
+    }
+
+    /** 列出会话主持人 */
+    public List<HostAvatarDTO> listSessionHosts(String sessionId) {
+        return appService.listSessionHosts(sessionId);
+    }
+
+    /** 开始主持 */
+    public HostAvatarDTO startHosting(String hostId) {
+        return appService.startHosting(hostId);
+    }
+
+    /** 暂停主持 */
+    public void pauseHosting(String hostId) {
+        appService.pauseHosting(hostId);
+    }
+
+    /** 恢复主持 */
+    public void resumeHosting(String hostId) {
+        appService.resumeHosting(hostId);
+    }
+
+    /** 停止主持 */
+    public void stopHosting(String hostId) {
+        appService.stopHosting(hostId);
+    }
+
+    /** 切换模式 */
+    public HostAvatarDTO switchHostMode(String hostId, String mode) {
+        return appService.switchHostMode(hostId, mode);
+    }
+
+    /** 设置话题 */
+    public HostAvatarDTO setHostTopic(String hostId, String topic) {
+        return appService.setHostTopic(hostId, topic);
+    }
+
+    /** 添加话题 */
+    public void addTopicToQueue(String hostId, String topic) {
+        appService.addTopicToQueue(hostId, topic);
+    }
+
+    /** 下一个话题 */
+    public String nextHostTopic(String hostId) {
+        return appService.nextHostTopic(hostId);
+    }
+
+    /** 添加到发言队列 */
+    public void addToSpeakerQueue(String hostId, String userId) {
+        appService.addToSpeakerQueue(hostId, userId);
+    }
+
+    /** 移除发言队列 */
+    public void removeFromSpeakerQueue(String hostId, String userId) {
+        appService.removeFromSpeakerQueue(hostId, userId);
+    }
+
+    /** 授予发言权 */
+    public String grantSpeakingTurn(String hostId) {
+        return appService.grantSpeakingTurn(hostId);
+    }
+
+    /** 结束发言 */
+    public void endSpeakingTurn(String hostId) {
+        appService.endSpeakingTurn(hostId);
+    }
+
+    /** 冷场检测 */
+    public String detectSilence(String sessionId) {
+        return appService.detectSilence(sessionId);
+    }
+
+    /** 记录互动 */
+    public void recordHostInteraction(String hostId) {
+        appService.recordHostInteraction(hostId);
+    }
+
+    /** 获取主持人统计 */
+    public HostStatsDTO getHostStats(String hostId) {
+        return appService.getHostStats(hostId);
+    }
 }

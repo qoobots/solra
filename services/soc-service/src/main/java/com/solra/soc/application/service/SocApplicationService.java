@@ -17,7 +17,8 @@ import java.util.UUID;
 /**
  * SocApplicationService — SOC 应用层服务。
  * 编排 SOC-001 多人空间会话、SOC-002 聊天、SOC-003 社交信号、
- * SOC-004 好友、SOC-005 分享裂变、SOC-006 WebRTC 数据通道、SOC-007 空间音频引擎。
+ * SOC-004 好友、SOC-005 分享裂变、SOC-006 WebRTC 数据通道、
+ * SOC-007 空间音频引擎、SOC-008 虚拟人主持人机制。
  */
 @Service
 public class SocApplicationService {
@@ -31,6 +32,8 @@ public class SocApplicationService {
     private final ShareEngine shareEngine;
     private final ShareSessionRepository shareSessionRepository;
     private final FriendRepository friendRepository;
+    private final FriendService friendService;
+    private final HostAvatarService hostAvatarService;
 
     public SocApplicationService(SessionManager sessionManager,
                                  ChatService chatService,
@@ -38,7 +41,9 @@ public class SocApplicationService {
                                  SpatialAudioEngine audioEngine,
                                  ShareEngine shareEngine,
                                  ShareSessionRepository shareSessionRepository,
-                                 FriendRepository friendRepository) {
+                                 FriendRepository friendRepository,
+                                 FriendService friendService,
+                                 HostAvatarService hostAvatarService) {
         this.sessionManager = sessionManager;
         this.chatService = chatService;
         this.gestureService = gestureService;
@@ -46,6 +51,8 @@ public class SocApplicationService {
         this.shareEngine = shareEngine;
         this.shareSessionRepository = shareSessionRepository;
         this.friendRepository = friendRepository;
+        this.friendService = friendService;
+        this.hostAvatarService = hostAvatarService;
     }
 
     // ===== SOC-001 多人空间会话 =====
@@ -440,5 +447,192 @@ public class SocApplicationService {
     /** 获取空间音频引擎统计 */
     public SpatialAudioEngine.AudioEngineStats getAudioEngineStats() {
         return audioEngine.getStats();
+    }
+
+    // ===== SOC-004 好友系统增强 =====
+
+    // --- 好友分组 ---
+
+    /** 创建好友分组 */
+    public FriendGroupDTO createFriendGroup(String userId, String groupName, int sortOrder) {
+        log.info("SOC-004 createFriendGroup: user={} name={}", userId, groupName);
+        return FriendGroupDTO.from(friendService.createGroup(userId, groupName, sortOrder));
+    }
+
+    /** 获取用户所有好友分组 */
+    public List<FriendGroupDTO> getFriendGroups(String userId) {
+        return friendService.getUserGroups(userId).stream()
+                .map(FriendGroupDTO::from).toList();
+    }
+
+    /** 获取指定分组 */
+    public FriendGroupDTO getFriendGroup(String groupId) {
+        return friendService.getGroup(groupId)
+                .map(FriendGroupDTO::from)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
+    }
+
+    /** 删除好友分组 */
+    public void deleteFriendGroup(String groupId) {
+        friendService.deleteGroup(groupId);
+    }
+
+    /** 添加好友到分组 */
+    public void addFriendToGroup(String groupId, String friendUserId) {
+        friendService.addFriendToGroup(groupId, friendUserId);
+    }
+
+    /** 从分组移除好友 */
+    public void removeFriendFromGroup(String groupId, String friendUserId) {
+        friendService.removeFriendFromGroup(groupId, friendUserId);
+    }
+
+    /** 获取好友所属分组 */
+    public List<FriendGroupDTO> getFriendGroupMembership(String userId, String friendUserId) {
+        return friendService.getFriendGroups(userId, friendUserId).stream()
+                .map(FriendGroupDTO::from).toList();
+    }
+
+    // --- 在线状态感知 ---
+
+    /** 用户上线通知（好友可见） */
+    public void userOnline(String userId, String spaceId, String spaceName) {
+        log.info("SOC-004 userOnline: user={} space={}", userId, spaceId);
+        friendService.updateFriendPresence(userId, spaceId, spaceName, true);
+    }
+
+    /** 用户下线通知 */
+    public void userOffline(String userId) {
+        log.info("SOC-004 userOffline: user={}", userId);
+        friendService.updateFriendPresence(userId, null, null, false);
+    }
+
+    /** 获取单个好友在线状态 */
+    public FriendPresenceDTO getFriendPresence(String userId, String friendUserId) {
+        return friendService.getFriendPresence(userId, friendUserId)
+                .map(p -> FriendPresenceDTO.from(p, null))
+                .orElseThrow(() -> new IllegalArgumentException("Not friend or not found"));
+    }
+
+    /** 获取所有在线好友 */
+    public List<FriendPresenceDTO> getOnlineFriends(String userId) {
+        return friendService.getOnlineFriends(userId).stream()
+                .map(p -> FriendPresenceDTO.from(p, null))
+                .toList();
+    }
+
+    /** 获取同空间内的好友 */
+    public List<FriendPresenceDTO> getFriendsInSameSpace(String userId, String spaceId) {
+        return friendService.getFriendsInSameSpace(userId, spaceId).stream()
+                .map(p -> FriendPresenceDTO.from(p, spaceId))
+                .toList();
+    }
+
+    /** 获取所有好友在线状态（分页） */
+    public List<FriendPresenceDTO> getAllFriendsPresence(String userId, int page, int size) {
+        return friendService.getAllFriendsPresence(userId, page, size).stream()
+                .map(p -> FriendPresenceDTO.from(p, null))
+                .toList();
+    }
+
+    /** 获取好友统计 */
+    public FriendStatsDTO getFriendStats(String userId) {
+        return FriendStatsDTO.from(friendService.getFriendStats(userId));
+    }
+
+    // ===== SOC-008 虚拟人主持人机制 =====
+
+    /** 创建虚拟人主持人 */
+    public HostAvatarDTO createHostAvatar(String sessionId, String avatarId, String avatarName, String mode) {
+        log.info("SOC-008 createHost: session={} avatar={} mode={}", sessionId, avatarId, mode);
+        return HostAvatarDTO.from(hostAvatarService.createHost(sessionId, avatarId, avatarName, mode));
+    }
+
+    /** 获取会话主持人 */
+    public HostAvatarDTO getHostAvatar(String sessionId) {
+        return hostAvatarService.getHost(sessionId)
+                .map(HostAvatarDTO::from)
+                .orElseThrow(() -> new IllegalArgumentException("No host in session: " + sessionId));
+    }
+
+    /** 列出会话中所有主持人 */
+    public List<HostAvatarDTO> listSessionHosts(String sessionId) {
+        return hostAvatarService.listSessionHosts(sessionId).stream()
+                .map(HostAvatarDTO::from).toList();
+    }
+
+    /** 开始主持 */
+    public HostAvatarDTO startHosting(String hostId) {
+        return HostAvatarDTO.from(hostAvatarService.startHosting(hostId));
+    }
+
+    /** 暂停主持 */
+    public void pauseHosting(String hostId) {
+        hostAvatarService.pauseHosting(hostId);
+    }
+
+    /** 恢复主持 */
+    public void resumeHosting(String hostId) {
+        hostAvatarService.resumeHosting(hostId);
+    }
+
+    /** 停止主持 */
+    public void stopHosting(String hostId) {
+        hostAvatarService.stopHosting(hostId);
+    }
+
+    /** 切换主持人模式 */
+    public HostAvatarDTO switchHostMode(String hostId, String mode) {
+        return HostAvatarDTO.from(hostAvatarService.switchMode(hostId, mode));
+    }
+
+    /** 设置话题 */
+    public HostAvatarDTO setHostTopic(String hostId, String topic) {
+        return HostAvatarDTO.from(hostAvatarService.setTopic(hostId, topic));
+    }
+
+    /** 添加话题到队列 */
+    public void addTopicToQueue(String hostId, String topic) {
+        hostAvatarService.addTopicToQueue(hostId, topic);
+    }
+
+    /** 切换下一个话题 */
+    public String nextHostTopic(String hostId) {
+        return hostAvatarService.nextTopic(hostId);
+    }
+
+    /** 添加到发言队列 */
+    public void addToSpeakerQueue(String hostId, String userId) {
+        hostAvatarService.addToSpeakerQueue(hostId, userId);
+    }
+
+    /** 移除发言队列 */
+    public void removeFromSpeakerQueue(String hostId, String userId) {
+        hostAvatarService.removeFromSpeakerQueue(hostId, userId);
+    }
+
+    /** 授予发言权 */
+    public String grantSpeakingTurn(String hostId) {
+        return hostAvatarService.grantSpeakingTurn(hostId);
+    }
+
+    /** 结束当前发言 */
+    public void endSpeakingTurn(String hostId) {
+        hostAvatarService.endSpeakingTurn(hostId);
+    }
+
+    /** 冷场检测 */
+    public String detectSilence(String sessionId) {
+        return hostAvatarService.detectSilence(sessionId);
+    }
+
+    /** 记录互动 */
+    public void recordHostInteraction(String hostId) {
+        hostAvatarService.recordInteraction(hostId);
+    }
+
+    /** 获取主持人统计 */
+    public HostStatsDTO getHostStats(String hostId) {
+        return HostStatsDTO.from(hostAvatarService.getHostStats(hostId));
     }
 }

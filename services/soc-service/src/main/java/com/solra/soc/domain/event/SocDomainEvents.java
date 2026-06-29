@@ -41,4 +41,31 @@ public final class SocDomainEvents {
 
     /** SOC-007: 声源已移除事件。 */
     public record AudioSourceRemoved(String sourceId, String sessionId, Instant at) {}
+
+    /** SOC-004: 好友分组已创建事件。 */
+    public record FriendGroupCreated(String groupId, String userId, String groupName, Instant at) {}
+
+    /** SOC-004: 好友已添加到分组事件。 */
+    public record FriendAddedToGroup(String groupId, String friendUserId, Instant at) {}
+
+    /** SOC-004: 好友上线事件。 */
+    public record FriendOnline(String userId, String spaceId, String spaceName, Instant at) {}
+
+    /** SOC-004: 好友下线事件。 */
+    public record FriendOffline(String userId, Instant at) {}
+
+    /** SOC-004: 好友进入同空间事件。 */
+    public record FriendEnteredSameSpace(String userId, String friendUserId, String spaceId, Instant at) {}
+
+    /** SOC-008: 虚拟人主持人已创建事件。 */
+    public record HostAvatarCreated(String hostId, String sessionId, String avatarId, String mode, Instant at) {}
+
+    /** SOC-008: 主持人话题已变更事件。 */
+    public record HostTopicChanged(String hostId, String sessionId, String topic, Instant at) {}
+
+    /** SOC-008: 主持人授予发言权事件。 */
+    public record HostGrantedSpeakingTurn(String hostId, String sessionId, String speakerUserId, Instant at) {}
+
+    /** SOC-008: 冷场检测事件。 */
+    public record SilenceDetected(String sessionId, String suggestedAction, long silenceSeconds, Instant at) {}
 }
