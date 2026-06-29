@@ -437,6 +437,18 @@ public class AvtGrpcService extends com.solra.apis.avt.v1.AvtServiceGrpc.AvtServ
         }
     }
 
+    // ========== AVT-005: Personalization Training ==========
+    // Note: These are exposed as gRPC extensions; proto definitions may need updating.
+    // For now, personalization data flows through enriched context in sendMessage.
+
+    // ========== AVT-007: Spatial Movement ==========
+    // Note: Spatial movement methods are available via AvtApplicationService.
+    // Full gRPC integration requires proto updates for the spatial movement endpoints.
+
+    // ========== AVT-009: Affection System ==========
+    // Note: Affection data is automatically tracked during sendMessage.
+    // Dedicated gRPC endpoints require proto updates.
+
     // ---- mapping helpers ----
     private com.solra.apis.avt.v1.TurnRole mapTurnRole(TurnRole r) {
         return switch (r) {

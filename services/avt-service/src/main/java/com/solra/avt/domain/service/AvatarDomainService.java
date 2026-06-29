@@ -6,13 +6,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * AvatarDomainService — 虚拟人交互核心领域服务。
  * 编排对话流程：接收消息 → 推理 → 记忆存储 → 情感更新 → 返回响应。
  *
  * Covers: AVT-001 (实时对话), AVT-002 (社交主动性), AVT-003 (长期记忆),
- *         AVT-004 (5维情感模型), AVT-006 (肢体表情), AVT-008 (惊喜时刻),
+ *         AVT-004 (5维情感模型), AVT-005 (个性化训练), AVT-006 (肢体表情),
+ *         AVT-007 (空间移动追踪), AVT-008 (惊喜时刻), AVT-009 (好感度系统),
  *         AVT-012 (安全过滤).
  */
 public class AvatarDomainService {
@@ -25,6 +27,9 @@ public class AvatarDomainService {
     private final AvatarRepository avatarRepo;
     private final MemoryRepository memoryRepo;
     private final SurpriseEngine surpriseEngine;
+    private final AffectionSystemService affectionService;
+    private final SpatialMovementService spatialService;
+    private final PersonalizationTrainingService personalizationService;
 
     // AVT-004: 5D emotion state per avatar
     private final Map<String, FiveDimensionalEmotion> emotionStates = new HashMap<>();
@@ -37,13 +42,19 @@ public class AvatarDomainService {
                                DialogueTurnRepository turnRepo,
                                AvatarRepository avatarRepo,
                                MemoryRepository memoryRepo,
-                               SurpriseEngine surpriseEngine) {
+                               SurpriseEngine surpriseEngine,
+                               AffectionSystemService affectionService,
+                               SpatialMovementService spatialService,
+                               PersonalizationTrainingService personalizationService) {
         this.inferenceEngine = inferenceEngine;
         this.conversationRepo = conversationRepo;
         this.turnRepo = turnRepo;
         this.avatarRepo = avatarRepo;
         this.memoryRepo = memoryRepo;
         this.surpriseEngine = surpriseEngine;
+        this.affectionService = affectionService;
+        this.spatialService = spatialService;
+        this.personalizationService = personalizationService;
     }
 
     /** AVT-001: 发送消息 → 虚拟人同步响应 */
@@ -75,6 +86,15 @@ public class AvatarDomainService {
             enrichedContext.put("relevant_memories", serializeMemories(memories));
         }
 
+        // AVT-005: 注入个性化偏好到推理上下文
+        String personalization = personalizationService.buildSystemPromptCustomization(
+                userId, conv.getAvatarId());
+        enrichedContext.put("personalization", personalization);
+
+        // AVT-009: 注入好感度亲密语调
+        String intimacyTone = affectionService.getIntimacyTone(userId, conv.getAvatarId());
+        enrichedContext.put("intimacy_tone", intimacyTone);
+
         // 5. 调用推理引擎
         InferenceEngine.InferenceResult result = inferenceEngine.infer(
                 conversationId, content, history, enrichedContext);
@@ -102,6 +122,15 @@ public class AvatarDomainService {
             mem.setConversationId(conversationId);
             memoryRepo.save(mem);
         }
+
+        // AVT-009: 记录对话好感度
+        boolean hasEmotion = result.detectedEmotion() != null;
+        boolean hasRecall = !memories.isEmpty();
+        affectionService.recordConversationAffection(userId, conv.getAvatarId(),
+                content.length(), hasEmotion, hasRecall, history.size() / 2 + 1);
+
+        // AVT-005: 更新话题偏好
+        personalizationService.updateTopicsFromConversation(userId, conv.getAvatarId(), content);
 
         conv.touch();
         conversationRepo.save(conv);
@@ -307,5 +336,97 @@ public class AvatarDomainService {
      */
     public SurpriseEngine.SurpriseStats getSurpriseStats(String userId) {
         return surpriseEngine.getStats(userId);
+    }
+
+    // ========== AVT-005: Personalization Training ==========
+
+    /** Get personalization profile */
+    public PersonalizationProfile getPersonalizationProfile(String userId, String avatarId) {
+        return personalizationService.getOrCreate(userId, avatarId);
+    }
+
+    /** Apply feedback to personalization */
+    public PersonalizationProfile applyPersonalizationFeedback(String userId, String avatarId,
+                                                                 PersonalizationProfile.FeedbackType type,
+                                                                 float intensity) {
+        return personalizationService.applyFeedback(userId, avatarId, type, intensity);
+    }
+
+    /** Get dominant conversation style */
+    public String getDominantStyle(String userId, String avatarId) {
+        return personalizationService.getDominantStyle(userId, avatarId);
+    }
+
+    /** Get verbosity preference */
+    public float getVerbosityPreference(String userId, String avatarId) {
+        return personalizationService.getVerbosityPreference(userId, avatarId);
+    }
+
+    // ========== AVT-007: Spatial Movement ==========
+
+    /** Get spatial position of an avatar */
+    public Optional<SpatialPosition> getSpatialPosition(String avatarId) {
+        return spatialService.getPosition(avatarId);
+    }
+
+    /** Update avatar spatial position */
+    public SpatialPosition updateSpatialPosition(String avatarId, float x, float y, float z,
+                                                  float rotationY, String zoneId) {
+        return spatialService.updatePosition(avatarId, x, y, z, rotationY, zoneId);
+    }
+
+    /** Move avatar towards a target */
+    public SpatialPosition moveAvatarTowards(String avatarId, float targetX, float targetY,
+                                              float targetZ, float deltaSeconds) {
+        return spatialService.moveTowards(avatarId, targetX, targetY, targetZ, deltaSeconds);
+    }
+
+    /** Set avatar movement path */
+    public SpatialPosition setAvatarPath(String avatarId, List<SpatialPosition.Waypoint> waypoints) {
+        return spatialService.setPath(avatarId, waypoints);
+    }
+
+    /** Start autonomous patrol */
+    public SpatialPosition startPatrol(String avatarId, String zoneId, int waypointCount) {
+        return spatialService.startPatrol(avatarId, zoneId, waypointCount);
+    }
+
+    /** Register a navigation zone */
+    public void registerZone(String zoneId, float minX, float maxX, float minZ, float maxZ) {
+        spatialService.registerZone(zoneId, minX, maxX, minZ, maxZ);
+    }
+
+    // ========== AVT-009: Affection System ==========
+
+    /** Get affection level for user-avatar pair */
+    public Optional<AffectionLevel> getAffection(String userId, String avatarId) {
+        return affectionService.getAffection(userId, avatarId);
+    }
+
+    /** Record affection from a specific source */
+    public int recordAffection(String userId, String avatarId,
+                                AffectionLevel.AffectionSource source, int basePoints, String reason) {
+        return affectionService.recordAffection(userId, avatarId, source, basePoints, reason);
+    }
+
+    /** Record daily visit affection */
+    public void recordDailyVisit(String userId, String avatarId, int consecutiveDays) {
+        affectionService.recordDailyVisit(userId, avatarId, consecutiveDays);
+    }
+
+    /** Get affection level progress to next level (0-100) */
+    public int getAffectionLevelProgress(String userId, String avatarId) {
+        return affectionService.getLevelProgress(userId, avatarId);
+    }
+
+    /** Get intimacy tone based on affection level */
+    public String getIntimacyTone(String userId, String avatarId) {
+        return affectionService.getIntimacyTone(userId, avatarId);
+    }
+
+    /** Check if an interaction is unlocked at current affection level */
+    public boolean isInteractionUnlocked(String userId, String avatarId,
+                                          AffectionLevel.UnlockableInteraction interaction) {
+        return affectionService.isInteractionUnlocked(userId, avatarId, interaction);
     }
 }

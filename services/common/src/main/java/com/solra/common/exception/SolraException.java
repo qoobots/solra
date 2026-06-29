@@ -1,12 +1,9 @@
 package com.solra.common.exception;
 
-import lombok.Getter;
-
 /**
  * Unified exception hierarchy for Solra services.
  * Maps to solra.common.v1.ErrorCode Proto enum.
  */
-@Getter
 public abstract class SolraException extends RuntimeException {
     private final int errorCode;
 
@@ -19,6 +16,8 @@ public abstract class SolraException extends RuntimeException {
         super(message, cause);
         this.errorCode = errorCode;
     }
+
+    public int getErrorCode() { return errorCode; }
 
     // -- Concrete exception types --
 

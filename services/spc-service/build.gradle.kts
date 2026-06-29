@@ -15,8 +15,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // gRPC Server + Client (to recommendation-pipeline)
-    implementation("net.devh:grpc-server-spring-boot-starter:2.6.0.RELEASE")
-    implementation("net.devh:grpc-client-spring-boot-starter:2.6.0.RELEASE")
+    implementation("net.devh:grpc-server-spring-boot-starter:3.1.0.RELEASE")
+    implementation("net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE")
 
     // Elasticsearch for space search
     implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")

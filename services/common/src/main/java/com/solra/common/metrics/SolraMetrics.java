@@ -13,6 +13,13 @@ public class SolraMetrics {
     public SolraMetrics(MeterRegistry registry) {
         // 注册公共业务指标
         registry.counter("solra.requests.total", "component", "common");
-        registry.gauge("solra.uptime.seconds", System::currentTimeMillis);
+        registry.gauge("solra.uptime.seconds", java.util.Collections.emptyList(),
+                new SolraUptimeGauge(), SolraUptimeGauge::getValue);
+    }
+
+    private static class SolraUptimeGauge {
+        double getValue() {
+            return System.currentTimeMillis() / 1000.0;
+        }
     }
 }

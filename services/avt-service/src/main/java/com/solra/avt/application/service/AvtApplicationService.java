@@ -161,4 +161,106 @@ public class AvtApplicationService {
         SurpriseEngine.SurpriseStats stats = domainService.getSurpriseStats(userId);
         return AvtResultDTO.SurpriseStatsDTO.from(stats);
     }
+
+    // ========== AVT-005: Personalization Training ==========
+
+    /** 获取个性化训练档案 */
+    public AvtResultDTO.PersonalizationProfileDTO getPersonalizationProfile(String userId,
+                                                                               String avatarId) {
+        PersonalizationProfile profile = domainService.getPersonalizationProfile(userId, avatarId);
+        return AvtResultDTO.PersonalizationProfileDTO.from(profile);
+    }
+
+    /** 应用个性化反馈 */
+    public AvtResultDTO.PersonalizationProfileDTO applyPersonalizationFeedback(String userId,
+                                                                                 String avatarId,
+                                                                                 String feedbackType,
+                                                                                 float intensity) {
+        PersonalizationProfile.FeedbackType type =
+                PersonalizationProfile.FeedbackType.valueOf(feedbackType.toUpperCase());
+        PersonalizationProfile profile = domainService.applyPersonalizationFeedback(
+                userId, avatarId, type, intensity);
+        return AvtResultDTO.PersonalizationProfileDTO.from(profile);
+    }
+
+    // ========== AVT-007: Spatial Movement ==========
+
+    /** 获取虚拟人空间位置 */
+    public AvtResultDTO.SpatialPositionDTO getSpatialPosition(String avatarId) {
+        return domainService.getSpatialPosition(avatarId)
+                .map(AvtResultDTO.SpatialPositionDTO::from)
+                .orElse(null);
+    }
+
+    /** 更新虚拟人空间位置 */
+    public AvtResultDTO.SpatialPositionDTO updateSpatialPosition(String avatarId,
+                                                                   float x, float y, float z,
+                                                                   float rotationY, String zoneId) {
+        SpatialPosition pos = domainService.updateSpatialPosition(avatarId, x, y, z, rotationY, zoneId);
+        return AvtResultDTO.SpatialPositionDTO.from(pos);
+    }
+
+    /** 移动虚拟人朝向目标 */
+    public AvtResultDTO.SpatialPositionDTO moveAvatarTowards(String avatarId,
+                                                               float targetX, float targetY,
+                                                               float targetZ, float deltaSeconds) {
+        SpatialPosition pos = domainService.moveAvatarTowards(avatarId, targetX, targetY,
+                targetZ, deltaSeconds);
+        return AvtResultDTO.SpatialPositionDTO.from(pos);
+    }
+
+    /** 设置虚拟人移动路径 */
+    public AvtResultDTO.SpatialPositionDTO setAvatarPath(String avatarId,
+                                                           List<SpatialPosition.Waypoint> waypoints) {
+        SpatialPosition pos = domainService.setAvatarPath(avatarId, waypoints);
+        return AvtResultDTO.SpatialPositionDTO.from(pos);
+    }
+
+    /** 开始自主巡逻 */
+    public AvtResultDTO.SpatialPositionDTO startPatrol(String avatarId, String zoneId,
+                                                         int waypointCount) {
+        SpatialPosition pos = domainService.startPatrol(avatarId, zoneId, waypointCount);
+        return AvtResultDTO.SpatialPositionDTO.from(pos);
+    }
+
+    /** 注册导航区域 */
+    public void registerZone(String zoneId, float minX, float maxX, float minZ, float maxZ) {
+        domainService.registerZone(zoneId, minX, maxX, minZ, maxZ);
+    }
+
+    // ========== AVT-009: Affection System ==========
+
+    /** 获取好感度等级 */
+    public AvtResultDTO.AffectionLevelDTO getAffection(String userId, String avatarId) {
+        return domainService.getAffection(userId, avatarId)
+                .map(AvtResultDTO.AffectionLevelDTO::from)
+                .orElse(null);
+    }
+
+    /** 记录好感度事件 */
+    public AvtResultDTO.AffectionLevelDTO recordAffection(String userId, String avatarId,
+                                                            String source, int basePoints,
+                                                            String reason) {
+        AffectionLevel.AffectionSource affectionSource =
+                AffectionLevel.AffectionSource.valueOf(source.toUpperCase());
+        domainService.recordAffection(userId, avatarId, affectionSource, basePoints, reason);
+        return getAffection(userId, avatarId);
+    }
+
+    /** 记录每日访问 */
+    public AvtResultDTO.AffectionLevelDTO recordDailyVisit(String userId, String avatarId,
+                                                             int consecutiveDays) {
+        domainService.recordDailyVisit(userId, avatarId, consecutiveDays);
+        return getAffection(userId, avatarId);
+    }
+
+    /** 获取好感度升级进度 */
+    public AvtResultDTO.AffectionProgressDTO getAffectionProgress(String userId, String avatarId) {
+        AffectionLevel affection = domainService.getAffection(userId, avatarId).orElse(null);
+        if (affection == null) return null;
+        int progress = domainService.getAffectionLevelProgress(userId, avatarId);
+        return new AvtResultDTO.AffectionProgressDTO(
+                affection.getLevel(), affection.getTitle(), affection.getScore(),
+                progress, affection.getUpdatedAt());
+    }
 }

@@ -15,8 +15,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // gRPC Server + Client (to saf-service, llm-router)
-    implementation("net.devh:grpc-server-spring-boot-starter:2.6.0.RELEASE")
-    implementation("net.devh:grpc-client-spring-boot-starter:2.6.0.RELEASE")
+    // Use 3.1.0 for Spring Boot 3.x compatibility
+    implementation("net.devh:grpc-server-spring-boot-starter:3.1.0.RELEASE")
+    implementation("net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE")
 
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.springframework.data:spring-data-redis")

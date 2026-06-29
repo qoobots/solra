@@ -16,7 +16,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // gRPC Server
-    implementation("net.devh:grpc-server-spring-boot-starter:2.6.0.RELEASE")
+    implementation("net.devh:grpc-server-spring-boot-starter:3.1.0.RELEASE")
 
     // Database
     runtimeOnly("org.postgresql:postgresql")

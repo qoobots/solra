@@ -4,7 +4,9 @@ import com.solra.avt.domain.model.*;
 import com.solra.avt.domain.service.SurpriseEngine;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class AvtResultDTO {
@@ -141,6 +143,85 @@ public class AvtResultDTO {
         public static SurpriseStatsDTO from(SurpriseEngine.SurpriseStats stats) {
             return new SurpriseStatsDTO(stats.userId(), stats.totalSurprises(),
                     stats.todaySurprises());
+        }
+    }
+
+    // ========== AVT-005: Personalization Training DTOs ==========
+
+    public record PersonalizationProfileDTO(
+            String userId, String avatarId,
+            String dominantStyle, float verbosityPreference,
+            float emojiUsagePreference, float proactiveLevel,
+            Map<String, Float> topicPreferences,
+            float positiveFeedbackRate, int totalInteractions,
+            Instant updatedAt) {
+        public static PersonalizationProfileDTO from(PersonalizationProfile profile) {
+            return new PersonalizationProfileDTO(
+                    profile.getUserId(), profile.getAvatarId(),
+                    profile.getDominantStyle(), profile.getVerbosityPreference(),
+                    profile.getEmojiUsagePreference(), profile.getProactiveLevel(),
+                    new HashMap<>(profile.getTopicPreferences()),
+                    profile.getPositiveFeedbackRate(), profile.getTotalInteractions(),
+                    profile.getUpdatedAt());
+        }
+    }
+
+    // ========== AVT-007: Spatial Movement DTOs ==========
+
+    public record SpatialPositionDTO(
+            String avatarId, float x, float y, float z,
+            float rotationY, float rotationX,
+            String movementState, String currentZoneId,
+            float moveSpeed, Instant lastMoved) {
+        public static SpatialPositionDTO from(SpatialPosition pos) {
+            return new SpatialPositionDTO(
+                    pos.getAvatarId(), pos.getX(), pos.getY(), pos.getZ(),
+                    pos.getRotationY(), pos.getRotationX(),
+                    pos.getMovementState().name(), pos.getCurrentZoneId(),
+                    pos.getMoveSpeed(), pos.getLastMoved());
+        }
+    }
+
+    public record WaypointDTO(float x, float y, float z, float pauseSeconds, String label) {
+        public static WaypointDTO from(SpatialPosition.Waypoint w) {
+            return new WaypointDTO(w.x(), w.y(), w.z(), w.pauseSeconds(), w.label());
+        }
+        public SpatialPosition.Waypoint toDomain() {
+            return new SpatialPosition.Waypoint(x, y, z, pauseSeconds, label);
+        }
+    }
+
+    // ========== AVT-009: Affection System DTOs ==========
+
+    public record AffectionLevelDTO(
+            String userId, String avatarId,
+            int score, int level, String title,
+            int dialogueQualityScore, int interactionFrequencyScore,
+            int userBehaviorScore, int timeBonusScore,
+            Instant updatedAt) {
+        public static AffectionLevelDTO from(AffectionLevel affection) {
+            return new AffectionLevelDTO(
+                    affection.getUserId(), affection.getAvatarId(),
+                    affection.getScore(), affection.getLevel(), affection.getTitle(),
+                    affection.getDialogueQualityScore(),
+                    affection.getInteractionFrequencyScore(),
+                    affection.getUserBehaviorScore(),
+                    affection.getTimeBonusScore(),
+                    affection.getUpdatedAt());
+        }
+    }
+
+    public record AffectionProgressDTO(
+            int level, String title, int score,
+            int progressPercent, Instant updatedAt) {}
+
+    public record AffectionEventDTO(
+            String source, int points, String reason,
+            int oldLevel, int newLevel, Instant timestamp) {
+        public static AffectionEventDTO from(AffectionLevel.AffectionEvent event) {
+            return new AffectionEventDTO(
+                    event.source(), event.points(), event.reason(),
+                    event.oldLevel(), event.newLevel(), event.timestamp());
         }
     }
 }

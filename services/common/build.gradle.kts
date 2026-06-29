@@ -19,7 +19,8 @@ dependencies {
     api("io.opentelemetry:opentelemetry-exporter-otlp")
 
     // gRPC (shared client/server)
-    api("net.devh:grpc-spring-boot-starter:2.6.0.RELEASE")
+    // Use 3.1.0 for Spring Boot 3.x compatibility (avoids Hoxton.RC1 dependency issue)
+    api("net.devh:grpc-spring-boot-starter:3.1.0.RELEASE")
 
     // Kafka (event publishing/consuming)
     api("org.springframework.kafka:spring-kafka")
