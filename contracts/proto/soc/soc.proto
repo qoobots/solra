@@ -14,14 +14,14 @@ import "common/common.proto";
 
 message Session {
   string session_id = 1;
-  common.SpaceId space_id = 2;
+  solra.common.SpaceId space_id = 2;
   SessionType type = 3;
   SessionStatus status = 4;
   repeated Participant participants = 5;
   int32 max_participants = 6;
-  common.UserId host_id = 7;
-  common.SolraTimestamp started_at = 8;
-  common.SolraTimestamp ended_at = 9;
+  solra.common.UserId host_id = 7;
+  solra.common.SolraTimestamp started_at = 8;
+  solra.common.SolraTimestamp ended_at = 9;
   SessionConfig config = 10;
 }
 
@@ -52,12 +52,12 @@ message SessionConfig {
 // ── 参与者模型 ──
 
 message Participant {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   string session_id = 2;
   AvatarState avatar_state = 3;
   ParticipantStatus status = 4;
-  common.SolraTimestamp joined_at = 5;
-  common.SolraTimestamp last_active_at = 6;
+  solra.common.SolraTimestamp joined_at = 5;
+  solra.common.SolraTimestamp last_active_at = 6;
   bool microphone_on = 7;
   bool camera_on = 8;
 }
@@ -75,7 +75,7 @@ enum ParticipantStatus {
 
 message AvatarState {
   string avatar_id = 1;
-  Transform transform = 2;
+  solra.common.Transform transform = 2;
   AnimationState animation = 3;
   EmotionState emotion = 4;
   GestureState gesture = 5;
@@ -133,11 +133,11 @@ message AvatarStateUpdate {
 message SocialInteraction {
   string interaction_id = 1;
   string session_id = 2;
-  common.UserId from_user_id = 3;
-  common.UserId to_user_id = 4;
+  solra.common.UserId from_user_id = 3;
+  solra.common.UserId to_user_id = 4;
   InteractionType type = 5;
   string content = 6;          // 表情/文字/礼物ID等
-  common.SolraTimestamp timestamp = 7;
+  solra.common.SolraTimestamp timestamp = 7;
 }
 
 enum InteractionType {
@@ -178,14 +178,14 @@ service SocialService {
 // ── 会话 RPC 消息 ──
 
 message CreateSessionRequest {
-  common.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   SessionType type = 2;
   string name = 3;
   int32 max_participants = 4;
   SessionConfig config = 5;
 }
 message CreateSessionResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   Session session = 2;
   string webrtc_offer_sdp = 3; // 服务端WebRTC Offer SDP
 }
@@ -196,7 +196,7 @@ message JoinSessionRequest {
   AvatarState initial_state = 3;
 }
 message JoinSessionResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   Session session = 2;
   repeated Participant current_participants = 3;
 }
@@ -205,41 +205,41 @@ message LeaveSessionRequest {
   string session_id = 1;
 }
 message LeaveSessionResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 message GetSessionRequest {
   string session_id = 1;
 }
 message GetSessionResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   Session session = 2;
 }
 
 message ListActiveSessionsRequest {
-  common.SpaceId space_id = 1;
-  common.PageRequest page = 2;
+  solra.common.SpaceId space_id = 1;
+  solra.common.PageRequest page = 2;
 }
 message ListActiveSessionsResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated Session sessions = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 message EndSessionRequest {
   string session_id = 1;
 }
 message EndSessionResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 // ── 参与者 RPC 消息 ──
 
 message GetOnlineParticipantsRequest {
-  common.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
 }
 message GetOnlineParticipantsResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated Participant participants = 2;
   int32 total_online = 3;
 }
@@ -248,56 +248,56 @@ message GetOnlineParticipantsResponse {
 
 message SendInteractionRequest {
   string session_id = 1;
-  common.UserId to_user_id = 2;
+  solra.common.UserId to_user_id = 2;
   InteractionType type = 3;
   string content = 4;
 }
 message SendInteractionResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SocialInteraction interaction = 2;
 }
 
 message InviteToSessionRequest {
   string session_id = 1;
-  common.UserId invitee_id = 2;
+  solra.common.UserId invitee_id = 2;
   string message = 3;
 }
 message InviteToSessionResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 // ── 好友 RPC 消息 ──
 
 message FollowUserRequest {
-  common.UserId target_user_id = 1;
+  solra.common.UserId target_user_id = 1;
 }
 message FollowUserResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 message UnfollowUserRequest {
-  common.UserId target_user_id = 1;
+  solra.common.UserId target_user_id = 1;
 }
 message UnfollowUserResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 message ListFollowersRequest {
-  common.UserId user_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.PageRequest page = 2;
 }
 message ListFollowersResponse {
-  common.SolraError error = 1;
-  repeated common.UserId user_ids = 2;
-  common.PageResponse page = 3;
+  solra.common.SolraError error = 1;
+  repeated solra.common.UserId user_ids = 2;
+  solra.common.PageResponse page = 3;
 }
 
 message ListFollowingRequest {
-  common.UserId user_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.PageRequest page = 2;
 }
 message ListFollowingResponse {
-  common.SolraError error = 1;
-  repeated common.UserId user_ids = 2;
-  common.PageResponse page = 3;
+  solra.common.SolraError error = 1;
+  repeated solra.common.UserId user_ids = 2;
+  solra.common.PageResponse page = 3;
 }

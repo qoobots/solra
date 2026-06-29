@@ -14,15 +14,15 @@ import "common/common.proto";
 
 message Asset {
   string asset_id = 1;
-  common.SpaceId space_id = 2;
-  common.UserId owner_id = 3;
+  solra.common.SpaceId space_id = 2;
+  solra.common.UserId owner_id = 3;
   AssetType type = 4;
   string name = 5;
   string description = 6;
   AssetMeta meta = 7;
   AssetStatus status = 8;
-  common.SolraTimestamp created_at = 9;
-  common.SolraTimestamp updated_at = 10;
+  solra.common.SolraTimestamp created_at = 9;
+  solra.common.SolraTimestamp updated_at = 10;
   int32 version = 11;
   repeated string tags = 12;
 }
@@ -60,25 +60,25 @@ message AssetMeta {
 }
 
 message BoundingBox {
-  common.GeoPoint min = 1;
-  common.GeoPoint max = 2;
+  solra.common.GeoPoint min = 1;
+  solra.common.GeoPoint max = 2;
 }
 
 // ── 空间项目模型 ──
 
 message SpaceProject {
   string project_id = 1;
-  common.SpaceId space_id = 2;
-  common.UserId owner_id = 3;
+  solra.common.SpaceId space_id = 2;
+  solra.common.UserId owner_id = 3;
   string name = 4;
   string description = 5;
   ProjectType type = 6;
   ProjectStatus status = 7;
   ProjectConfig config = 8;
   repeated string collaborator_ids = 9;
-  common.SolraTimestamp created_at = 10;
-  common.SolraTimestamp updated_at = 11;
-  common.SolraTimestamp last_edited_at = 12;
+  solra.common.SolraTimestamp created_at = 10;
+  solra.common.SolraTimestamp updated_at = 11;
+  solra.common.SolraTimestamp last_edited_at = 12;
 }
 
 enum ProjectType {
@@ -113,17 +113,11 @@ message SceneNode {
   string node_id = 1;
   string parent_id = 2;
   string name = 3;
-  Transform transform = 4;
+  solra.common.Transform transform = 4;
   string asset_ref = 5;          // 引用的资产ID
   map<string, string> properties = 6;
   bool visible = 7;
   bool locked = 8;
-}
-
-message Transform {
-  repeated double position = 1;  // [x, y, z]
-  repeated double rotation = 2;  // 四元数 [x, y, z, w]
-  repeated double scale = 3;     // [x, y, z]
 }
 
 message LightingConfig {
@@ -137,7 +131,7 @@ message LightSource {
   LightType type = 2;
   repeated float color = 3;    // RGB
   float intensity = 4;
-  Transform transform = 5;
+  solra.common.Transform transform = 5;
   float range = 6;
   float spot_angle = 7;
 }
@@ -173,7 +167,7 @@ message AudioSource {
   float volume = 3;
   bool loop = 4;
   bool spatial = 5;
-  Transform position = 6;
+  solra.common.Transform position = 6;
 }
 
 message PhysicsConfig {
@@ -210,7 +204,7 @@ message Template {
   int32 usage_count = 9;
   float rating = 10;
   bool is_official = 11;
-  common.SolraTimestamp created_at = 12;
+  solra.common.SolraTimestamp created_at = 12;
 }
 
 enum TemplateCategory {
@@ -253,13 +247,13 @@ service SpaceCreationService {
 // ── 项目管理 RPC 消息 ──
 
 message CreateProjectRequest {
-  common.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   string name = 2;
   ProjectType type = 3;
   string template_id = 4;      // 可选，从模板创建
 }
 message CreateProjectResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SpaceProject project = 2;
 }
 
@@ -267,7 +261,7 @@ message GetProjectRequest {
   string project_id = 1;
 }
 message GetProjectResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SpaceProject project = 2;
 }
 
@@ -278,7 +272,7 @@ message UpdateProjectRequest {
   ProjectConfig config = 4;
 }
 message UpdateProjectResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SpaceProject project = 2;
 }
 
@@ -286,31 +280,31 @@ message DeleteProjectRequest {
   string project_id = 1;
 }
 message DeleteProjectResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 message ListProjectsRequest {
-  common.UserId owner_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId owner_id = 1;
+  solra.common.PageRequest page = 2;
   ProjectStatus status_filter = 3;
 }
 message ListProjectsResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated SpaceProject projects = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 // ── 资产 RPC 消息 ──
 
 message UploadAssetRequest {
-  common.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   string name = 2;
   AssetType type = 3;
   bytes file_content = 4;      // 小文件直接上传
   string file_url = 5;         // 大文件用预签名URL
 }
 message UploadAssetResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   Asset asset = 2;
   string upload_url = 3;       // 大文件预签名上传URL
 }
@@ -319,26 +313,26 @@ message GetAssetRequest {
   string asset_id = 1;
 }
 message GetAssetResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   Asset asset = 2;
 }
 
 message ListAssetsRequest {
-  common.SpaceId space_id = 1;
-  common.PageRequest page = 2;
+  solra.common.SpaceId space_id = 1;
+  solra.common.PageRequest page = 2;
   AssetType type_filter = 3;
 }
 message ListAssetsResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated Asset assets = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 message DeleteAssetRequest {
   string asset_id = 1;
 }
 message DeleteAssetResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 // ── 场景编辑 RPC 消息 ──
@@ -348,7 +342,7 @@ message UpdateSceneGraphRequest {
   SceneGraph scene_graph = 2;
 }
 message UpdateSceneGraphResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SceneGraph scene_graph = 2;
 }
 
@@ -356,30 +350,30 @@ message GetSceneGraphRequest {
   string project_id = 1;
 }
 message GetSceneGraphResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SceneGraph scene_graph = 2;
 }
 
 // ── 模板 RPC 消息 ──
 
 message ListTemplatesRequest {
-  common.PageRequest page = 1;
+  solra.common.PageRequest page = 1;
   TemplateCategory category = 2;
   string keyword = 3;
 }
 message ListTemplatesResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated Template templates = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 message UseTemplateRequest {
   string template_id = 1;
-  common.SpaceId space_id = 2;
+  solra.common.SpaceId space_id = 2;
   string project_name = 3;
 }
 message UseTemplateResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SpaceProject project = 2;
 }
 
@@ -390,7 +384,7 @@ message BuildProjectRequest {
   bool incremental = 2;        // 增量构建
 }
 message BuildProjectResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   string build_id = 2;
   float progress = 3;          // 0.0 - 1.0
 }
@@ -401,7 +395,7 @@ message PublishProjectRequest {
   PublishVisibility visibility = 3;
 }
 message PublishProjectResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   SpaceProject project = 2;
   string public_url = 3;
 }

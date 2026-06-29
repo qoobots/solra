@@ -13,12 +13,12 @@ import "common/common.proto";
 // ── 用户画像模型 ──
 
 message UserProfile {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   string display_name = 2;
   string avatar_url = 3;
   string bio = 4;
-  common.SolraTimestamp created_at = 5;
-  common.SolraTimestamp last_active_at = 6;
+  solra.common.SolraTimestamp created_at = 5;
+  solra.common.SolraTimestamp last_active_at = 6;
   FaithLevel faith_level = 7;
   ProfileStats stats = 8;
   repeated Achievement achievements = 9;
@@ -60,11 +60,11 @@ enum FaithLevelTier {
 
 message ExperienceEvent {
   string event_id = 1;
-  common.UserId user_id = 2;
+  solra.common.UserId user_id = 2;
   ExperienceSource source = 3;
   int32 experience_gained = 4;
   string context_description = 5;
-  common.SolraTimestamp timestamp = 6;
+  solra.common.SolraTimestamp timestamp = 6;
 }
 
 enum ExperienceSource {
@@ -90,7 +90,7 @@ message Achievement {
   repeated AchievementStep steps = 7;
   int32 current_step = 8;
   bool completed = 9;
-  common.SolraTimestamp unlocked_at = 10;
+  solra.common.SolraTimestamp unlocked_at = 10;
 }
 
 enum AchievementCategory {
@@ -125,9 +125,9 @@ message Badge {
   string description = 3;
   string icon_url = 4;
   BadgeRarity rarity = 5;
-  common.SolraTimestamp acquired_at = 6;
+  solra.common.SolraTimestamp acquired_at = 6;
   bool is_limited = 7;         // 限时限定
-  common.SolraTimestamp expires_at = 8;
+  solra.common.SolraTimestamp expires_at = 8;
 }
 
 enum BadgeRarity {
@@ -169,10 +169,10 @@ service GrowthService {
 // ── 画像 RPC 消息 ──
 
 message GetProfileRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
 }
 message GetProfileResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   UserProfile profile = 2;
 }
 
@@ -182,62 +182,62 @@ message UpdateProfileRequest {
   string avatar_url = 3;
 }
 message UpdateProfileResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   UserProfile profile = 2;
 }
 
 // ── 信誉 RPC 消息 ──
 
 message GetFaithLevelRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
 }
 message GetFaithLevelResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   FaithLevel faith_level = 2;
 }
 
 message GetFaithLevelHistoryRequest {
-  common.UserId user_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.PageRequest page = 2;
 }
 message GetFaithLevelHistoryResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated ExperienceEvent events = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 // ── 经验值 RPC 消息 ──
 
 message RecordExperienceRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   ExperienceSource source = 2;
   string context_id = 3;
 }
 message RecordExperienceResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   int32 experience_gained = 2;
   FaithLevel updated_level = 3;
 }
 
 message GetExperienceHistoryRequest {
-  common.UserId user_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.PageRequest page = 2;
   ExperienceSource source_filter = 3;
 }
 message GetExperienceHistoryResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated ExperienceEvent events = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 // ── 成就 RPC 消息 ──
 
 message ListAchievementsRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   AchievementCategory category = 2;
 }
 message ListAchievementsResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated Achievement achievements = 2;
 }
 
@@ -245,7 +245,7 @@ message GetAchievementProgressRequest {
   string achievement_id = 1;
 }
 message GetAchievementProgressResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   Achievement achievement = 2;
 }
 
@@ -253,17 +253,17 @@ message ClaimAchievementRewardRequest {
   string achievement_id = 1;
 }
 message ClaimAchievementRewardResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   int32 faith_points_rewarded = 2;
 }
 
 // ── 徽章 RPC 消息 ──
 
 message ListBadgesRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
 }
 message ListBadgesResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   BadgeCollection collection = 2;
 }
 
@@ -271,7 +271,7 @@ message EquipBadgeRequest {
   string badge_id = 1;
 }
 message EquipBadgeResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   BadgeCollection collection = 2;
 }
 
@@ -279,18 +279,18 @@ message EquipBadgeResponse {
 
 message GetLeaderboardRequest {
   LeaderboardType type = 1;
-  common.PageRequest page = 2;
+  solra.common.PageRequest page = 2;
 }
 message GetLeaderboardResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated LeaderboardEntry entries = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
   int32 user_rank = 4;
 }
 
 message LeaderboardEntry {
   int32 rank = 1;
-  common.UserId user_id = 2;
+  solra.common.UserId user_id = 2;
   string display_name = 3;
   int64 score = 4;
 }

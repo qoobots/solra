@@ -7,7 +7,7 @@ version = "0.1.0"
 
 dependencies {
     implementation(project(":services:common"))
-    // TODO: Asset processing / CDN integration
+    implementation("org.springframework.boot:spring-boot-starter-web")
 }
 
 application {

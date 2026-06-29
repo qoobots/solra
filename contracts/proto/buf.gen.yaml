@@ -1,23 +1,41 @@
 version: v2
 managed:
-  enabled: true
-  override:
-    - file_option: go_package_prefix
-      value: github.com/solra/apis/gen/go
+  enabled: false
 plugins:
-  - plugin: buf.build/protocolbuffers/java
-    out: ../../services
+  # ── Java (Spring Boot gRPC) ──
+  - remote: buf.build/protocolbuffers/java
+    out: ../../services/generated
+  - remote: buf.build/grpc/java
+    out: ../../services/generated
+  # ── Python (gRPC) ──
+  - remote: buf.build/protocolbuffers/python
+    out: ../../ai-services/generated
+  - remote: buf.build/grpc/python
+    out: ../../ai-services/generated
+  # ── Kotlin (Android gRPC) ──
+  - remote: buf.build/protocolbuffers/kotlin
+    out: ../../clients/android/app/src/main/proto
+  - remote: buf.build/grpc/kotlin
+    out: ../../clients/android/app/src/main/proto
+  # ── TypeScript (gRPC-Web) ──
+  - remote: buf.build/protocolbuffers/js
+    out: ../../clients/web/src/generated
     opt:
-      - java_multiple_files=true
-  - plugin: buf.build/grpc/java
-    out: ../../services
-  - plugin: buf.build/protocolbuffers/python
-    out: ../../ai-services
-  - plugin: buf.build/grpc/python
-    out: ../../ai-services
-  - plugin: buf.build/protocolbuffers/kotlin
-    out: ../../clients/android/app/src/main/proto
-  - plugin: buf.build/grpc/kotlin
-    out: ../../clients/android/app/src/main/proto
+      - import_style=commonjs
+  - remote: buf.build/grpc/web
+    out: ../../clients/web/src/generated
+    opt:
+      - import_style=typescript
+      - mode=grpcwebtext
+  # ── C++17 (gRPC) ──
+  - remote: buf.build/protocolbuffers/cpp
+    out: ../../core/generated
+  - remote: buf.build/grpc/cpp
+    out: ../../core/generated
+  # ── Swift (iOS gRPC) ──
+  - remote: buf.build/apple/swift
+    out: ../../clients/ios/SolraCore/Sources/Generated
+    opt:
+      - Visibility=Public
 inputs:
   - directory: .

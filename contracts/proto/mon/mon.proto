@@ -2,10 +2,8 @@ syntax = "proto3";
 
 package solra.mon;
 
-import "proto/common/common.proto";
+import "common/common.proto";
 option java_package = "com.solra.proto.mon";
-option java_multiple_files = true;
-
 // ========== 货币/资产 ==========
 
 enum CurrencyType {
@@ -156,7 +154,7 @@ service MonService {
   rpc VerifyPayment(VerifyPaymentRequest) returns (VerifyPaymentResponse);
 
   // 订阅
-  rpc ListSubscriptionPlans(google.protobuf.Empty) returns (ListSubscriptionPlansResponse);
+  rpc ListSubscriptionPlans(solra.common.Empty) returns (ListSubscriptionPlansResponse);
   rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
   rpc CancelSubscription(CancelSubscriptionRequest) returns (Subscription);
 
@@ -226,11 +224,11 @@ message CancelSubscriptionRequest {
 
 message ListVirtualItemsRequest {
   VirtualItemType type_filter = 1;
-  solra.common.PaginationRequest pagination = 2;
+  solra.common.PageRequest pagination = 2;
 }
 message ListVirtualItemsResponse {
   repeated VirtualItem items = 1;
-  solra.common.PaginationResponse pagination = 2;
+  solra.common.PageResponse pagination = 2;
 }
 
 message PurchaseItemRequest {

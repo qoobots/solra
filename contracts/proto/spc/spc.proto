@@ -2,10 +2,9 @@ syntax = "proto3";
 
 package solra.spc.v1;
 
-import "solra/common/v1/common.proto";
+import "common/common.proto";
 
 option java_package = "com.solra.apis.spc.v1";
-option java_multiple_files = true;
 option go_package = "github.com/solra/apis/gen/go/spc/v1;spcv1";
 
 // ============================================================
@@ -41,14 +40,14 @@ service SpcService {
 
 // Space 空间
 message Space {
-  solra.common.v1.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   SpaceMeta meta = 2;
   SpaceContent content = 3;
   SpaceStats stats = 4;
-  solra.common.v1.UserId creator_id = 5;
+  solra.common.UserId creator_id = 5;
   SpaceStatus status = 6;
-  solra.common.v1.SolraTimestamp created_at = 7;
-  solra.common.v1.SolraTimestamp updated_at = 8;
+  solra.common.SolraTimestamp created_at = 7;
+  solra.common.SolraTimestamp updated_at = 8;
   repeated string tags = 9;
   map<string, string> metadata = 10;
 }
@@ -59,7 +58,7 @@ message SpaceMeta {
   string description = 2;               // 描述
   SpaceCategory category = 3;           // 分类
   string thumbnail_url = 4;             // 缩略图
-  solra.common.v1.GeoPoint location = 5; // 地理位置（可选）
+  solra.common.GeoPoint location = 5; // 地理位置（可选）
   SpacePrivacy privacy = 6;             // 隐私设置
   string language_code = 7;             // 语言
 }
@@ -103,7 +102,7 @@ message SpaceContent {
 
 // SpaceAsset 空间资产
 message SpaceAsset {
-  solra.common.v1.AssetId asset_id = 1;
+  solra.common.AssetId asset_id = 1;
   string asset_type = 2;        // model / texture / audio / script
   string url = 3;
   int64 size_bytes = 4;
@@ -144,10 +143,10 @@ message SpaceStats {
 
 // Recommendation 推荐条目
 message Recommendation {
-  solra.common.v1.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   RecommendScore score = 2;
   repeated string recommend_reasons = 3;  // 推荐理由
-  solra.common.v1.SolraTimestamp generated_at = 4;
+  solra.common.SolraTimestamp generated_at = 4;
 }
 
 // RecommendScore 推荐评分
@@ -176,7 +175,7 @@ enum UserActionType {
 
 // PreviewCard 预览卡片
 message PreviewCard {
-  solra.common.v1.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   SpaceMeta meta = 2;
   repeated string preview_images = 3;    // 预览图URL列表
   string preview_video_url = 4;          // 预览视频URL
@@ -189,7 +188,7 @@ message PreviewCardList {
   string list_id = 1;
   string list_name = 2;                  // "热门推荐" / "最新" / "为你推荐"
   repeated PreviewCard cards = 3;
-  solra.common.v1.PageResponse page = 4;
+  solra.common.PageResponse page = 4;
 }
 
 // ============================================================
@@ -198,7 +197,7 @@ message PreviewCardList {
 
 // AssetChunk 资产分块
 message AssetChunk {
-  solra.common.v1.AssetId asset_id = 1;
+  solra.common.AssetId asset_id = 1;
   int32 chunk_index = 2;         // 块序号（从0开始）
   int32 total_chunks = 3;        // 总块数
   bytes data = 4;                // 块数据
@@ -221,20 +220,20 @@ message StreamConfig {
 
 // GetSpace
 message GetSpaceRequest {
-  solra.common.v1.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   bool include_content = 2;      // 是否包含内容详情
 }
 
 message GetSpaceResponse {
   Space space = 1;
-  solra.common.v1.SolraError error = 2;
+  solra.common.SolraError error = 2;
 }
 
 // ListRecommendSpaces
 message ListRecommendSpacesRequest {
-  solra.common.v1.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   ListRecommendMode mode = 2;
-  solra.common.v1.PageRequest page = 3;
+  solra.common.PageRequest page = 3;
   repeated SpaceCategory categories = 4; // 筛选分类
 }
 
@@ -248,59 +247,59 @@ enum ListRecommendMode {
 
 message ListRecommendSpacesResponse {
   PreviewCardList cards = 1;
-  solra.common.v1.SolraError error = 2;
+  solra.common.SolraError error = 2;
 }
 
 // LoadSpace
 message LoadSpaceRequest {
-  solra.common.v1.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
   StreamConfig stream_config = 2;
 }
 
 message LoadSpaceResponse {
   Space space = 1;
   repeated AssetChunk initial_chunks = 2; // 初始必要资产块
-  solra.common.v1.SolraError error = 3;
+  solra.common.SolraError error = 3;
 }
 
 // StreamSpaceAssets
 message StreamSpaceAssetsRequest {
-  solra.common.v1.SpaceId space_id = 1;
-  repeated solra.common.v1.AssetId asset_ids = 2;
+  solra.common.SpaceId space_id = 1;
+  repeated solra.common.AssetId asset_ids = 2;
   StreamConfig config = 3;
 }
 
 // GetPreviewCard
 message GetPreviewCardRequest {
-  solra.common.v1.SpaceId space_id = 1;
+  solra.common.SpaceId space_id = 1;
 }
 
 message GetPreviewCardResponse {
   PreviewCard card = 1;
-  solra.common.v1.SolraError error = 2;
+  solra.common.SolraError error = 2;
 }
 
 // BatchGetPreviewCards
 message BatchGetPreviewCardsRequest {
-  repeated solra.common.v1.SpaceId space_ids = 1;
+  repeated solra.common.SpaceId space_ids = 1;
 }
 
 message BatchGetPreviewCardsResponse {
   repeated PreviewCard cards = 1;
-  solra.common.v1.SolraError error = 2;
+  solra.common.SolraError error = 2;
 }
 
 // ReportUserAction
 message ReportUserActionRequest {
-  solra.common.v1.UserId user_id = 1;
-  solra.common.v1.SpaceId space_id = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.SpaceId space_id = 2;
   UserActionType action_type = 3;
   int64 dwell_duration_ms = 4;       // 停留时长（dwell类型）
-  solra.common.v1.SolraTimestamp action_time = 5;
+  solra.common.SolraTimestamp action_time = 5;
 }
 
 message ReportUserActionResponse {
-  solra.common.v1.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
-reserved 100 to 200;
+

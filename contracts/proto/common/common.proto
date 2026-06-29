@@ -1,10 +1,9 @@
 syntax = "proto3";
 
-package solra.common.v1;
+package solra.common;
 
-option java_package = "com.solra.apis.common.v1";
-option java_multiple_files = true;
-option go_package = "github.com/solra/apis/gen/go/common/v1;commonv1";
+option java_package = "com.solra.apis.common";
+option go_package = "github.com/solra/apis/gen/go/common;common";
 
 // ============================================================
 // 基础标识类型
@@ -59,6 +58,24 @@ message GeoBoundingBox {
   GeoPoint southwest = 1; // 西南角
   GeoPoint northeast = 2; // 东北角
 }
+
+// ============================================================
+// 空间变换类型
+// ============================================================
+
+// Transform 3D 空间变换（位置+旋转+缩放）
+message Transform {
+  repeated double position = 1;  // [x, y, z]
+  repeated double rotation = 2;  // 四元数 [x, y, z, w]
+  repeated double scale = 3;     // [x, y, z]
+}
+
+// ============================================================
+// 通用空消息
+// ============================================================
+
+// Empty 空消息（用于无参数的RPC）
+message Empty {}
 
 // ============================================================
 // 分页模型
@@ -118,4 +135,4 @@ enum ErrorCode {
   ERROR_ACCOUNT_SUSPENDED = 81;
 }
 
-reserved 100 to 200;
+

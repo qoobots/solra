@@ -14,7 +14,7 @@ import "common/common.proto";
 
 message Notification {
   string notification_id = 1;
-  common.UserId user_id = 2;
+  solra.common.UserId user_id = 2;
   NotificationType type = 3;
   NotificationPriority priority = 4;
   string title = 5;
@@ -24,9 +24,9 @@ message Notification {
   bytes extra_data = 9;        // 业务自定义数据
   NotificationStatus status = 10;
   DeliveryChannel channel = 11;
-  common.SolraTimestamp created_at = 12;
-  common.SolraTimestamp read_at = 13;
-  common.SolraTimestamp expires_at = 14;
+  solra.common.SolraTimestamp created_at = 12;
+  solra.common.SolraTimestamp read_at = 13;
+  solra.common.SolraTimestamp expires_at = 14;
 }
 
 enum NotificationType {
@@ -80,7 +80,7 @@ enum DeliveryChannel {
 
 message PushMessage {
   string push_id = 1;
-  common.UserId user_id = 2;
+  solra.common.UserId user_id = 2;
   string device_token = 3;
   PlatformType platform = 4;
   PushTitle title = 5;
@@ -89,8 +89,8 @@ message PushMessage {
   PushPriority push_priority = 8;
   int32 ttl_seconds = 9;        // 消息有效期
   PushStatus status = 10;
-  common.SolraTimestamp sent_at = 11;
-  common.SolraTimestamp delivered_at = 12;
+  solra.common.SolraTimestamp sent_at = 11;
+  solra.common.SolraTimestamp delivered_at = 12;
   string error_message = 13;
 }
 
@@ -130,7 +130,7 @@ enum PushStatus {
 // ── 收件箱模型 ──
 
 message Inbox {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   int32 total_unread = 2;
   int32 total_count = 3;
   repeated Notification recent_notifications = 4;
@@ -138,14 +138,14 @@ message Inbox {
 
 message InboxMessage {
   string message_id = 1;
-  common.UserId sender_id = 2;
-  common.UserId recipient_id = 3;
+  solra.common.UserId sender_id = 2;
+  solra.common.UserId recipient_id = 3;
   MessageType type = 4;
   string content = 5;
   string attachment_url = 6;
   MessageStatus status = 7;
-  common.SolraTimestamp sent_at = 8;
-  common.SolraTimestamp read_at = 9;
+  solra.common.SolraTimestamp sent_at = 8;
+  solra.common.SolraTimestamp read_at = 9;
 }
 
 enum MessageType {
@@ -168,21 +168,21 @@ enum MessageStatus {
 
 message DeviceRegistration {
   string registration_id = 1;
-  common.UserId user_id = 2;
+  solra.common.UserId user_id = 2;
   string device_token = 3;
   PlatformType platform = 4;
   string device_name = 5;
   string os_version = 6;
   string app_version = 7;
   bool push_enabled = 8;
-  common.SolraTimestamp registered_at = 9;
-  common.SolraTimestamp last_active_at = 10;
+  solra.common.SolraTimestamp registered_at = 9;
+  solra.common.SolraTimestamp last_active_at = 10;
 }
 
 // ── 通知偏好 ──
 
 message NotificationPreference {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   bool push_enabled = 2;
   bool email_enabled = 3;
   bool sms_enabled = 4;
@@ -226,7 +226,7 @@ service NotificationService {
 // ── 通知 RPC 消息 ──
 
 message SendNotificationRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   NotificationType type = 2;
   string title = 3;
   string body = 4;
@@ -236,34 +236,34 @@ message SendNotificationRequest {
   DeliveryChannel channel = 8;
 }
 message SendNotificationResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   Notification notification = 2;
 }
 
 message ListNotificationsRequest {
-  common.UserId user_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.PageRequest page = 2;
   NotificationType type_filter = 3;
   NotificationStatus status_filter = 4;
 }
 message ListNotificationsResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated Notification notifications = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 message MarkAsReadRequest {
   string notification_id = 1;
 }
 message MarkAsReadResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 message MarkAllAsReadRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
 }
 message MarkAllAsReadResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   int32 count_marked = 2;
 }
 
@@ -271,14 +271,14 @@ message DeleteNotificationRequest {
   string notification_id = 1;
 }
 message DeleteNotificationResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 message GetUnreadCountRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
 }
 message GetUnreadCountResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   int32 unread_count = 2;
 }
 
@@ -292,7 +292,7 @@ message RegisterDeviceRequest {
   string app_version = 5;
 }
 message RegisterDeviceResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   DeviceRegistration registration = 2;
 }
 
@@ -300,63 +300,63 @@ message UnregisterDeviceRequest {
   string device_token = 1;
 }
 message UnregisterDeviceResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
 }
 
 message SendPushMessageRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
   string title = 2;
   string body = 3;
   map<string, string> custom_data = 4;
   PushPriority priority = 5;
 }
 message SendPushMessageResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   PushMessage message = 2;
 }
 
 // ── 收件箱 RPC 消息 ──
 
 message GetInboxRequest {
-  common.UserId user_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.PageRequest page = 2;
 }
 message GetInboxResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated InboxMessage messages = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
   int32 unread_count = 4;
 }
 
 message SendInboxMessageRequest {
-  common.UserId recipient_id = 1;
+  solra.common.UserId recipient_id = 1;
   MessageType type = 2;
   string content = 3;
   string attachment_url = 4;
 }
 message SendInboxMessageResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   InboxMessage message = 2;
 }
 
 message ListInboxMessagesRequest {
-  common.UserId user_id = 1;
-  common.PageRequest page = 2;
+  solra.common.UserId user_id = 1;
+  solra.common.PageRequest page = 2;
   MessageType type_filter = 3;
 }
 message ListInboxMessagesResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   repeated InboxMessage messages = 2;
-  common.PageResponse page = 3;
+  solra.common.PageResponse page = 3;
 }
 
 // ── 偏好 RPC 消息 ──
 
 message GetNotificationPreferenceRequest {
-  common.UserId user_id = 1;
+  solra.common.UserId user_id = 1;
 }
 message GetNotificationPreferenceResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   NotificationPreference preference = 2;
 }
 
@@ -368,6 +368,6 @@ message UpdateNotificationPreferenceRequest {
   QuietHours quiet_hours = 5;
 }
 message UpdateNotificationPreferenceResponse {
-  common.SolraError error = 1;
+  solra.common.SolraError error = 1;
   NotificationPreference preference = 2;
 }
