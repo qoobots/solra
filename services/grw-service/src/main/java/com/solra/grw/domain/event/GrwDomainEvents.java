@@ -35,4 +35,32 @@ public final class GrwDomainEvents {
 
     /** 用户被成功召回（重新活跃） */
     public record UserReengaged(String userId, String taskId, int inactiveDays) {}
+
+    /** GRW-001: 用户等级提升 */
+    public record UserLeveledUp(String userId, int oldLevel, int newLevel, String oldLevelName, String newLevelName) {}
+
+    /** GRW-001: 存在值变化 */
+    public record PresenceScoreChanged(String userId, double oldScore, double newScore) {}
+
+    /** GRW-005: 成就已解锁 */
+    public record AchievementUnlocked(String userId, String achievementCode, String achievementName,
+                                       String rarity, int experienceReward) {}
+
+    /** GRW-003: 布道者申请已提交 */
+    public record EvangelistApplied(String userId, String applicationId, String displayName) {}
+
+    /** GRW-003: 布道者已通过审批 */
+    public record EvangelistApproved(String userId, String applicationId, String tier) {}
+
+    /** GRW-003: 布道者资格被暂停 */
+    public record EvangelistSuspended(String userId, String reason) {}
+
+    /** GRW-004: 虚拟人已收集 */
+    public record AvatarCollected(String userId, String avatarTypeId, String name, String rarity) {}
+
+    /** GRW-004: 虚拟人好感度提升 */
+    public record AvatarAffectionIncreased(String userId, String avatarTypeId, int newAffection) {}
+
+    /** GRW-008: 信仰仪表盘已生成 */
+    public record FaithDashboardGenerated(String userId, double overallFaithScore) {}
 }

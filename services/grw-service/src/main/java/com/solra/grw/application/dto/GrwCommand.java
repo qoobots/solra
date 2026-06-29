@@ -48,3 +48,26 @@ public class RecallCallbackCommand {
 
 /** 批量评估流失风险命令 */
 public record BatchChurnEvaluationCommand(java.util.List<String> userIds) {}
+
+/** 增加经验值命令 (GRW-001) */
+public record AddExperienceCommand(String userId, int amount, String eventType) {}
+
+/** 布道者申请命令 (GRW-003) */
+public record EvangelistApplyCommand(String userId, String displayName, String bio) {}
+
+/** 布道者审批命令 (GRW-003) */
+public record EvangelistReviewCommand(String applicationId, boolean approved,
+                                       String reviewerId, String comment) {}
+
+/** 收集虚拟人命令 (GRW-004) */
+public record CollectAvatarCommand(String userId, String avatarTypeId, String name,
+                                    String rarity, String element) {}
+
+/** 虚拟人养成命令 (GRW-004) */
+public record AvatarExperienceCommand(String userId, String avatarTypeId, int amount) {}
+
+/** 虚拟人好感度命令 (GRW-004) */
+public record AvatarAffectionCommand(String userId, String avatarTypeId, int amount) {}
+
+/** 信仰仪表盘生成命令 (GRW-008) */
+public record GenerateDashboardCommand(String userId) {}

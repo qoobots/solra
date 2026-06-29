@@ -110,4 +110,136 @@ public class GrwGrpcService {
     public RecallStatsDTO getRecallStats() {
         return appService.getRecallStats();
     }
+
+    // ===== GRW-001 等级与存在值 =====
+
+    /** 增加经验值 */
+    public LevelUpResultDTO addExperience(String userId, int amount, String eventType) {
+        return appService.addExperience(userId, amount, eventType);
+    }
+
+    /** 获取等级进度 */
+    public LevelProgressDTO getLevelProgress(String userId) {
+        return appService.getLevelProgress(userId);
+    }
+
+    /** 获取存在值 */
+    public double getPresenceScore(String userId) {
+        return appService.getPresenceScore(userId);
+    }
+
+    // ===== GRW-005 成就系统 =====
+
+    /** 检查并解锁成就 */
+    public List<AchievementUnlockDTO> checkAchievements(String userId, String eventType, int progress) {
+        return appService.checkAchievements(userId, eventType, progress);
+    }
+
+    /** 获取成就状态 */
+    public Map<String, Boolean> getAchievementStatus(String userId) {
+        return appService.getAchievementStatus(userId);
+    }
+
+    /** 获取已解锁成就 */
+    public List<AchievementUnlockDTO> getUnlockedAchievements(String userId) {
+        return appService.getUnlockedAchievements(userId);
+    }
+
+    /** 获取未解锁成就进度 */
+    public List<AchievementProgressDTO> getLockedAchievements(String userId) {
+        return appService.getLockedAchievements(userId);
+    }
+
+    /** 获取成就完成度 */
+    public AchievementCompletionDTO getAchievementCompletion(String userId) {
+        return appService.getAchievementCompletion(userId);
+    }
+
+    // ===== GRW-003 布道者体系 =====
+
+    /** 提交布道者申请 */
+    public EvangelistDTO applyEvangelist(String userId, String displayName, String bio) {
+        return appService.applyEvangelist(userId, displayName, bio);
+    }
+
+    /** 审批布道者 */
+    public EvangelistDTO reviewEvangelist(String applicationId, boolean approved,
+                                           String reviewerId, String comment) {
+        return appService.reviewEvangelist(applicationId, approved, reviewerId, comment);
+    }
+
+    /** 获取布道者状态 */
+    public EvangelistDTO getEvangelistStatus(String userId) {
+        return appService.getEvangelistStatus(userId).orElse(null);
+    }
+
+    /** 获取活跃布道者列表 */
+    public List<EvangelistDTO> getActiveEvangelists(int page, int size) {
+        return appService.getActiveEvangelists(page, size);
+    }
+
+    /** 暂停布道者 */
+    public void suspendEvangelist(String userId, String reason) {
+        appService.suspendEvangelist(userId, reason);
+    }
+
+    /** 获取布道者统计 */
+    public EvangelistStatsDTO getEvangelistStats() {
+        return appService.getEvangelistStats();
+    }
+
+    // ===== GRW-004 虚拟人收集与养成 =====
+
+    /** 收集虚拟人 */
+    public AvatarEntryDTO collectAvatar(String userId, String avatarTypeId, String name,
+                                         String rarity, String element) {
+        return appService.collectAvatar(userId, avatarTypeId, name, rarity, element);
+    }
+
+    /** 虚拟人养成 */
+    public AvatarEntryDTO addAvatarExperience(String userId, String avatarTypeId, int amount) {
+        return appService.addAvatarExperience(userId, avatarTypeId, amount);
+    }
+
+    /** 增加好感度 */
+    public AvatarEntryDTO addAvatarAffection(String userId, String avatarTypeId, int amount) {
+        return appService.addAvatarAffection(userId, avatarTypeId, amount);
+    }
+
+    /** 设置最爱 */
+    public void setFavoriteAvatar(String userId, String avatarTypeId) {
+        appService.setFavoriteAvatar(userId, avatarTypeId);
+    }
+
+    /** 获取图鉴进度 */
+    public CollectionProgressDTO getCollectionProgress(String userId) {
+        return appService.getCollectionProgress(userId);
+    }
+
+    /** 获取虚拟人列表 */
+    public List<AvatarEntryDTO> getUserAvatars(String userId) {
+        return appService.getUserAvatars(userId);
+    }
+
+    // ===== GRW-008 信仰体系可视化 =====
+
+    /** 生成信仰仪表盘 */
+    public FaithDashboardDTO generateFaithDashboard(String userId) {
+        return appService.generateFaithDashboard(userId);
+    }
+
+    /** 获取信仰仪表盘 */
+    public FaithDashboardDTO getFaithDashboard(String userId) {
+        return appService.getFaithDashboard(userId);
+    }
+
+    /** 刷新信仰仪表盘 */
+    public FaithDashboardDTO refreshFaithDashboard(String userId) {
+        return appService.refreshFaithDashboard(userId);
+    }
+
+    /** 获取全球信仰统计 */
+    public GlobalFaithStatsDTO getGlobalFaithStats() {
+        return appService.getGlobalFaithStats();
+    }
 }
