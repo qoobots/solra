@@ -6,6 +6,8 @@ import com.solra.soc.domain.model.FriendStatus;
 import com.solra.soc.domain.model.ShareType;
 import com.solra.soc.domain.service.ChatService;
 import com.solra.soc.domain.service.SessionManager;
+import com.solra.soc.domain.service.SpatialAudioEngine;
+import com.solra.soc.domain.service.SocialGestureService;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.slf4j.Logger;
@@ -193,5 +195,140 @@ public class SocGrpcService {
     /** 获取好友列表 */
     public FriendListDTO getFriendList(String userId, int page, int size) {
         return appService.getFriendList(userId, page, size);
+    }
+
+    // ===== SOC-003 空间社交信号系统 =====
+
+    /** 发送社交信号 */
+    public GestureDTO sendGesture(String sessionId, String fromUserId, String signal,
+                                   String intensity, String targetUserId, String message, int durationMs) {
+        SendGestureCommand cmd = new SendGestureCommand();
+        cmd.setSessionId(sessionId);
+        cmd.setFromUserId(fromUserId);
+        cmd.setSignal(signal);
+        cmd.setIntensity(intensity);
+        cmd.setTargetUserId(targetUserId);
+        cmd.setMessage(message);
+        cmd.setDurationMs(durationMs);
+        return appService.sendGesture(cmd);
+    }
+
+    /** 举手 */
+    public GestureDTO raiseHand(String sessionId, String userId) {
+        return appService.raiseHand(sessionId, userId);
+    }
+
+    /** 鼓掌 */
+    public GestureDTO applaud(String sessionId, String userId, String intensity) {
+        return appService.applaud(sessionId, userId, intensity);
+    }
+
+    /** 请求安静 */
+    public GestureDTO requestSilence(String sessionId, String userId) {
+        return appService.requestSilence(sessionId, userId);
+    }
+
+    /** 点赞 */
+    public GestureDTO thumbsUp(String sessionId, String userId, String targetUserId) {
+        return appService.thumbsUp(sessionId, userId, targetUserId);
+    }
+
+    /** 确认社交信号 */
+    public void acknowledgeGesture(String sessionId, String gestureId) {
+        appService.acknowledgeGesture(sessionId, gestureId);
+    }
+
+    /** 获取最近社交信号 */
+    public List<GestureDTO> getRecentGestures(String sessionId, int limit) {
+        return appService.getRecentGestures(sessionId, limit);
+    }
+
+    /** 获取增量社交信号 */
+    public List<GestureDTO> getGesturesSince(String sessionId, String sinceGestureId) {
+        return appService.getGesturesSince(sessionId, sinceGestureId);
+    }
+
+    /** 获取活跃社交信号 */
+    public List<GestureDTO> getActiveGestures(String sessionId) {
+        return appService.getActiveGestures(sessionId);
+    }
+
+    /** 获取社交信号统计 */
+    public GestureStatsDTO getGestureStats(String sessionId) {
+        return appService.getGestureStats(sessionId);
+    }
+
+    // ===== SOC-007 空间音频引擎 =====
+
+    /** 注册声源 */
+    public AudioSourceDTO registerAudioSource(String sessionId, String ownerUserId,
+                                               String type, float x, float y, float z,
+                                               float volume, float minDistance, float maxDistance,
+                                               float rolloffFactor, boolean spatialized, boolean loop) {
+        AudioSourceCommand cmd = new AudioSourceCommand();
+        cmd.setSessionId(sessionId);
+        cmd.setOwnerUserId(ownerUserId);
+        cmd.setType(type);
+        cmd.setPositionX(x);
+        cmd.setPositionY(y);
+        cmd.setPositionZ(z);
+        cmd.setVolume(volume);
+        cmd.setMinDistance(minDistance);
+        cmd.setMaxDistance(maxDistance);
+        cmd.setRolloffFactor(rolloffFactor);
+        cmd.setSpatialized(spatialized);
+        cmd.setLoop(loop);
+        return appService.registerAudioSource(cmd);
+    }
+
+    /** 注册麦克风声源 */
+    public AudioSourceDTO registerMicrophone(String sessionId, String userId,
+                                              float x, float y, float z) {
+        return appService.registerMicrophone(sessionId, userId, x, y, z);
+    }
+
+    /** 注册背景音乐 */
+    public AudioSourceDTO registerBackgroundMusic(String sessionId, String musicId, float volume) {
+        return appService.registerBackgroundMusic(sessionId, musicId, volume);
+    }
+
+    /** 注册环境音 */
+    public AudioSourceDTO registerAmbient(String sessionId, String ambientId,
+                                           float x, float y, float z,
+                                           float volume, float maxDistance) {
+        return appService.registerAmbient(sessionId, ambientId, x, y, z, volume, maxDistance);
+    }
+
+    /** 移除声源 */
+    public void removeAudioSource(String sessionId, String sourceId) {
+        appService.removeAudioSource(sessionId, sourceId);
+    }
+
+    /** 更新声源位置 */
+    public void updateSourcePosition(String sessionId, String sourceId,
+                                      float x, float y, float z) {
+        appService.updateSourcePosition(sessionId, sourceId, x, y, z);
+    }
+
+    /** 注册听者 */
+    public void registerListener(String sessionId, String userId,
+                                  float x, float y, float z,
+                                  float fx, float fy, float fz) {
+        appService.registerListener(sessionId, userId, x, y, z, fx, fy, fz);
+    }
+
+    /** 计算空间音频混合 */
+    public SpatialAudioMixDTO calculateAudioMix(String sessionId, String listenerUserId) {
+        return appService.calculateAudioMix(sessionId, listenerUserId);
+    }
+
+    /** 获取会话声源列表 */
+    public List<AudioSourceDTO> getSessionAudioSources(String sessionId) {
+        return appService.getSessionAudioSources(sessionId);
+    }
+
+    /** 获取空间音频引擎统计 */
+    public SpatialAudioEngine.AudioEngineStats getAudioEngineStats() {
+        return appService.getAudioEngineStats();
     }
 }

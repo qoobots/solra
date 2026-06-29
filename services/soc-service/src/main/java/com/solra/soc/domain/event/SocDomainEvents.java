@@ -26,4 +26,19 @@ public final class SocDomainEvents {
 
     /** 好友请求已被接受事件。 */
     public record FriendAccepted(String friendshipId, String userId, String friendUserId, Instant at) {}
+
+    /** SOC-003: 社交信号已发送事件。 */
+    public record SocialGestureSent(String gestureId, String sessionId, String fromUserId,
+                                     String signal, String targetUserId, Instant at) {}
+
+    /** SOC-003: 社交信号已被确认事件。 */
+    public record SocialGestureAcknowledged(String gestureId, String sessionId,
+                                             String fromUserId, Instant at) {}
+
+    /** SOC-007: 声源已注册事件。 */
+    public record AudioSourceRegistered(String sourceId, String sessionId,
+                                         String type, Instant at) {}
+
+    /** SOC-007: 声源已移除事件。 */
+    public record AudioSourceRemoved(String sourceId, String sessionId, Instant at) {}
 }
