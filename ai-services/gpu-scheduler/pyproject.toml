@@ -1,0 +1,33 @@
+[project]
+name = "solra-gpu-scheduler"
+version = "0.1.0"
+description = "Solra GPU 资源调度器 — 多模型 CUDA 显存管理与负载均衡"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109",
+    "uvicorn[standard]>=0.27",
+    "pynvml>=11.5",
+    "prometheus-client>=0.19",
+    "redis[hiredis]>=5.0",
+    "httpx>=0.27",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.2",
+    "mypy>=1.8",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

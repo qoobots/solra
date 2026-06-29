@@ -1,0 +1,196 @@
+# Solra 微服务群 Helm Values
+
+global:
+  imageRegistry: ghcr.io/solra
+  imageTag: latest
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+  # 服务间 JWT (由 auth-service 签发)
+  serviceJWT:
+    issuer: solra-auth
+    audience: solra-internal
+
+  # 可观测性
+  metrics:
+    enabled: true
+    path: /actuator/prometheus
+  tracing:
+    enabled: true
+    endpoint: http://jaeger-collector.observability:4317
+
+  # 资源默认值
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+
+  # Ingress
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# ============================================================
+# 10 个微服务
+# ============================================================
+auth-service:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: solra-auth-service
+    tag: ~
+  service:
+    port: 8080
+  env:
+    DB_URL: jdbc:postgresql://postgres-auth:5432/solra_auth
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 500m, memory: 768Mi }
+
+avt-service:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: solra-avt-service
+    tag: ~
+  service:
+    port: 8080
+
+spc-service:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: solra-spc-service
+    tag: ~
+  service:
+    port: 8080
+
+soc-service:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: solra-soc-service
+    tag: ~
+  service:
+    port: 8080
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { cpu: 1000m, memory: 768Mi }  # 高并发 WebSocket
+
+crt-service:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: solra-crt-service
+    tag: ~
+  service:
+    port: 8080
+
+grw-service:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: solra-grw-service
+    tag: ~
+  service:
+    port: 8080
+
+not-service:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: solra-not-service
+    tag: ~
+  service:
+    port: 8080
+
+saf-service:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: solra-saf-service
+    tag: ~
+  service:
+    port: 8080
+
+mon-service:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: solra-mon-service
+    tag: ~
+  service:
+    port: 8080
+
+# ============================================================
+# AI 服务 (Python)
+# ============================================================
+aiServices:
+  llm-router:
+    enabled: true
+    replicaCount: 1
+    image: solra-llm-router
+    port: 8000
+    env:
+      GPU_SCHEDULER_URL: http://gpu-scheduler:8100
+  embedding-service:
+    enabled: true
+    replicaCount: 1
+    image: solra-embedding-service
+    port: 8000
+  tts-service:
+    enabled: true
+    replicaCount: 1
+    image: solra-tts-service
+    port: 8000
+    resources:
+      requests: { cpu: 1000m, memory: 2048Mi, "nvidia.com/gpu": 1 }
+      limits: { cpu: 2000m, memory: 4096Mi, "nvidia.com/gpu": 1 }
+  recommendation-pipeline:
+    enabled: true
+    replicaCount: 1
+    image: solra-recommendation
+    port: 8000
+  safety-model-service:
+    enabled: true
+    replicaCount: 2
+    image: solra-safety-service
+    port: 8000
+  gpu-scheduler:
+    enabled: true
+    replicaCount: 1
+    image: solra-gpu-scheduler
+    port: 8100
+    hostNetwork: true  # NVML 需要
+
+# ============================================================
+# 中间件
+# ============================================================
+postgresql:
+  enabled: true
+  auth:
+    username: solra
+    database: solra
+  primary:
+    persistence:
+      size: 20Gi
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 8Gi
+
+kafka:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    size: 50Gi

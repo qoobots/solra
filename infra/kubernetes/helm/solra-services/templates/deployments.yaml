@@ -1,0 +1,38 @@
+{{/* 渲染所有 Java 微服务 Deployments */}}
+{{- $svcList := list "auth-service" "avt-service" "spc-service" "soc-service" "crt-service" "grw-service" "not-service" "saf-service" "mon-service" }}
+
+{{- range $svc := $svcList }}
+{{- $config := index $.Values $svc }}
+{{- if $config.enabled }}
+{{- include "solra.deployment" (dict
+  "serviceName" $svc
+  "replicaCount" $config.replicaCount
+  "image" (printf "%s/%s" $.Values.global.imageRegistry $config.image.repository)
+  "imageTag" ($config.image.tag | default $.Values.global.imageTag)
+  "servicePort" $config.service.port
+  "pullPolicy" $.Values.global.pullPolicy
+  "env" $config.env
+  "resources" ($config.resources | default $.Values.global.resources)
+  "metrics" $.Values.global.metrics
+) }}
+---
+{{- end }}
+{{- end }}
+
+{{/* AI Python 服务 Deployments */}}
+{{- range $name, $cfg := $.Values.aiServices }}
+{{- if $cfg.enabled }}
+{{- include "solra.deployment" (dict
+  "serviceName" $name
+  "replicaCount" $cfg.replicaCount
+  "image" (printf "%s/%s" $.Values.global.imageRegistry $cfg.image)
+  "imageTag" $.Values.global.imageTag
+  "servicePort" $cfg.port
+  "pullPolicy" $.Values.global.pullPolicy
+  "env" $cfg.env
+  "resources" ($cfg.resources | default $.Values.global.resources)
+  "metrics" (dict "enabled" true "path" "/metrics")
+) }}
+---
+{{- end }}
+{{- end }}

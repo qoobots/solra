@@ -1,0 +1,582 @@
+openapi: 3.1.0
+info:
+  title: Solra Client API (BFF)
+  description: 索拉工程客户端 (iOS/Android/Web) 调用的 BFF 层接口规范
+  version: 1.0.0
+
+servers:
+  - url: https://api.solra.io/v1
+    description: Production
+  - url: https://api-staging.solra.io/v1
+    description: Staging
+  - url: http://localhost:9000/v1
+    description: Local Development
+
+tags:
+  - name: Account
+  - name: Space
+  - name: Avatar
+  - name: Social
+  - name: Creation
+  - name: Growth
+  - name: Monetization
+  - name: Notification
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: { type: integer; format: int32; description: "0=成功, 非0=错误码" }
+        message: { type: string }
+        data: { }
+        traceId: { type: string }
+
+    PageResponse:
+      type: object
+      properties:
+        items: { type: array }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer; format: int64 }
+        hasMore: { type: boolean }
+
+    # ---- Account ----
+    LoginRequest:
+      type: object
+      required: [provider, credential]
+      properties:
+        provider:
+          type: string
+          enum: [WECHAT, APPLE, GOOGLE, EMAIL, PHONE]
+        credential:
+          type: string
+          description: OAuth code / password hash / SMS code
+        deviceInfo:
+          type: object
+          properties:
+            platform: { type: string; enum: [IOS, ANDROID, WEB] }
+            deviceId: { type: string }
+            pushToken: { type: string }
+
+    LoginResponse:
+      type: object
+      required: [accessToken, refreshToken, user]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer; description: "秒" }
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        userId: { type: string; format: uuid }
+        displayName: { type: string }
+        avatarUrl: { type: string; format: uri }
+        bio: { type: string }
+        faithLevel: { type: integer }
+        spaceCount: { type: integer }
+        createdAt: { type: string; format: date-time }
+
+    # ---- Space ----
+    SpaceCard:
+      type: object
+      properties:
+        spaceId: { type: string; format: uuid }
+        title: { type: string }
+        description: { type: string }
+        thumbnailUrl: { type: string; format: uri }
+        tags: { type: array; items: { type: string } }
+        creator: { $ref: '#/components/schemas/UserProfile' }
+        onlineCount: { type: integer }
+        rating: { type: number; format: float }
+        isFavorite: { type: boolean }
+
+    SpaceDetail:
+      allOf:
+        - $ref: '#/components/schemas/SpaceCard'
+        - type: object
+          properties:
+            assetList: { type: array; items: { $ref: '#/components/schemas/AssetItem' } }
+            participantCount: { type: integer }
+            createdAt: { type: string; format: date-time }
+            updatedAt: { type: string; format: date-time }
+
+    AssetItem:
+      type: object
+      properties:
+        assetId: { type: string; format: uuid }
+        type: { type: string; enum: [MODEL, TEXTURE, AUDIO, SCRIPT] }
+        url: { type: string; format: uri }
+        sizeBytes: { type: integer; format: int64 }
+        mimeType: { type: string }
+
+    # ---- Avatar ----
+    AvatarConversationRequest:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        avatarId: { type: string; format: uuid }
+        spaceId: { type: string; format: uuid }
+        contextMemory: { type: boolean; default: true }
+
+    AvatarConversationResponse:
+      type: object
+      properties:
+        messageId: { type: string; format: uuid }
+        text: { type: string }
+        emotion: { type: string; enum: [NEUTRAL, HAPPY, SAD, SURPRISED, ANGRY, THOUGHTFUL] }
+        audioUrl: { type: string; format: uri; description: "TTS音频" }
+        actionHint: { type: string }
+
+    # ---- Social ----
+    SpaceOnlineUsers:
+      type: object
+      properties:
+        spaceId: { type: string; format: uuid }
+        participants:
+          type: array
+          items:
+            type: object
+            properties:
+              userId: { type: string; format: uuid }
+              displayName: { type: string }
+              avatarUrl: { type: string; format: uri }
+              state: { type: string; enum: [ONLINE, AWAY, IDLE] }
+              avatarState: { }
+        onlineCount: { type: integer }
+
+    # ---- Creation ----
+    CreateSpaceRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string; maxLength: 100 }
+        description: { type: string; maxLength: 1000 }
+        tags: { type: array; items: { type: string } }
+        templateId: { type: string }
+        visibility: { type: string; enum: [PUBLIC, PRIVATE, FRIENDS_ONLY]; default: PUBLIC }
+
+    # ---- Growth ----
+    Achievement:
+      type: object
+      properties:
+        achievementId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        badgeUrl: { type: string; format: uri }
+        unlockedAt: { type: string; format: date-time }
+        progress: { type: object }
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank: { type: integer }
+        user: { $ref: '#/components/schemas/UserProfile' }
+        score: { type: integer }
+        faithLevel: { type: integer }
+
+    # ---- Monetization ----
+    VirtualItem:
+      type: object
+      properties:
+        itemId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        iconUrl: { type: string; format: uri }
+        price: { type: number; format: float }
+        currency: { type: string; default: CNY }
+        category: { type: string; enum: [AVATAR_SKIN, SPACE_DECORATION, EMOTE, EFFECT, SUBSCRIPTION] }
+
+    SubscriptionPlan:
+      type: object
+      properties:
+        planId: { type: string }
+        name: { type: string }
+        tier: { type: string; enum: [FREE, BASIC, PREMIUM, CREATOR] }
+        price: { type: number; format: float }
+        interval: { type: string; enum: [MONTHLY, YEARLY] }
+        features: { type: array; items: { type: string } }
+
+    # ---- Notification ----
+    InboxMessage:
+      type: object
+      properties:
+        messageId: { type: string; format: uuid }
+        type: { type: string; enum: [SYSTEM, SOCIAL, SPACE, MONETIZATION] }
+        title: { type: string }
+        body: { type: string }
+        isRead: { type: boolean }
+        createdAt: { type: string; format: date-time }
+        actionUrl: { type: string }
+
+paths:
+  # ======================== Account ========================
+  /account/login:
+    post:
+      tags: [Account]
+      summary: 用户登录/注册
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/LoginResponse' }
+
+  /account/refresh:
+    post:
+      tags: [Account]
+      summary: 刷新 Token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+
+  /account/profile:
+    get:
+      tags: [Account]
+      summary: 获取当前用户信息
+      operationId: getProfile
+      security:
+        - BearerAuth: []
+
+  /account/profile:
+    put:
+      tags: [Account]
+      summary: 更新用户信息
+      operationId: updateProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string; maxLength: 50 }
+                bio: { type: string; maxLength: 500 }
+                avatarUrl: { type: string; format: uri }
+
+  # ======================== Space ========================
+  /spaces/feed:
+    get:
+      tags: [Space]
+      summary: 空间推荐 Feed 流
+      operationId: getSpaceFeed
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: size
+          in: query
+          schema: { type: integer; default: 20; maximum: 50 }
+      security:
+        - BearerAuth: []
+
+  /spaces/{spaceId}:
+    get:
+      tags: [Space]
+      summary: 空间详情
+      operationId: getSpaceDetail
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+      security:
+        - BearerAuth: []
+
+  /spaces/search:
+    get:
+      tags: [Space]
+      summary: 搜索空间
+      operationId: searchSpaces
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer; default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer; default: 20 }
+
+  /spaces/{spaceId}/favorite:
+    post:
+      tags: [Space]
+      summary: 收藏/取消收藏空间
+      operationId: toggleSpaceFavorite
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+      security:
+        - BearerAuth: []
+
+  # ======================== Avatar ========================
+  /avatar/conversation:
+    post:
+      tags: [Avatar]
+      summary: 与虚拟人对话 (SSE 流式)
+      operationId: converseWithAvatar
+      description: |
+        支持 SSE (Server-Sent Events) 流式返回。
+        event: text → 文本增量
+        event: emotion → 表情变化
+        event: audio → TTS 音频 chunk
+        event: done → 对话结束
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvatarConversationRequest'
+      responses:
+        '200':
+          description: SSE 流式响应
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /avatar/{avatarId}/history:
+    get:
+      tags: [Avatar]
+      summary: 获取对话历史
+      operationId: getConversationHistory
+      parameters:
+        - name: avatarId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+      security:
+        - BearerAuth: []
+
+  # ======================== Social ========================
+  /social/spaces/{spaceId}/online:
+    get:
+      tags: [Social]
+      summary: 查询空间在线用户
+      operationId: getSpaceOnlineUsers
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+      security:
+        - BearerAuth: []
+
+  /social/presence:
+    post:
+      tags: [Social]
+      summary: 上报用户在场状态 (心跳)
+      operationId: reportPresence
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                spaceId: { type: string; format: uuid }
+                state: { type: string; enum: [ONLINE, AWAY, OFFLINE] }
+
+  # ======================== Creation ========================
+  /creation/spaces:
+    post:
+      tags: [Creation]
+      summary: 创建新空间
+      operationId: createSpace
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpaceRequest'
+
+  /creation/spaces/{spaceId}:
+    put:
+      tags: [Creation]
+      summary: 编辑空间
+      operationId: updateSpace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+
+  /creation/assets/upload:
+    post:
+      tags: [Creation]
+      summary: 上传空间资产
+      operationId: uploadAsset
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string; format: binary }
+                spaceId: { type: string; format: uuid }
+                assetType: { type: string; enum: [MODEL, TEXTURE, AUDIO, SCRIPT] }
+
+  # ======================== Growth ========================
+  /growth/achievements:
+    get:
+      tags: [Growth]
+      summary: 获取用户成就列表
+      operationId: getAchievements
+      security:
+        - BearerAuth: []
+
+  /growth/leaderboard:
+    get:
+      tags: [Growth]
+      summary: 排行榜
+      operationId: getLeaderboard
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string; enum: [FAITH_LEVEL, SPACE_COUNT, SOCIAL_SCORE]; default: FAITH_LEVEL }
+        - name: page
+          in: query
+          schema: { type: integer; default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer; default: 20; maximum: 100 }
+
+  # ======================== Monetization ========================
+  /store/items:
+    get:
+      tags: [Monetization]
+      summary: 虚拟商品列表
+      operationId: listVirtualItems
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string }
+
+  /store/subscriptions:
+    get:
+      tags: [Monetization]
+      summary: 订阅计划列表
+      operationId: listSubscriptions
+
+  /store/orders:
+    post:
+      tags: [Monetization]
+      summary: 创建订单
+      operationId: createOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                itemId: { type: string }
+                quantity: { type: integer; default: 1 }
+
+  /store/orders:
+    get:
+      tags: [Monetization]
+      summary: 我的订单列表
+      operationId: listOrders
+      security:
+        - BearerAuth: []
+
+  /store/wallet:
+    get:
+      tags: [Monetization]
+      summary: 我的钱包
+      operationId: getWallet
+      security:
+        - BearerAuth: []
+
+  # ======================== Notification ========================
+  /notifications/inbox:
+    get:
+      tags: [Notification]
+      summary: 收件箱消息列表
+      operationId: getInbox
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer; default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer; default: 20 }
+      security:
+        - BearerAuth: []
+
+  /notifications/inbox/{messageId}/read:
+    post:
+      tags: [Notification]
+      summary: 标记消息已读
+      operationId: markAsRead
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+      security:
+        - BearerAuth: []
+
+  /notifications/device/register:
+    post:
+      tags: [Notification]
+      summary: 注册设备推送 Token
+      operationId: registerDevice
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                platform: { type: string; enum: [IOS, ANDROID, WEB] }
+                pushToken: { type: string }
+
+security:
+  - BearerAuth: []

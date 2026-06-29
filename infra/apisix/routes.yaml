@@ -1,0 +1,182 @@
+# APISIX API 网关配置 — Solra
+#
+# 架构：Client → APISIX Gateway → Solra BFF / Microservices
+
+routes:
+  # ======================== 公共端点 ========================
+  - id: health-check
+    uri: /*
+    methods: [GET]
+    priority: 1
+    plugins:
+      redirect:
+        uri: /health
+        ret_code: 302
+
+  # ======================== BFF 聚合层 ========================
+  # 客户端 API → api-gateway (BFF)
+  - id: bff-client-api
+    uri: /v1/*
+    methods: [GET, POST, PUT, DELETE, PATCH]
+    priority: 10
+    upstream:
+      type: roundrobin
+      nodes:
+        "api-gateway.solra.svc.cluster.local:8080": 1
+    plugins:
+      cors: {}
+      limit-req:
+        rate: 100
+        burst: 50
+        key: remote_addr
+      jwt-auth:
+        key: solra-api-gateway
+      prometheus: {}
+
+  # ======================== 服务间 API (内部) ========================
+  # auth-service
+  - id: internal-auth
+    uri: /internal/auth/*
+    methods: [GET, POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "auth-service.solra.svc.cluster.local:8080": 1
+    plugins:
+      jwt-auth:
+        key: solra-internal
+      prometheus: {}
+
+  # saf-service
+  - id: internal-safety
+    uri: /internal/safety/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "saf-service.solra.svc.cluster.local:8080": 1
+    plugins:
+      jwt-auth:
+        key: solra-internal
+      prometheus: {}
+
+  # soc-service
+  - id: internal-social
+    uri: /internal/social/*
+    methods: [GET, PUT, POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "soc-service.solra.svc.cluster.local:8080": 1
+    plugins:
+      jwt-auth:
+        key: solra-internal
+      prometheus: {}
+
+  # grw-service
+  - id: internal-growth
+    uri: /internal/growth/*
+    methods: [GET, POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "grw-service.solra.svc.cluster.local:8080": 1
+    plugins:
+      jwt-auth:
+        key: solra-internal
+      prometheus: {}
+
+  # not-service
+  - id: internal-notification
+    uri: /internal/notifications/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "not-service.solra.svc.cluster.local:8080": 1
+    plugins:
+      jwt-auth:
+        key: solra-internal
+      prometheus: {}
+
+  # spc-service
+  - id: internal-space
+    uri: /internal/spaces/*
+    methods: [GET, POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "spc-service.solra.svc.cluster.local:8080": 1
+    plugins:
+      jwt-auth:
+        key: solra-internal
+      prometheus: {}
+
+  # mon-service
+  - id: internal-monetization
+    uri: /internal/mon/*
+    methods: [GET, POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "mon-service.solra.svc.cluster.local:8080": 1
+    plugins:
+      jwt-auth:
+        key: solra-internal
+      prometheus: {}
+
+  # ======================== AI 服务路由 ========================
+  - id: ai-llm
+    uri: /ai/llm/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "llm-router.solra.svc.cluster.local:8000": 1
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["/ai/llm/(.*)", "/$1"]
+      prometheus: {}
+    timeout:
+      connect: 10
+      send: 120
+      read: 120
+
+  - id: ai-tts
+    uri: /ai/tts/*
+    methods: [POST]
+    priority: 5
+    upstream:
+      type: roundrobin
+      nodes:
+        "tts-service.solra.svc.cluster.local:8000": 1
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["/ai/tts/(.*)", "/$1"]
+      prometheus: {}
+    timeout:
+      connect: 10
+      send: 60
+      read: 60
+
+# ======================== 消费者 (JWT Issuer) ========================
+consumers:
+  - username: solra-api-gateway
+    plugins:
+      jwt-auth:
+        key: solra-api-gateway
+        secret: ${SOLRA_API_JWT_SECRET}
+
+  - username: solra-internal
+    plugins:
+      jwt-auth:
+        key: solra-internal
+        secret: ${SOLRA_INTERNAL_JWT_SECRET}

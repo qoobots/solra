@@ -1,0 +1,43 @@
+{{/* Services */}}
+{{- range $svc := list "auth-service" "avt-service" "spc-service" "soc-service" "crt-service" "grw-service" "not-service" "saf-service" "mon-service" }}
+{{- $config := index $.Values $svc }}
+{{- if $config.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc }}
+  namespace: solra
+  labels:
+    app.kubernetes.io/name: {{ $svc }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $svc }}
+  ports:
+    - name: http
+      port: {{ $config.service.port }}
+      targetPort: {{ $config.service.port }}
+      protocol: TCP
+  type: ClusterIP
+---
+{{- end }}
+{{- end }}
+
+{{/* AI Services */}}
+{{- range $name, $cfg := $.Values.aiServices }}
+{{- if $cfg.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: solra
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+  ports:
+    - name: http
+      port: {{ $cfg.port }}
+      targetPort: {{ $cfg.port }}
+  type: ClusterIP
+---
+{{- end }}
+{{- end }}

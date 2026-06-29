@@ -1,0 +1,671 @@
+openapi: 3.1.0
+info:
+  title: Solra Service API
+  description: 索拉工程微服务间 REST API 规范 — service-to-service 互操作契约
+  version: 1.0.0
+  contact:
+    name: Solra Engineering Team
+
+servers:
+  - url: http://auth-service.solra.svc.cluster.local:8080
+    description: auth-service (K8s internal)
+  - url: http://avt-service.solra.svc.cluster.local:8080
+    description: avt-service
+  - url: http://spc-service.solra.svc.cluster.local:8080
+    description: spc-service
+  - url: http://soc-service.solra.svc.cluster.local:8080
+    description: soc-service
+  - url: http://crt-service.solra.svc.cluster.local:8080
+    description: crt-service
+  - url: http://grw-service.solra.svc.cluster.local:8080
+    description: grw-service
+  - url: http://not-service.solra.svc.cluster.local:8080
+    description: not-service
+  - url: http://saf-service.solra.svc.cluster.local:8080
+    description: saf-service
+  - url: http://mon-service.solra.svc.cluster.local:8080
+    description: mon-service
+
+tags:
+  - name: Auth
+    description: 身份认证与授权 (auth-service)
+  - name: Avatar
+    description: 虚拟人与对话 (avt-service)
+  - name: Space
+    description: 空间消费与推荐 (spc-service)
+  - name: Social
+    description: 社交在场与同步 (soc-service)
+  - name: Creation
+    description: 空间创作与资产 (crt-service)
+  - name: Growth
+    description: 用户成长与成就 (grw-service)
+  - name: Notification
+    description: 通知与推送 (not-service)
+  - name: Safety
+    description: 内容安全审核 (saf-service)
+  - name: Monetization
+    description: 商业化 (mon-service)
+  - name: Health
+    description: 服务健康与可观测性
+
+components:
+  securitySchemes:
+    ServiceJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 服务间 JWT (由 auth-service 签发, subject=service_id)
+
+  schemas:
+    # ---- 公共模型 ----
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: 业务错误码 (0=成功)
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldViolation'
+        traceId:
+          type: string
+          description: 分布式链路追踪ID
+
+    FieldViolation:
+      type: object
+      properties:
+        field:
+          type: string
+        reason:
+          type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          format: int32
+          default: 1
+        size:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+
+    HealthStatus:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN, DEGRADED]
+        timestamp:
+          type: string
+          format: date-time
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+              latency:
+                type: string
+
+    # ---- Auth 域 ----
+    TokenValidationRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: JWT access token
+        requiredPermissions:
+          type: array
+          items:
+            type: string
+
+    TokenValidationResponse:
+      type: object
+      required: [valid, userId]
+      properties:
+        valid:
+          type: boolean
+        userId:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        permissions:
+          type: array
+          items:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    UserIdentity:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+        spaceCount:
+          type: integer
+
+    # ---- Safety 域 ----
+    ContentReviewRequest:
+      type: object
+      required: [contentType, content]
+      properties:
+        contentType:
+          type: string
+          enum: [TEXT, IMAGE, AUDIO, VIDEO, THREE_D_MODEL]
+        content:
+          type: string
+          description: 文本内容或 base64 编码的二进制内容
+        userId:
+          type: string
+          format: uuid
+        spaceId:
+          type: string
+          format: uuid
+        context:
+          type: object
+          description: 附加上下文信息
+
+    ContentReviewResponse:
+      type: object
+      required: [reviewId, verdict]
+      properties:
+        reviewId:
+          type: string
+          format: uuid
+        verdict:
+          type: string
+          enum: [PASS, BLOCK, MANUAL_REVIEW]
+        confidence:
+          type: number
+          format: float
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              score:
+                type: number
+                format: float
+        suggestedAction:
+          type: string
+
+    # ---- Social 域 ----
+    PresenceUpdate:
+      type: object
+      required: [userId, spaceId, state]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        spaceId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [ONLINE, AWAY, OFFLINE, IDLE]
+        avatarState:
+          type: object
+          description: Avatar 实时状态快照
+        position:
+          type: object
+          properties:
+            x: { type: number, format: float }
+            y: { type: number, format: float }
+            z: { type: number, format: float }
+        lastHeartbeat:
+          type: string
+          format: date-time
+
+    SpaceParticipantsResponse:
+      type: object
+      required: [spaceId, participants]
+      properties:
+        spaceId:
+          type: string
+          format: uuid
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipantInfo'
+        onlineCount:
+          type: integer
+
+    ParticipantInfo:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        avatarUrl:
+          type: string
+        state:
+          type: string
+          enum: [ONLINE, AWAY, OFFLINE, IDLE]
+
+    # ---- Growth 域 ----
+    FaithLevelEvent:
+      type: object
+      required: [userId, eventType, delta]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum: [SPACE_VISIT, CREATION_SUBMIT, SOCIAL_INTERACTION, CONTENT_REVIEW_PASS, DAILY_LOGIN, SPACE_RATED]
+        delta:
+          type: integer
+        metadata:
+          type: object
+
+    AchievementCheckRequest:
+      type: object
+      required: [userId, triggerEvent]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        triggerEvent:
+          type: string
+        eventData:
+          type: object
+
+    AchievementCheckResponse:
+      type: object
+      properties:
+        unlocked:
+          type: array
+          items:
+            type: object
+            properties:
+              achievementId: { type: string }
+              badgeId: { type: string }
+              title: { type: string }
+
+    # ---- Notification 域 ----
+    PushEvent:
+      type: object
+      required: [userId, type, payload]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [SYSTEM, SOCIAL, SPACE, MONETIZATION]
+        title:
+          type: string
+        body:
+          type: string
+        payload:
+          type: object
+        priority:
+          type: string
+          enum: [LOW, NORMAL, HIGH, URGENT]
+        ttl:
+          type: integer
+          description: 消息存活时间(秒), 0=持久
+
+    # ---- Space 域 ----
+    SpaceRecommendationRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        cursor:
+          type: string
+        size:
+          type: integer
+          format: int32
+          default: 20
+
+    SpaceRecommendationResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendationItem'
+        cursor:
+          type: string
+        hasMore:
+          type: boolean
+
+    RecommendationItem:
+      type: object
+      properties:
+        spaceId:
+          type: string
+          format: uuid
+        title: { type: string }
+        thumbnailUrl: { type: string }
+        creator: { $ref: '#/components/schemas/UserIdentity' }
+        tags: { type: array; items: { type: string } }
+        onlineCount: { type: integer }
+        rating: { type: number; format: float }
+
+    # ---- Monetization 域 ----
+    OrderCreateRequest:
+      type: object
+      required: [userId, itemId, itemType]
+      properties:
+        userId: { type: string; format: uuid }
+        itemId: { type: string }
+        itemType: { type: string; enum: [VIRTUAL_ITEM, SUBSCRIPTION] }
+        quantity: { type: integer; default: 1 }
+        couponCode: { type: string }
+
+    OrderResponse:
+      type: object
+      properties:
+        orderId: { type: string; format: uuid }
+        status: { type: string; enum: [PENDING, PAID, CANCELLED, REFUNDED] }
+        amount: { type: number; format: float }
+        currency: { type: string; default: CNY }
+        createdAt: { type: string; format: date-time }
+
+# ============================================================
+# Paths
+# ============================================================
+paths:
+  # ---- Health ----
+  /health:
+    get:
+      tags: [Health]
+      summary: 服务健康检查
+      operationId: getHealth
+      responses:
+        '200':
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Kubernetes Readiness Probe
+      operationId: getReadiness
+      responses:
+        '200': { description: Ready }
+        '503': { description: Not Ready }
+
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Kubernetes Liveness Probe
+      operationId: getLiveness
+      responses:
+        '200': { description: Alive }
+
+  # ---- Auth ----
+  /api/v1/auth/validate:
+    post:
+      tags: [Auth]
+      summary: 验证 JWT Token
+      operationId: validateToken
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenValidationRequest'
+      responses:
+        '200':
+          description: 验证结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenValidationResponse'
+        '401':
+          description: Token 无效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/users/{userId}/identity:
+    get:
+      tags: [Auth]
+      summary: 获取用户身份信息 (服务间)
+      operationId: getUserIdentity
+      security:
+        - ServiceJWT: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 用户身份
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserIdentity'
+        '404':
+          description: 用户不存在
+
+  # ---- Safety ----
+  /api/v1/safety/review:
+    post:
+      tags: [Safety]
+      summary: 内容安全审核
+      operationId: reviewContent
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentReviewRequest'
+      responses:
+        '200':
+          description: 审核结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentReviewResponse'
+
+  /api/v1/safety/review/batch:
+    post:
+      tags: [Safety]
+      summary: 批量内容安全审核
+      operationId: batchReviewContent
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContentReviewRequest'
+
+  # ---- Social ----
+  /api/v1/social/spaces/{spaceId}/presence:
+    put:
+      tags: [Social]
+      summary: 更新用户在场状态 (由网关/WebRTC relay 调用)
+      operationId: updatePresence
+      security:
+        - ServiceJWT: []
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresenceUpdate'
+
+  /api/v1/social/spaces/{spaceId}/participants:
+    get:
+      tags: [Social]
+      summary: 查询空间在线用户
+      operationId: getSpaceParticipants
+      security:
+        - ServiceJWT: []
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaceParticipantsResponse'
+
+  # ---- Growth ----
+  /api/v1/growth/faith-level:
+    post:
+      tags: [Growth]
+      summary: 上报信仰等级事件
+      operationId: reportFaithEvent
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaithLevelEvent'
+
+  /api/v1/growth/achievements/check:
+    post:
+      tags: [Growth]
+      summary: 检查成就解锁条件
+      operationId: checkAchievement
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AchievementCheckRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AchievementCheckResponse'
+
+  # ---- Notification ----
+  /api/v1/notifications/push:
+    post:
+      tags: [Notification]
+      summary: 发送推送通知 (服务间)
+      operationId: sendPush
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushEvent'
+
+  # ---- Space ----
+  /api/v1/spaces/recommendations:
+    post:
+      tags: [Space]
+      summary: 获取空间推荐列表 (feed流, 服务间调用)
+      operationId: getRecommendations
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpaceRecommendationRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaceRecommendationResponse'
+
+  # ---- Monetization ----
+  /api/v1/mon/orders:
+    post:
+      tags: [Monetization]
+      summary: 创建订单
+      operationId: createOrder
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+
+  /api/v1/mon/wallets/{userId}:
+    get:
+      tags: [Monetization]
+      summary: 查询用户钱包余额
+      operationId: getWallet
+      security:
+        - ServiceJWT: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string; format: uuid }
+
+security:
+  - ServiceJWT: []
