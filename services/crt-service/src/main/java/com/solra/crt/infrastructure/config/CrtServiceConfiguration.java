@@ -7,6 +7,9 @@ import com.solra.crt.application.service.TemplateApplicationService;
 import com.solra.crt.domain.repository.AssetRepository;
 import com.solra.crt.domain.repository.ProjectRepository;
 import com.solra.crt.domain.repository.TemplateRepository;
+import com.solra.crt.domain.service.AudioLibraryService;
+import com.solra.crt.domain.service.SpaceAnalytics;
+import com.solra.crt.domain.service.TemplateMarketplace;
 import com.solra.crt.infrastructure.persistence.InMemoryAssetRepository;
 import com.solra.crt.infrastructure.persistence.InMemoryProjectRepository;
 import com.solra.crt.infrastructure.persistence.InMemoryTemplateRepository;
@@ -16,7 +19,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * CRT 服务 Spring 配置。
- * 注册领域仓储实现和应用服务 Bean。
+ * 注册领域仓储实现、领域服务和应用服务 Bean。
  */
 @Configuration
 public class CrtServiceConfiguration {
@@ -35,6 +38,25 @@ public class CrtServiceConfiguration {
     public TemplateRepository templateRepository() {
         return new InMemoryTemplateRepository();
     }
+
+    // ── 领域服务 ──
+
+    @Bean
+    public TemplateMarketplace templateMarketplace(TemplateRepository templateRepository) {
+        return new TemplateMarketplace(templateRepository);
+    }
+
+    @Bean
+    public SpaceAnalytics spaceAnalytics() {
+        return new SpaceAnalytics();
+    }
+
+    @Bean
+    public AudioLibraryService audioLibraryService() {
+        return new AudioLibraryService();
+    }
+
+    // ── 应用服务 ──
 
     @Bean
     public ProjectApplicationService projectApplicationService(
