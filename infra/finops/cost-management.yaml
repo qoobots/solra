@@ -1,0 +1,306 @@
+# FinOps 成本核算与优化配置
+# ============================================================================
+# Solra 多云成本管理 —— 资源标签 + 预算告警 + 自动优化策略
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# 1. 全局资源标签策略
+# ---------------------------------------------------------------------------
+tags:
+  project: solra
+  environment: ${var.environment}
+  managed_by: terraform
+  cost_center: solra-platform
+  team: platform-engineering
+  compliance: sox-pci  # 合规框架
+
+# ---------------------------------------------------------------------------
+# 2. 月度预算配置
+# ---------------------------------------------------------------------------
+budgets:
+  # 总预算: ¥50,000/月 (原型阶段)
+  - name: solra-monthly-total
+    amount: 50000
+    currency: CNY
+    time_unit: MONTHLY
+    threshold_percentages: [50, 75, 90, 100]
+    notifications:
+      - type: email
+        recipients: ["platform@solra.io", "finance@solra.io"]
+      - type: slack
+        channel: "#solra-cost-alerts"
+
+  # 各模块分预算
+  modules:
+    compute:
+      name: solra-compute-budget
+      amount: 20000    # ¥20,000/月
+      description: "K8s集群 + Bare Metal + GPU 实例"
+    storage:
+      name: solra-storage-budget
+      amount: 10000    # ¥10,000/月
+      description: "S3/OSS + CDN + DB存储"
+    network:
+      name: solra-network-budget
+      amount: 5000     # ¥5,000/月
+      description: "CDN流量 + NAT + Load Balancer"
+    apis:
+      name: solra-api-budget
+      amount: 5000     # ¥5,000/月
+      description: "LLM API调用 + TTS + 第三方API"
+    observability:
+      name: solra-observability-budget
+      amount: 5000     # ¥5,000/月
+      description: "日志/监控/追踪/告警"
+    miscellaneous:
+      name: solra-misc-budget
+      amount: 5000     # ¥5,000/月
+      description: "域名/DNS/SSL + 其他"
+
+# ---------------------------------------------------------------------------
+# 3. 资源优化策略
+# ---------------------------------------------------------------------------
+optimizations:
+  # 3.1 计算优化
+  compute:
+    # Spot/Preemptible 实例 (节省 60-80%)
+    spot_instances:
+      enabled: true
+      target_ratio: 0.6              # 60% 使用竞价实例
+      fallback_to_on_demand: true
+      excluded_services:             # 不能中断的服务
+        - auth-service
+        - llm-router
+      excluded_namespaces:
+        - solra-prod-system
+
+    # 自动扩缩容
+    autoscaling:
+      k8s_hpa:
+        enabled: true
+        min_replicas: 2
+        max_replicas: 20
+        cpu_target: 70
+        memory_target: 75
+      k8s_vpa:
+        enabled: true               # 垂直扩缩容 (推荐资源)
+        update_mode: "Off"          # 仅建议, 不自动调整
+      keda:
+        enabled: true               # 事件驱动
+        scalers:
+          - type: prometheus
+            metric: http_requests_per_second
+            target: 100
+
+    # 资源右缩放 (Right-sizing)
+    right_sizing:
+      enabled: true
+      analysis_period_days: 14
+      cpu_headroom_pct: 20          # 20% buffer
+      memory_headroom_pct: 25
+      action: recommend             # recommend | auto-apply
+
+    # GPU 调度优化
+    gpu:
+      time_slicing:
+        enabled: true
+        slices_per_gpu: 4           # 4 个推理任务共享 1 GPU
+      mig:
+        enabled: false              # A100/H100 MIG 分区 (暂不需要)
+      bin_packing:
+        enabled: true               # 尽量填满 GPU 节点
+
+  # 3.2 存储优化
+  storage:
+    lifecycle_policies:
+      logs:
+        s3_standard_days: 7
+        s3_infrequent_access_days: 30
+        s3_glacier_days: 90
+        s3_expire_days: 365
+      backups:
+        retention_days: 90
+        versioning: true
+      model_artifacts:
+        versioning: true
+        keep_last_n_versions: 5
+      cache:
+        ttl_days: 7
+
+    compression:
+      logs_gzip: true
+      enable_snappy_db_backup: true
+
+  # 3.3 网络优化
+  network:
+    cdn_optimization:
+      origin_shield: true           # 减少源站回源
+      brotli_compression: true
+      image_optimization: true      # 自动 WebP/AVIF 转换
+      minify_html_js_css: true
+
+    private_link:
+      enabled: true                 # 云内网互通, 省流量费
+      services:
+        - cloud_db
+        - cloud_cache
+        - cloud_ai
+
+    data_transfer:
+      cross_region_limit: true      # 限制跨区域传输
+      alb_compression: true
+
+  # 3.4 AI API 优化
+  api:
+    llm:
+      caching:
+        enabled: true
+        ttl_seconds: 3600           # 相同输入缓存1小时
+        max_cache_size_gb: 10
+      rate_limiting:
+        per_user_rpm: 30            # 每用户 30 req/min
+        per_ip_rpm: 60
+      prompt_optimization:
+        truncate_max_tokens: 4096   # 截断过长输入
+        batch_inference: false      # 暂不批处理
+    tts:
+      caching:
+        enabled: true
+        ttl_days: 30                # TTS结果缓存30天
+        max_cache_entries: 10000
+    embedding:
+      batch_size: 32                # 批处理减少API调用
+
+# ---------------------------------------------------------------------------
+# 4. 标签强制执行 (Tag Policy)
+# ---------------------------------------------------------------------------
+tag_compliance:
+  required_tags:
+    - project
+    - environment
+    - cost_center
+    - managed_by
+  optional_tags:
+    - component
+    - service
+    - owner
+    - version
+  
+  # 未标记资源自动修复
+  auto_remediation:
+    enabled: true
+    default_tags:
+      project: solra
+      cost_center: solra-platform
+    exclude_resources:
+      - aws_log_group          # CloudWatch Logs 不支持标签
+
+# ---------------------------------------------------------------------------
+# 5. 成本仪表盘配置 (Grafana)
+# ---------------------------------------------------------------------------
+dashboards:
+  - name: "Solra Cost Overview"
+    uid: solra-cost-overview
+    panels:
+      - title: "本月累计 (¥)"
+        type: stat
+        datasource: cloudwatch-cost / aliyun-billing
+      - title: "日成本趋势"
+        type: timeseries
+        group_by: service
+      - title: "Top 10 高成本资源"
+        type: table
+        sort_by: cost_desc
+      - title: "预算消耗 %"
+        type: gauge
+        thresholds: [50, 75, 90, 100]
+      - title: "Spot vs On-Demand 比例"
+        type: piechart
+      - title: "成本预测 (30天)"
+        type: stat
+        query: predict_linear
+
+  - name: "Per-Service Cost Breakdown"
+    uid: solra-service-cost
+    panels:
+      - title: "auth-service"
+      - title: "avt-service"
+      - title: "spc-service"
+      - title: "llm-router"
+      - title: "tts-service"
+
+# ---------------------------------------------------------------------------
+# 6. 告警规则
+# ---------------------------------------------------------------------------
+alerts:
+  # 预算告警
+  - name: monthly-budget-75
+    condition: monthly_cost > budget * 0.75
+    severity: warning
+    actions: ["slack", "email"]
+  
+  - name: monthly-budget-90
+    condition: monthly_cost > budget * 0.90
+    severity: critical
+    actions: ["slack", "email", "pagerduty"]
+
+  - name: monthly-budget-100
+    condition: monthly_cost > budget
+    severity: critical
+    actions: ["slack", "email", "pagerduty"]
+    auto_action: "freeze_non_critical_resources"
+
+  # 异常检测
+  - name: cost-spike-daily
+    condition: daily_cost > avg_7d_daily_cost * 1.5
+    severity: warning
+    description: "日成本超过7日均值50%"
+
+  - name: cost-spike-hourly
+    condition: hourly_cost > avg_24h_hourly_cost * 3
+    severity: critical
+    description: "小时成本超过24h均值300%"
+
+  - name: orphan-resources
+    condition: unattached_resources > 0
+    severity: info
+    description: "检测到未使用的资源 (EBS/EIP/ELB)"
+
+  - name: idle-gpu-instances
+    condition: gpu_utilization < 10% for 1h
+    severity: warning
+    description: "GPU 实例空闲超过1小时"
+
+# ---------------------------------------------------------------------------
+# 7. 自动化操作
+# ---------------------------------------------------------------------------
+automation:
+  schedule:
+    # 每日成本报告
+    - name: daily-cost-report
+      cron: "0 9 * * 1-5"         # 工作日 09:00 UTC
+      action: generate_cost_report
+      recipients: ["platform@solra.io"]
+
+    # 每周优化建议
+    - name: weekly-optimization-review
+      cron: "0 10 * * 1"          # 周一 10:00
+      action: generate_rightsizing_recommendations
+      auto_apply: false
+
+    # 月末总结
+    - name: monthly-cost-summary
+      cron: "0 8 1 * *"           # 每月1号 08:00
+      action: generate_monthly_report
+      include_forecast: true
+
+  # 自动清理
+  cleanup:
+    - resource: ebs_snapshots
+      older_than_days: 30
+    - resource: docker_images
+      keep_last: 10
+    - resource: cloudwatch_logs
+      retention_days: 90
+    - resource: unused_eips
+      auto_release: true
