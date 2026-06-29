@@ -1,0 +1,282 @@
+package com.solra.auth.application.service;
+
+import com.solra.auth.application.dto.*;
+import com.solra.auth.domain.event.AuthDomainEvents.*;
+import com.solra.auth.domain.model.*;
+import com.solra.auth.domain.service.AuthDomainService;
+import com.solra.auth.infrastructure.security.AuthTokenService;
+import com.solra.auth.infrastructure.sms.SmsProvider;
+import com.solra.common.exception.SolraException;
+import com.solra.common.security.SecurityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Application service — orchestrates the auth workflow across domain & infrastructure.
+ * Covers: AUTH-001 (registration/login), AUTH-004 (real-name verification).
+ */
+@Service
+public class AuthApplicationService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthApplicationService.class);
+
+    private final AuthDomainService authDomainService;
+    private final AuthTokenService tokenService;
+    private final SmsProvider smsProvider;
+    private final ApplicationEventPublisher eventPublisher;
+
+    // In-memory verification code store (production: use Redis with TTL)
+    private final Map<String, VerificationCodeEntry> verificationCodes = new ConcurrentHashMap<>();
+
+    public AuthApplicationService(AuthDomainService authDomainService,
+                                   AuthTokenService tokenService,
+                                   SmsProvider smsProvider,
+                                   ApplicationEventPublisher eventPublisher) {
+        this.authDomainService = authDomainService;
+        this.tokenService = tokenService;
+        this.smsProvider = smsProvider;
+        this.eventPublisher = eventPublisher;
+    }
+
+    /**
+     * AUTH-001: Register a new account.
+     */
+    @Transactional
+    public AuthResultDTO register(RegisterCommand cmd) {
+        UserAccount account;
+        if (cmd.isPhoneRegistration()) {
+            account = authDomainService.registerByPhone(cmd.phone(), cmd.password(), cmd.displayName());
+        } else if (cmd.isUsernameRegistration()) {
+            account = authDomainService.registerByUsername(cmd.username(), cmd.password(), cmd.displayName());
+        } else {
+            throw new SolraException.InvalidArgumentException("Either phone or username is required");
+        }
+
+        // Generate tokens
+        List<String> roles = new ArrayList<>(account.getRoles());
+        String accessToken = tokenService.generateAccessToken(account.getUserId(), roles);
+        String refreshToken = tokenService.generateRefreshToken(account.getUserId());
+
+        // Create session
+        authDomainService.createSession(account.getUserId(), LoginMethod.PHONE_CODE,
+                "registration", "0.0.0.0", accessToken, refreshToken,
+                tokenService.getAccessTokenExpirationSeconds());
+
+        // Publish domain event
+        eventPublisher.publishEvent(new UserRegisteredEvent(
+                account.getUserId(), account.getPhone(), account.getUsername(),
+                cmd.isPhoneRegistration() ? LoginMethod.PHONE_CODE : LoginMethod.PASSWORD,
+                account.getCreatedAt()));
+
+        return toAuthResult(account, accessToken, refreshToken, roles);
+    }
+
+    /**
+     * AUTH-001: Login with password.
+     */
+    @Transactional
+    public AuthResultDTO login(LoginCommand cmd) {
+        UserAccount account = authDomainService.loginByCredential(cmd.credential(), cmd.password());
+
+        List<String> roles = new ArrayList<>(account.getRoles());
+        String accessToken = tokenService.generateAccessToken(account.getUserId(), roles);
+        String refreshToken = tokenService.generateRefreshToken(account.getUserId());
+
+        LoginMethod method = SecurityUtils.isValidChinesePhone(cmd.credential())
+                ? LoginMethod.PASSWORD : LoginMethod.PASSWORD;
+
+        authDomainService.createSession(account.getUserId(), method,
+                cmd.deviceInfo(), cmd.ipAddress(), accessToken, refreshToken,
+                tokenService.getAccessTokenExpirationSeconds());
+
+        account.recordLogin(cmd.ipAddress(), cmd.deviceInfo());
+
+        eventPublisher.publishEvent(new UserLoggedInEvent(
+                account.getUserId(), "", method, cmd.ipAddress(), java.time.Instant.now()));
+
+        return toAuthResult(account, accessToken, refreshToken, roles);
+    }
+
+    /**
+     * AUTH-001: Send SMS verification code.
+     */
+    public void sendSmsCode(String phone) {
+        if (!SecurityUtils.isValidChinesePhone(phone)) {
+            throw new SolraException.InvalidArgumentException("Invalid phone number");
+        }
+
+        String code = SecurityUtils.generateVerificationCode(6);
+        verificationCodes.put(phone, new VerificationCodeEntry(code,
+                System.currentTimeMillis() + 300_000)); // 5 minutes TTL
+
+        boolean sent = smsProvider.sendVerificationCode(phone, code);
+        if (!sent) {
+            verificationCodes.remove(phone);
+            throw new SolraException.InternalException("Failed to send verification code");
+        }
+
+        log.info("Verification code sent to {}", SecurityUtils.maskPhoneNumber(phone));
+    }
+
+    /**
+     * AUTH-001: Login with SMS verification code.
+     */
+    @Transactional
+    public AuthResultDTO loginWithSmsCode(LoginCommand cmd) {
+        VerificationCodeEntry entry = verificationCodes.get(cmd.credential());
+        if (entry == null || entry.isExpired()) {
+            throw new SolraException.UnauthorizedException("Verification code expired or not sent");
+        }
+
+        UserAccount account = authDomainService.loginByPhoneCode(cmd.credential(),
+                cmd.verificationCode(), entry.code());
+        verificationCodes.remove(cmd.credential());
+
+        List<String> roles = new ArrayList<>(account.getRoles());
+        String accessToken = tokenService.generateAccessToken(account.getUserId(), roles);
+        String refreshToken = tokenService.generateRefreshToken(account.getUserId());
+
+        authDomainService.createSession(account.getUserId(), LoginMethod.PHONE_CODE,
+                cmd.deviceInfo(), cmd.ipAddress(), accessToken, refreshToken,
+                tokenService.getAccessTokenExpirationSeconds());
+
+        return toAuthResult(account, accessToken, refreshToken, roles);
+    }
+
+    /**
+     * Refresh access token using refresh token.
+     */
+    @Transactional
+    public AuthResultDTO refreshToken(String refreshTokenStr) {
+        if (!tokenService.validateToken(refreshTokenStr)) {
+            throw new SolraException.TokenExpiredException("Invalid or expired refresh token");
+        }
+        String userId = tokenService.getUserIdFromToken(refreshTokenStr);
+        UserAccount account = authDomainService.getById(userId);
+
+        List<String> roles = new ArrayList<>(account.getRoles());
+        String newAccessToken = tokenService.generateAccessToken(userId, roles);
+        String newRefreshToken = tokenService.generateRefreshToken(userId);
+
+        authDomainService.revokeUserSessions(userId);
+        authDomainService.createSession(userId, LoginMethod.PASSWORD,
+                "token-refresh", "0.0.0.0", newAccessToken, newRefreshToken,
+                tokenService.getAccessTokenExpirationSeconds());
+
+        return toAuthResult(account, newAccessToken, newRefreshToken, roles);
+    }
+
+    /**
+     * Logout and revoke session.
+     */
+    public void logout(String userId) {
+        authDomainService.revokeUserSessions(userId);
+        log.info("User {} logged out", userId);
+    }
+
+    /**
+     * AUTH-004: Submit real-name verification.
+     */
+    @Transactional
+    public RealNameVerificationResultDTO submitRealNameVerification(RealNameVerificationCommand cmd) {
+        // Encrypt ID number before storage (simulated with hash for dev)
+        String encryptedId = SecurityUtils.hashSensitive(cmd.idNumber(), "solra_realname_salt");
+        RealNameInfo info = RealNameInfo.create(cmd.realName(), encryptedId, cmd.birthDate());
+
+        UserAccount account = authDomainService.submitRealNameVerification(cmd.userId(), info);
+
+        // In production: call external real-name verification API
+        // For now: auto-approve for demo purposes
+        account = authDomainService.approveRealNameVerification(cmd.userId());
+
+        eventPublisher.publishEvent(new RealNameVerifiedEvent(
+                account.getUserId(), account.isMinor(), java.time.Instant.now()));
+
+        return buildVerificationResult(account);
+    }
+
+    /**
+     * AUTH-004: Check real-name verification & minor protection status.
+     */
+    public RealNameVerificationResultDTO checkVerificationStatus(String userId) {
+        var status = authDomainService.checkMinorProtection(userId);
+        UserAccount account = authDomainService.getById(userId);
+
+        return switch (status) {
+            case UNVERIFIED -> RealNameVerificationResultDTO.unverified(userId);
+            case PENDING -> new RealNameVerificationResultDTO(userId, false, false, 0, "PENDING",
+                    "Real-name verification is under review");
+            case MINOR_RESTRICTED -> RealNameVerificationResultDTO.minorRestricted(userId,
+                    account.getRealNameInfo().getAge());
+            case ADULT -> RealNameVerificationResultDTO.adult(userId,
+                    account.getRealNameInfo().getAge());
+        };
+    }
+
+    /**
+     * Verify an access token (for inter-service calls).
+     */
+    public boolean verifyAccessToken(String token) {
+        return tokenService.validateToken(token);
+    }
+
+    /**
+     * Check if user has a specific permission.
+     */
+    public boolean checkPermission(String userId, String resource, String action) {
+        UserAccount account = authDomainService.getById(userId);
+        // RBAC: admin has all permissions
+        if (account.hasRole("ROLE_ADMIN")) return true;
+        // Verified users can access restricted resources
+        if ("restricted_content".equals(resource) && account.hasRole("ROLE_VERIFIED")) return true;
+        // Default: check role-based access
+        return account.hasRole("ROLE_" + action.toUpperCase());
+    }
+
+    // -- Private helpers --
+
+    private AuthResultDTO toAuthResult(UserAccount account, String accessToken,
+                                        String refreshToken, List<String> roles) {
+        return new AuthResultDTO(
+                account.getUserId(),
+                account.getUsername(),
+                account.getDisplayName(),
+                account.getPhone(),
+                account.getEmail(),
+                account.getAvatarUrl(),
+                accessToken,
+                refreshToken,
+                tokenService.getAccessTokenExpirationSeconds(),
+                roles
+        );
+    }
+
+    private RealNameVerificationResultDTO buildVerificationResult(UserAccount account) {
+        if (account.getRealNameInfo() == null || !account.getRealNameInfo().isVerified()) {
+            return RealNameVerificationResultDTO.unverified(account.getUserId());
+        }
+        if (account.isMinor()) {
+            return RealNameVerificationResultDTO.minorRestricted(account.getUserId(),
+                    account.getRealNameInfo().getAge());
+        }
+        return RealNameVerificationResultDTO.adult(account.getUserId(),
+                account.getRealNameInfo().getAge());
+    }
+
+    // -- Inner class --
+
+    private record VerificationCodeEntry(String code, long expiresAt) {
+        boolean isExpired() {
+            return System.currentTimeMillis() > expiresAt;
+        }
+    }
+}
