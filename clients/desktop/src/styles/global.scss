@@ -1,0 +1,155 @@
+/* ============================================
+ * 索拉 Desktop — 全局样式
+ * 暗色主题 · GitHub-inspired · 适配 3D 游戏体验
+ * ============================================ */
+
+:root {
+  /* 背景层级 */
+  --solra-bg-primary: #0d1117;
+  --solra-bg-secondary: #161b22;
+  --solra-bg-tertiary: #21262d;
+
+  /* 文字层级 */
+  --solra-text-primary: #e6edf3;
+  --solra-text-secondary: #c9d1d9;
+  --solra-text-muted: #8b949e;
+
+  /* 边框 */
+  --solra-border: #30363d;
+  --solra-border-light: #21262d;
+
+  /* 品牌色 */
+  --solra-brand: #58a6ff;
+  --solra-brand-dim: rgba(88, 166, 255, 0.15);
+
+  /* 功能色 */
+  --solra-success: #3fb950;
+  --solra-warning: #d29922;
+  --solra-error: #f85149;
+
+  /* 圆角 */
+  --solra-radius-sm: 6px;
+  --solra-radius-md: 10px;
+  --solra-radius-lg: 12px;
+
+  /* 字体 */
+  --solra-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
+    Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --solra-font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas,
+    'Liberation Mono', Menlo, monospace;
+}
+
+/* 全局重置 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--solra-font-sans);
+  background: var(--solra-bg-primary);
+  color: var(--solra-text-primary);
+  line-height: 1.5;
+  overflow: hidden; /* 桌面客户端窗口固定尺寸 */
+}
+
+a {
+  color: var(--solra-brand);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+/* 滚动条 — 暗色主题 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+
+  &:hover {
+    background: #484f58;
+  }
+}
+
+/* 选中文字 */
+::selection {
+  background: rgba(88, 166, 255, 0.3);
+  color: #fff;
+}
+
+/* Element Plus 暗色覆盖 */
+.el-input__wrapper {
+  background-color: var(--solra-bg-primary) !important;
+  border-color: var(--solra-border) !important;
+  box-shadow: none !important;
+
+  .el-input__inner {
+    color: var(--solra-text-primary) !important;
+  }
+}
+
+.el-input__wrapper:hover {
+  border-color: #484f58 !important;
+}
+
+.el-input__wrapper.is-focus {
+  border-color: var(--solra-brand) !important;
+}
+
+.el-form-item__label {
+  color: var(--solra-text-secondary) !important;
+}
+
+.el-button--primary {
+  --el-button-bg-color: #1f6feb;
+  --el-button-border-color: #1f6feb;
+
+  &:hover {
+    --el-button-bg-color: #388bfd;
+    --el-button-border-color: #388bfd;
+  }
+}
+
+.el-select .el-input__wrapper {
+  background-color: var(--solra-bg-primary) !important;
+}
+
+.el-select-dropdown {
+  background-color: var(--solra-bg-secondary) !important;
+  border-color: var(--solra-border) !important;
+
+  .el-select-dropdown__item {
+    color: var(--solra-text-secondary) !important;
+
+    &.is-selected {
+      color: var(--solra-brand) !important;
+    }
+
+    &:hover {
+      background-color: var(--solra-bg-tertiary) !important;
+    }
+  }
+}
+
+.el-switch__label {
+  color: var(--solra-text-muted) !important;
+}
