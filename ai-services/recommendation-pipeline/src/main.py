@@ -1,21 +1,64 @@
 """推荐流水线服务主入口。协同过滤 + 内容推荐 + 热门推荐混合策略。"""
+import logging
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
-app = FastAPI(title="Solra Recommendation Pipeline", version="0.1.0")
+from api.routes import router as rec_router
+from api.dependencies import get_engine
+from config import config
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize engine on startup."""
+    logger.info(f"Starting Recommendation Pipeline on port {config.PORT}")
+    engine = get_engine()
+    # Register some seed spaces for cold start
+    seed_spaces = ["space-seed-1", "space-seed-2", "space-seed-3"]
+    import time
+    for sid in seed_spaces:
+        engine.register_space(sid, categories=["explore"], created_at=time.time())
+    logger.info(f"Recommendation engine ready with {len(seed_spaces)} seed spaces")
+    yield
+    logger.info("Recommendation Pipeline shut down")
+
+
+app = FastAPI(
+    title="Solra Recommendation Pipeline",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 Instrumentator().instrument(app).expose(app)
+
+app.include_router(rec_router)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "recommendation-pipeline"}
-
-
-# TODO: P1 — 协同过滤模型训练与推理
-# TODO: P1 — 基于用户行为的实时推荐
-# TODO: gRPC server 暴露 RecommendationService
+    engine = get_engine()
+    status = engine.get_status()
+    return {
+        "status": "ok",
+        "service": "recommendation-pipeline",
+        "model_trained": status["is_trained"],
+        "model_version": status["model_version"],
+    }
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8102)
+    uvicorn.run(app, host=config.HOST, port=config.PORT)

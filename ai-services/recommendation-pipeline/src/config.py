@@ -8,6 +8,7 @@ class Config:
     MODEL_DIR = os.getenv("REC_MODEL_DIR", "/models/recommendation")
     CANDIDATE_POOL_SIZE = int(os.getenv("REC_CANDIDATE_POOL", "500"))
     REFRESH_INTERVAL_MINUTES = int(os.getenv("REC_REFRESH_INTERVAL", "30"))
+    N_FACTORS = int(os.getenv("REC_N_FACTORS", "50"))
 
 
 config = Config()

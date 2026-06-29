@@ -8,6 +8,8 @@ class Config:
     MODEL_NAME = os.getenv("EMBEDDING_MODEL", "text2vec-large-chinese")
     BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
     MAX_LENGTH = int(os.getenv("EMBEDDING_MAX_LENGTH", "512"))
+    DEVICE = os.getenv("EMBEDDING_DEVICE", "cpu")
+    NORMALIZE = os.getenv("EMBEDDING_NORMALIZE", "true").lower() == "true"
 
 
 config = Config()
