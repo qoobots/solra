@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: solra-services
+  namespace: argocd
+spec:
+  project: solra
+  source:
+    repoURL: https://github.com/qoobots/solra.git
+    targetRevision: main
+    path: infra/kubernetes/charts
+    helm:
+      valueFiles:
+        - values-dev.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: solra-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,93 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-auth-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: auth
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /auth/*
+      backends:
+        - serviceName: auth-service
+          servicePort: 8081
+      plugins:
+        - name: cors
+          enable: true
+        - name: limit-req
+          enable: true
+          config:
+            rate: 100
+            burst: 50
+            key: remote_addr
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-spc-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: spc
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /spaces/*
+      backends:
+        - serviceName: spc-service
+          servicePort: 8083
+      plugins:
+        - name: cors
+          enable: true
+        - name: limit-req
+          enable: true
+          config:
+            rate: 200
+            burst: 100
+            key: remote_addr
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-avt-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: avt
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /conversations/*
+          - /avatars/*
+      backends:
+        - serviceName: avt-service
+          servicePort: 8082
+      plugins:
+        - name: cors
+          enable: true
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: solra-saf-route
+  namespace: solra-dev
+spec:
+  http:
+    - name: saf
+      match:
+        hosts:
+          - api.solra.local
+        paths:
+          - /reviews/*
+          - /appeals/*
+      backends:
+        - serviceName: saf-service
+          servicePort: 8084
+      plugins:
+        - name: cors
+          enable: true

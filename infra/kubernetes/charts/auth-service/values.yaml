@@ -1,0 +1,45 @@
+replicaCount: 2
+
+image:
+  repository: solra/auth-service
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+service:
+  type: ClusterIP
+  port: 8081
+  managementPort: 9081
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 9081
+  initialDelaySeconds: 10
+  periodSeconds: 5
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 9081
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+postgresql:
+  enabled: true
+
+redis:
+  enabled: true
