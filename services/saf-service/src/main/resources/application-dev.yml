@@ -1,0 +1,26 @@
+# SAF Service — Development Profile
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/solra_saf
+    username: ${POSTGRES_USER:solra}
+    password: ${POSTGRES_PASSWORD:solra_dev}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+grpc:
+  server:
+    port: ${GRPC_PORT:9084}
+
+logging:
+  level:
+    com.solra: DEBUG
