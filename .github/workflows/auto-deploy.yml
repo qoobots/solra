@@ -1,0 +1,179 @@
+# Solra 自动部署流水线 (E-092)
+# 触发: main 合并后自动推送 Docker 镜像 + ArgoCD 同步
+
+name: Auto Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "ai-services/**"
+      - "core/**"
+      - "clients/**"
+      - "infra/kubernetes/**"
+      - ".github/workflows/auto-deploy.yml"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ── 变更检测 ────────────────────────────────────────
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.filter.outputs.services }}
+      ai_services: ${{ steps.filter.outputs.ai_services }}
+      charts: ${{ steps.filter.outputs.charts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            services:
+              - 'services/**'
+            ai_services:
+              - 'ai-services/**'
+            charts:
+              - 'infra/kubernetes/helm/**'
+
+  # ── Docker 镜像构建与推送 ───────────────────────────
+  build-push-services:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.services == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth, saf, avt, spc, soc, grw, not, crt, common, mon]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-push-ai:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ai_services == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [llm-router, safety-model-service, embedding-service, recommendation-pipeline, tts-service]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ai-services/${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Helm 镜像版本更新 ───────────────────────────────
+  update-helm-values:
+    needs: [detect-changes, build-push-services, build-push-ai]
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.services == 'true' ||
+       needs.detect-changes.outputs.ai_services == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update image tags in Helm values
+        run: |
+          SHA="${{ github.sha }}"
+          VALUES_FILE="infra/kubernetes/helm/solra-services/values.yaml"
+
+          # Update service image tags
+          services=$(yq eval '.services | keys | .[]' "$VALUES_FILE" 2>/dev/null || echo "")
+          for svc in $services; do
+            if yq eval ".services.$svc.image" "$VALUES_FILE" > /dev/null 2>&1; then
+              yq eval -i ".services.$svc.image.tag = \"$SHA\"" "$VALUES_FILE"
+            fi
+          done
+          echo "Updated $VALUES_FILE with tag $SHA"
+
+      - name: Commit updated values
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add infra/kubernetes/helm/solra-services/values.yaml
+          git diff --staged --quiet || git commit -m "ci: update Helm image tags to ${{ github.sha }}"
+          git push
+
+  # ── ArgoCD 强制同步 ─────────────────────────────────
+  argocd-sync:
+    needs: [detect-changes, update-helm-values]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.charts == 'true' &&
+      needs.update-helm-values.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ArgoCD Login & Sync
+        uses: clowdhaus/argo-cd-action@v2
+        with:
+          command: login ${{ secrets.ARGOCD_SERVER }} --username ${{ secrets.ARGOCD_USERNAME }} --password ${{ secrets.ARGOCD_PASSWORD }} --grpc-web
+
+      - name: Sync staging app
+        uses: clowdhaus/argo-cd-action@v2
+        with:
+          command: app sync solra-staging --prune
+
+      - name: Wait for healthy
+        uses: clowdhaus/argo-cd-action@v2
+        with:
+          command: app wait solra-staging --health --timeout 300
+
+  # ── 部署摘要 ────────────────────────────────────────
+  deploy-summary:
+    needs: [argocd-sync, build-push-services, build-push-ai]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "## 🚀 Deploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Services Build | ${{ needs.build-push-services.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| AI Build | ${{ needs.build-push-ai.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ArgoCD Sync | ${{ needs.argocd-sync.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Images tagged: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
