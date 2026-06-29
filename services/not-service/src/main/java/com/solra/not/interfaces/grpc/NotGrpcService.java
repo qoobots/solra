@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * NotGrpcService — 通知服务 gRPC 接口层。
@@ -118,5 +119,95 @@ public class NotGrpcService {
     /** 获取会话消息 */
     public List<InboxMessageResultDTO> getConversationMessages(String conversationId, int page, int size) {
         return appService.getConversationMessages(conversationId, page, size);
+    }
+
+    // ── NOT-003: 智能推送策略 ──
+
+    /** 智能发送通知 */
+    public List<NotificationResultDTO> smartSendNotification(SmartSendNotificationCommand cmd) {
+        return appService.smartSendNotification(cmd);
+    }
+
+    /** 评估推送决策 */
+    public SmartPushDecisionDTO evaluatePush(String userId, String type, boolean isUrgent) {
+        return appService.evaluatePush(userId, type, isUrgent);
+    }
+
+    /** 获取用户推送统计 */
+    public PushStatsDTO getUserPushStats(String userId) {
+        return appService.getUserPushStats(userId);
+    }
+
+    /** 检查静默时段 */
+    public boolean isInQuietHours(String userId) {
+        return appService.isInQuietHours(userId);
+    }
+
+    // ── NOT-004: 通知模板管理 ──
+
+    /** 创建模板 */
+    public TemplateDTO createTemplate(TemplateCommand cmd) {
+        return appService.createTemplate(cmd);
+    }
+
+    /** 更新模板 */
+    public TemplateDTO updateTemplate(String templateCode, TemplateCommand cmd) {
+        return appService.updateTemplate(templateCode, cmd);
+    }
+
+    /** 获取模板 */
+    public TemplateDTO getTemplate(String templateCode) {
+        return appService.getTemplate(templateCode);
+    }
+
+    /** 列出模板 */
+    public TemplatePageDTO listTemplates(int page, int size) {
+        return appService.listTemplates(page, size);
+    }
+
+    /** 按分类列出 */
+    public List<TemplateDTO> listTemplatesByCategory(String category) {
+        return appService.listTemplatesByCategory(category);
+    }
+
+    /** 按类型列出 */
+    public List<TemplateDTO> listTemplatesByType(String type) {
+        return appService.listTemplatesByType(type);
+    }
+
+    /** 列出活跃模板 */
+    public List<TemplateDTO> listActiveTemplates() {
+        return appService.listActiveTemplates();
+    }
+
+    /** 切换模板启用状态 */
+    public TemplateDTO toggleTemplate(String templateCode, boolean active) {
+        return appService.toggleTemplate(templateCode, active);
+    }
+
+    /** 删除模板 */
+    public void deleteTemplate(String templateCode) {
+        appService.deleteTemplate(templateCode);
+    }
+
+    /** 渲染模板 */
+    public TemplateRenderResultDTO renderTemplate(String templateCode,
+                                                   Map<String, String> variables, String locale) {
+        return appService.renderTemplate(templateCode, variables, locale);
+    }
+
+    /** 预览模板 */
+    public TemplateRenderResultDTO previewTemplate(String templateCode) {
+        return appService.previewTemplate(templateCode);
+    }
+
+    /** 提取模板变量 */
+    public TemplateVariablesDTO extractTemplateVariables(String templateCode) {
+        return appService.extractTemplateVariables(templateCode);
+    }
+
+    /** 从模板发送通知 */
+    public List<NotificationResultDTO> sendFromTemplate(SendFromTemplateCommand cmd) {
+        return appService.sendFromTemplate(cmd);
     }
 }

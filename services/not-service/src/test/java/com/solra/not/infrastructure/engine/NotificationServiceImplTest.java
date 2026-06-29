@@ -2,13 +2,14 @@ package com.solra.not.infrastructure.engine;
 
 import com.solra.not.domain.model.*;
 import com.solra.not.domain.repository.*;
+import com.solra.not.domain.service.SmartPushEngine;
+import com.solra.not.infrastructure.push.PushDispatcher;
 import com.solra.not.infrastructure.push.PushProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,17 +34,16 @@ class NotificationServiceImplTest {
     @Mock private DeviceRegistrationRepository deviceRepo;
     @Mock private PushMessageRepository pushMessageRepo;
     @Mock private NotificationPreferenceRepository prefRepo;
-    // PushDispatcher 接口不存在，使用 PushProvider 替代
-    @Mock private PushProvider pushProvider;
+    @Mock private PushDispatcher pushDispatcher;
+    @Mock private SmartPushEngine smartPushEngine;
 
     private NotificationServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        // 使用反射创建实例，因为 PushDispatcher 可能尚不存在
-        // 此处通过模拟 NotificationServiceImpl 的构造函数参数来创建
         service = new NotificationServiceImpl(
-                notificationRepo, deviceRepo, pushMessageRepo, prefRepo, null);
+                notificationRepo, deviceRepo, pushMessageRepo, prefRepo,
+                pushDispatcher, smartPushEngine);
     }
 
     @Nested

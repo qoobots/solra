@@ -50,3 +50,11 @@ interface InboxMessageJpaRepository extends JpaRepository<InboxMessageEntity, St
     long countByRecipientIdAndStatusIn(String recipientId, List<String> statuses);
     List<InboxMessageEntity> findByConversationIdOrderBySentAtDesc(String conversationId, Pageable pageable);
 }
+
+@Repository
+interface NotificationTemplateJpaRepository extends JpaRepository<NotificationTemplateEntity, String> {
+    java.util.Optional<NotificationTemplateEntity> findByTemplateCode(String templateCode);
+    List<NotificationTemplateEntity> findByType(String type);
+    List<NotificationTemplateEntity> findByCategory(String category);
+    List<NotificationTemplateEntity> findByActiveTrue();
+}
