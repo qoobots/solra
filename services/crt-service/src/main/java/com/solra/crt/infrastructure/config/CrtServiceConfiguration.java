@@ -2,6 +2,7 @@ package com.solra.crt.infrastructure.config;
 
 import com.solra.crt.application.service.AssetApplicationService;
 import com.solra.crt.application.service.ProjectApplicationService;
+import com.solra.crt.application.service.PublishingApplicationService;
 import com.solra.crt.application.service.TemplateApplicationService;
 import com.solra.crt.domain.repository.AssetRepository;
 import com.solra.crt.domain.repository.ProjectRepository;
@@ -52,5 +53,11 @@ public class CrtServiceConfiguration {
     public TemplateApplicationService templateApplicationService(
             TemplateRepository templateRepository) {
         return new TemplateApplicationService(templateRepository);
+    }
+
+    @Bean
+    public PublishingApplicationService publishingApplicationService(
+            ProjectRepository projectRepository) {
+        return new PublishingApplicationService(projectRepository);
     }
 }
