@@ -3,7 +3,9 @@ package com.solra.spc.application.dto;
 import com.solra.spc.domain.model.*;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class SpcResultDTO {
@@ -67,6 +69,39 @@ public class SpcResultDTO {
         public static AssetChunkDTO from(AssetChunk c) {
             return new AssetChunkDTO(c.getAssetId(), c.getChunkIndex(), c.getTotalChunks(),
                     c.isFinal(), c.getCompressionLevel());
+        }
+    }
+
+    /** SPC-008: 排行榜条目 DTO */
+    public record LeaderboardEntryDTO(String spaceId, String title, String thumbnailUrl,
+                                       String category, int rank, long hotScore,
+                                       long viewCount, long likeCount, long shareCount,
+                                       long visitorCount, float rating, int rankChange,
+                                       String period, Instant snapshotAt) {
+        public static LeaderboardEntryDTO from(LeaderboardEntry e) {
+            return new LeaderboardEntryDTO(
+                    e.getSpaceId(),
+                    e.getTitle() != null ? e.getTitle() : "",
+                    e.getThumbnailUrl() != null ? e.getThumbnailUrl() : "",
+                    e.getCategory() != null ? e.getCategory().name() : "",
+                    e.getRank(),
+                    e.getHotScore(),
+                    e.getViewCount(),
+                    e.getLikeCount(),
+                    e.getShareCount(),
+                    e.getVisitorCount(),
+                    e.getRating(),
+                    e.getRankChange(),
+                    e.getPeriod() != null ? e.getPeriod().name() : "DAILY",
+                    e.getSnapshotAt()
+            );
+        }
+    }
+
+    /** SPC-008: 排行榜快照时间 DTO */
+    public record LeaderboardSnapshotDTO(Map<String, Instant> snapshotTimes) {
+        public static LeaderboardSnapshotDTO from(Map<String, Instant> times) {
+            return new LeaderboardSnapshotDTO(new LinkedHashMap<>(times));
         }
     }
 }

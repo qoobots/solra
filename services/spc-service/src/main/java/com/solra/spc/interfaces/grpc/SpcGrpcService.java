@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Flow;
 import java.util.UUID;
@@ -464,6 +465,79 @@ public class SpcGrpcService extends com.solra.apis.spc.v1.SpcServiceGrpc.SpcServ
         }
     }
 
+    // ========== SPC-008: Leaderboard ==========
+
+    @Override
+    public void getLeaderboard(com.solra.apis.spc.v1.GetLeaderboardRequest request,
+                                StreamObserver<com.solra.apis.spc.v1.GetLeaderboardResponse> responseObserver) {
+        try {
+            String period = request.getPeriod().name().replace("LEADERBOARD_PERIOD_", "");
+            int topN = request.getTopN() > 0 ? request.getTopN() : 20;
+
+            var cats = request.getCategoriesList().stream()
+                    .map(c -> SpaceCategory.valueOf(c.name().replace("SPACE_CATEGORY_", ""))).toList();
+
+            List<SpcResultDTO.LeaderboardEntryDTO> entries;
+            if (cats.isEmpty()) {
+                entries = appService.getLeaderboard(period, topN);
+            } else {
+                entries = appService.getLeaderboardByCategory(period, cats, topN);
+            }
+
+            List<com.solra.apis.spc.v1.LeaderboardEntry> protoEntries = new ArrayList<>();
+            for (var e : entries) {
+                protoEntries.add(com.solra.apis.spc.v1.LeaderboardEntry.newBuilder()
+                        .setSpaceId(Common.SpaceId.newBuilder().setValue(e.spaceId()).build())
+                        .setTitle(nn(e.title()))
+                        .setThumbnailUrl(nn(e.thumbnailUrl()))
+                        .setCategory(mapCat(e.category()))
+                        .setRank(e.rank())
+                        .setHotScore(e.hotScore())
+                        .setViewCount(e.viewCount())
+                        .setLikeCount(e.likeCount())
+                        .setShareCount(e.shareCount())
+                        .setVisitorCount(e.visitorCount())
+                        .setRating(e.rating())
+                        .setRankChange(e.rankChange())
+                        .setPeriod(mapLeaderboardPeriod(e.period()))
+                        .setSnapshotAt(ts(e.snapshotAt()))
+                        .build());
+            }
+
+            responseObserver.onNext(com.solra.apis.spc.v1.GetLeaderboardResponse.newBuilder()
+                    .addAllEntries(protoEntries)
+                    .setTotalEntries(protoEntries.size())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetLeaderboard failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void refreshLeaderboard(com.solra.apis.spc.v1.RefreshLeaderboardRequest request,
+                                    StreamObserver<com.solra.apis.spc.v1.RefreshLeaderboardResponse> responseObserver) {
+        try {
+            appService.refreshLeaderboard();
+            var snapshotTimes = appService.getLeaderboardSnapshotTimes();
+
+            var builder = com.solra.apis.spc.v1.RefreshLeaderboardResponse.newBuilder();
+            snapshotTimes.forEach((period, time) -> {
+                builder.putSnapshotTimes(period, com.google.protobuf.Timestamp.newBuilder()
+                        .setSeconds(time.getEpochSecond())
+                        .setNanos(time.getNano())
+                        .build());
+            });
+
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("RefreshLeaderboard failed", e);
+            responseObserver.onError(e);
+        }
+    }
+
     // ==================== 映射工具方法 ====================
 
     private com.solra.apis.spc.v1.Space buildProtoSpace(SpcResultDTO.SpaceDTO dto) {
@@ -535,6 +609,11 @@ public class SpcGrpcService extends com.solra.apis.spc.v1.SpcServiceGrpc.SpcServ
     }
 
     private String nn(String s) { return s != null ? s : ""; }
+
+    private com.solra.apis.spc.v1.LeaderboardPeriod mapLeaderboardPeriod(String n) {
+        try { return com.solra.apis.spc.v1.LeaderboardPeriod.valueOf("LEADERBOARD_PERIOD_" + (n != null ? n.toUpperCase() : "DAILY")); }
+        catch (Exception e) { return com.solra.apis.spc.v1.LeaderboardPeriod.LEADERBOARD_PERIOD_DAILY; }
+    }
 
     // ---- Flow → gRPC stream 适配器 ----
     private static class FlowSubscriberAdapter<T> implements Flow.Subscriber<T> {

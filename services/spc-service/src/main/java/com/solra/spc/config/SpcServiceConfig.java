@@ -1,5 +1,8 @@
 package com.solra.spc.config;
 
+import com.solra.spc.domain.repository.SpaceRepository;
+import com.solra.spc.domain.repository.UserActionRepository;
+import com.solra.spc.domain.service.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,5 +24,20 @@ public class SpcServiceConfig {
                 .anyRequest().authenticated()
             );
         return http.build();
+    }
+
+    @Bean
+    public LeaderboardService leaderboardService(SpaceRepository spaceRepository) {
+        return new LeaderboardService(spaceRepository);
+    }
+
+    @Bean
+    public SpaceDomainService spaceDomainService(SpaceRepository spaceRepo, UserActionRepository actionRepo,
+                                                   StreamingLoader streamingLoader, RecommendationEngine recommendationEngine,
+                                                   SpaceSearchService searchService, PreloadManager preloadManager,
+                                                   TransitionService transitionService, CdnDistributionService cdnService,
+                                                   LeaderboardService leaderboardService) {
+        return new SpaceDomainService(spaceRepo, actionRepo, streamingLoader, recommendationEngine,
+                searchService, preloadManager, transitionService, cdnService, leaderboardService);
     }
 }

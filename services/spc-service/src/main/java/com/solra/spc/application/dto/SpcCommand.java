@@ -18,4 +18,7 @@ public class SpcCommand {
 
     /** SPC-007: 退出流命令 */
     public record ExitFlowCommand(String userId, String currentSpaceId, List<String> nextCandidates) {}
+
+    /** SPC-008: 排行榜查询命令 */
+    public record LeaderboardCommand(String period, int topN, List<SpaceCategory> categories) {}
 }

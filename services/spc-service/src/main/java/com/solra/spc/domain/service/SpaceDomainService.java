@@ -5,6 +5,7 @@ import com.solra.spc.domain.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Flow;
 
@@ -24,11 +25,13 @@ public class SpaceDomainService {
     private final PreloadManager preloadManager;
     private final TransitionService transitionService;
     private final CdnDistributionService cdnService;
+    private final LeaderboardService leaderboardService;
 
     public SpaceDomainService(SpaceRepository spaceRepo, UserActionRepository actionRepo,
                                StreamingLoader streamingLoader, RecommendationEngine recommendationEngine,
                                SpaceSearchService searchService, PreloadManager preloadManager,
-                               TransitionService transitionService, CdnDistributionService cdnService) {
+                               TransitionService transitionService, CdnDistributionService cdnService,
+                               LeaderboardService leaderboardService) {
         this.spaceRepo = spaceRepo;
         this.actionRepo = actionRepo;
         this.streamingLoader = streamingLoader;
@@ -37,6 +40,7 @@ public class SpaceDomainService {
         this.preloadManager = preloadManager;
         this.transitionService = transitionService;
         this.cdnService = cdnService;
+        this.leaderboardService = leaderboardService;
     }
 
     /** SPC-001 + SPC-010: 获取空间并准备流式加载 */
@@ -200,5 +204,28 @@ public class SpaceDomainService {
     /** 清除CDN缓存 */
     public void purgeCdnCache(String spaceId) {
         cdnService.purgeCache(spaceId);
+    }
+
+    // ========== SPC-008: Leaderboard ==========
+
+    /** 获取空间排行榜 */
+    public List<LeaderboardEntry> getLeaderboard(LeaderboardPeriod period, int topN) {
+        return leaderboardService.getLeaderboard(period, topN);
+    }
+
+    /** 按分类获取空间排行榜 */
+    public List<LeaderboardEntry> getLeaderboardByCategory(LeaderboardPeriod period,
+                                                            List<SpaceCategory> categories, int topN) {
+        return leaderboardService.getLeaderboardByCategory(period, categories, topN);
+    }
+
+    /** 强制刷新所有排行榜缓存 */
+    public void refreshLeaderboard() {
+        leaderboardService.refreshAll();
+    }
+
+    /** 获取排行榜快照时间 */
+    public Map<LeaderboardPeriod, Instant> getLeaderboardSnapshotTimes() {
+        return leaderboardService.getSnapshotTimes();
     }
 }

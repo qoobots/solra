@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
@@ -153,5 +154,45 @@ public class SpcApplicationService {
     /** 获取CDN统计 */
     public CdnDistributionService.CdnStats getCdnStats() {
         return domainService.getCdnStats();
+    }
+
+    // ========== SPC-008: Leaderboard ==========
+
+    /** 获取空间排行榜 */
+    public List<SpcResultDTO.LeaderboardEntryDTO> getLeaderboard(String period, int topN) {
+        LeaderboardPeriod p = parsePeriod(period);
+        List<LeaderboardEntry> entries = domainService.getLeaderboard(p, topN);
+        return entries.stream().map(SpcResultDTO.LeaderboardEntryDTO::from).collect(Collectors.toList());
+    }
+
+    /** 按分类获取空间排行榜 */
+    public List<SpcResultDTO.LeaderboardEntryDTO> getLeaderboardByCategory(String period,
+                                                                            List<SpaceCategory> categories, int topN) {
+        LeaderboardPeriod p = parsePeriod(period);
+        List<LeaderboardEntry> entries = domainService.getLeaderboardByCategory(p, categories, topN);
+        return entries.stream().map(SpcResultDTO.LeaderboardEntryDTO::from).collect(Collectors.toList());
+    }
+
+    /** 强制刷新排行榜 */
+    public void refreshLeaderboard() {
+        domainService.refreshLeaderboard();
+        log.info("Leaderboard refresh triggered");
+    }
+
+    /** 获取排行榜快照时间 */
+    public Map<String, Instant> getLeaderboardSnapshotTimes() {
+        Map<LeaderboardPeriod, Instant> times = domainService.getLeaderboardSnapshotTimes();
+        Map<String, Instant> result = new LinkedHashMap<>();
+        times.forEach((p, t) -> result.put(p.name(), t));
+        return result;
+    }
+
+    private LeaderboardPeriod parsePeriod(String period) {
+        if (period == null) return LeaderboardPeriod.DAILY;
+        return switch (period.toUpperCase()) {
+            case "WEEKLY" -> LeaderboardPeriod.WEEKLY;
+            case "MONTHLY" -> LeaderboardPeriod.MONTHLY;
+            default -> LeaderboardPeriod.DAILY;
+        };
     }
 }
