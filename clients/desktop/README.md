@@ -2,6 +2,18 @@
 
 基于 Tauri 2 + Rust + Vue 3 + Core SDK FFI 的 Windows 桌面客户端 —— 索拉主力 3D 社交体验平台。
 
+## 3D 渲染引擎
+
+采用 **自研轻量引擎**（C++17 + Vulkan 1.3/Metal 3/OpenGL ES 3.1），详见 ADR-008。
+
+| 维度 | 自研引擎 |
+|------|---------|
+| 首次可用 | 5-7 个月（AI 辅助） |
+| 包体大小 | 5-15 MB |
+| GPU 利用率 | 100%（原生，无中间层） |
+| Core SDK 集成 | 原生同进程 C++17 |
+| 实现阶段 | Phase 1: Vulkan+PBR → Phase 2: Metal+延迟着色 → Phase 3: LOD+全平台 |
+
 ## 架构
 
 ```
