@@ -14,6 +14,7 @@ public class SubscriptionPlanDTO {
     private long pricePerYear;
     private String currency;
     private List<String> benefits;
+    private boolean yearlyAvailable;
 
     public String getTier() { return tier; }
     public void setTier(String tier) { this.tier = tier; }
@@ -29,4 +30,6 @@ public class SubscriptionPlanDTO {
     public void setCurrency(String currency) { this.currency = currency; }
     public List<String> getBenefits() { return benefits; }
     public void setBenefits(List<String> benefits) { this.benefits = benefits; }
+    public boolean isYearlyAvailable() { return yearlyAvailable; }
+    public void setYearlyAvailable(boolean yearlyAvailable) { this.yearlyAvailable = yearlyAvailable; }
 }

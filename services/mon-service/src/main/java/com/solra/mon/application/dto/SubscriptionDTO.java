@@ -11,6 +11,7 @@ public class SubscriptionDTO {
     private String userId;
     private String tier;
     private String status;
+    private String billingCycle;
     private long startAt;
     private long expireAt;
     private boolean autoRenew;
@@ -24,6 +25,7 @@ public class SubscriptionDTO {
         dto.userId = sub.getUserId();
         dto.tier = sub.getTier().name();
         dto.status = sub.getStatus().name();
+        dto.billingCycle = sub.getBillingCycle() != null ? sub.getBillingCycle().name() : null;
         dto.startAt = sub.getStartAt();
         dto.expireAt = sub.getExpireAt();
         dto.autoRenew = sub.isAutoRenew();
@@ -41,6 +43,8 @@ public class SubscriptionDTO {
     public void setTier(String tier) { this.tier = tier; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getBillingCycle() { return billingCycle; }
+    public void setBillingCycle(String billingCycle) { this.billingCycle = billingCycle; }
     public long getStartAt() { return startAt; }
     public long getExpireAt() { return expireAt; }
     public boolean isAutoRenew() { return autoRenew; }

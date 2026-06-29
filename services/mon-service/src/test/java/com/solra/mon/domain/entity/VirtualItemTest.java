@@ -145,4 +145,99 @@ class VirtualItemTest {
             assertTrue(item.isAvailable());
         }
     }
+
+    @Nested
+    @DisplayName("商品状态 — ItemStatus")
+    class ItemStatus {
+
+        @Test
+        @DisplayName("新建商品默认为 PUBLISHED")
+        void defaultStatusIsPublished() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            assertEquals(VirtualItem.ItemStatus.PUBLISHED, item.getStatus());
+            assertTrue(item.isAvailable());
+        }
+
+        @Test
+        @DisplayName("下架后不可用")
+        void suspendedNotAvailable() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            item.suspend();
+            assertEquals(VirtualItem.ItemStatus.SUSPENDED, item.getStatus());
+            assertFalse(item.isAvailable());
+        }
+
+        @Test
+        @DisplayName("重新上架后可用")
+        void republishAvailable() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            item.suspend();
+            item.publish();
+            assertTrue(item.isAvailable());
+        }
+    }
+
+    @Nested
+    @DisplayName("退款和销量")
+    class RefundAndSales {
+
+        @Test
+        @DisplayName("默认可退款")
+        void defaultRefundable() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            assertTrue(item.isRefundable());
+        }
+
+        @Test
+        @DisplayName("可设置为不可退款")
+        void canSetNonRefundable() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            item.setRefundable(false);
+            assertFalse(item.isRefundable());
+        }
+
+        @Test
+        @DisplayName("增加销量")
+        void incrementSoldCount() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            item.incrementSoldCount(5);
+            assertEquals(5, item.getSoldCount());
+            item.incrementSoldCount(3);
+            assertEquals(8, item.getSoldCount());
+        }
+
+        @Test
+        @DisplayName("缩略图和预览URL")
+        void thumbnailAndPreview() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            item.setPreviewUrl("https://cdn.solra.com/3d/item1.glb");
+            item.setThumbnailUrl("https://cdn.solra.com/thumb/item1.png");
+            assertEquals("https://cdn.solra.com/3d/item1.glb", item.getPreviewUrl());
+            assertEquals("https://cdn.solra.com/thumb/item1.png", item.getThumbnailUrl());
+        }
+
+        @Test
+        @DisplayName("创作者ID")
+        void creatorId() {
+            VirtualItem item = new VirtualItem("i1", "Test",
+                    VirtualItem.VirtualItemType.AVATAR_SKIN, 100L,
+                    VirtualWallet.CurrencyType.DIAMOND);
+            item.setCreatorId("creator-001");
+            assertEquals("creator-001", item.getCreatorId());
+        }
+    }
 }

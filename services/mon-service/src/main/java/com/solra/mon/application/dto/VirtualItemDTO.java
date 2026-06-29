@@ -17,7 +17,11 @@ public class VirtualItemDTO {
     private boolean isLimited;
     private long availableUntil;
     private String previewUrl;
+    private String thumbnailUrl;
+    private boolean refundable;
+    private long soldCount;
     private List<String> tags;
+    private String creatorId;
 
     public static VirtualItemDTO from(VirtualItem item) {
         VirtualItemDTO dto = new VirtualItemDTO();
@@ -30,7 +34,11 @@ public class VirtualItemDTO {
         dto.isLimited = item.isLimited();
         dto.availableUntil = item.getAvailableUntil();
         dto.previewUrl = item.getPreviewUrl();
+        dto.thumbnailUrl = item.getThumbnailUrl();
+        dto.refundable = item.isRefundable();
+        dto.soldCount = item.getSoldCount();
         dto.tags = item.getTags();
+        dto.creatorId = item.getCreatorId();
         return dto;
     }
 
@@ -45,5 +53,9 @@ public class VirtualItemDTO {
     public boolean isLimited() { return isLimited; }
     public long getAvailableUntil() { return availableUntil; }
     public String getPreviewUrl() { return previewUrl; }
+    public String getThumbnailUrl() { return thumbnailUrl; }
+    public boolean isRefundable() { return refundable; }
+    public long getSoldCount() { return soldCount; }
     public List<String> getTags() { return tags; }
+    public String getCreatorId() { return creatorId; }
 }
