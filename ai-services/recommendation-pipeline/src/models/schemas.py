@@ -12,6 +12,7 @@ class RecommendationMode(str, Enum):
     NEWEST = "newest"
     TRENDING = "trending"
     HYBRID = "hybrid"
+    COLD_START = "cold_start"
 
 
 class SpaceRecommendationRequest(BaseModel):

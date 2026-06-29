@@ -1,4 +1,4 @@
-"""Pydantic data models for TTS Service."""
+"""Pydantic data models for TTS Service (with emotion + streaming support)."""
 
 from typing import List, Optional
 from enum import Enum
@@ -15,6 +15,18 @@ class VoiceOption(str, Enum):
     ELDER = "elder"
 
 
+class EmotionOption(str, Enum):
+    """Available emotion styles for expressive TTS."""
+    NEUTRAL = "neutral"
+    HAPPY = "happy"
+    SAD = "sad"
+    ANGRY = "angry"
+    FEARFUL = "fearful"
+    SURPRISED = "surprised"
+    GENTLE = "gentle"
+    EXCITED = "excited"
+
+
 class AudioFormat(str, Enum):
     """Supported audio output formats."""
     WAV = "wav"
@@ -27,6 +39,7 @@ class TTSRequest(BaseModel):
     """Request for text-to-speech synthesis."""
     text: str = Field(..., min_length=1, max_length=5000, description="Text to synthesize")
     voice: VoiceOption = Field(VoiceOption.FEMALE_WARM, description="Voice preset")
+    emotion: EmotionOption = Field(EmotionOption.NEUTRAL, description="Emotion style")
     speed: float = Field(1.0, ge=0.5, le=2.0, description="Speech speed multiplier")
     pitch: float = Field(1.0, ge=0.5, le=2.0, description="Pitch adjustment multiplier")
     format: AudioFormat = Field(AudioFormat.WAV, description="Output audio format")
@@ -43,6 +56,8 @@ class TTSResponse(BaseModel):
     text_length: int = Field(..., description="Input text length")
     processing_time_ms: float = Field(0.0, description="Processing time in milliseconds")
     model_name: str = Field("", description="TTS model used")
+    voice: str = Field("", description="Voice preset used")
+    emotion: str = Field("neutral", description="Emotion style used")
 
 
 class VoiceInfo(BaseModel):
@@ -54,14 +69,22 @@ class VoiceInfo(BaseModel):
     sample_text: str
 
 
+class EmotionInfo(BaseModel):
+    """Information about an emotion style."""
+    emotion_id: str
+    name: str
+
+
 class ModelStatus(BaseModel):
     """Status of the TTS model."""
     model_name: str
     is_loaded: bool
     device: str
+    streaming_enabled: bool = True
     supported_formats: List[str]
     supported_sample_rates: List[int]
     available_voices: List[VoiceInfo]
+    available_emotions: List[EmotionInfo] = []
 
 
 class SSEResponse(BaseModel):

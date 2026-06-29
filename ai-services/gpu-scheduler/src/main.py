@@ -5,11 +5,14 @@ Solra GPU Scheduler — 多模型 CUDA 显存管理与负载均衡
 - 实时监控 GPU 显存/利用率 (NVML)
 - 模型加载/卸载调度 (LRU 淘汰 + 显存水位)
 - 为 LLM/TTS/Embedding/Safety 等推理服务提供统一的 GPU 分配接口
+- 集成共享中间件 (日志/限流/Prometheus指标/链路追踪)
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import sys
+import os
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -47,6 +50,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Solra GPU Scheduler", version="0.1.0", lifespan=lifespan)
+
+# ---- Integrate shared middleware ----
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared", "src"))
+    from middleware import setup_middleware
+    setup_middleware(
+        app,
+        rate_limit=200,
+        service_name="gpu-scheduler",
+        logger=logger,
+        enable_metrics=True,
+        enable_tracing=True,
+    )
+except ImportError:
+    logger.warning("Shared middleware not available, skipping integration")
 
 # ---- Health ----
 @app.get("/health")
@@ -93,6 +111,7 @@ async def load_model(req: LoadRequest):
     budget = MemoryBudget(min_bytes=req.min_vram_bytes, max_bytes=req.max_vram_bytes)
     try:
         result = await scheduler.load(model_id, budget, priority=req.priority)
+        METRIC_MODEL_LOADED.labels(model_id=req.model_id).set(1)
         return LoadResponse(
             success=True,
             model_id=req.model_id,
@@ -107,6 +126,7 @@ async def load_model(req: LoadRequest):
 async def unload_model(model_id: str):
     """卸载模型释放显存"""
     await scheduler.unload(ModelId(model_id, ModelType("LLM")))
+    METRIC_MODEL_LOADED.labels(model_id=model_id).set(0)
     return {"success": True}
 
 @app.get("/api/v1/gpus")

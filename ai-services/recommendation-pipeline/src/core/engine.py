@@ -1,4 +1,4 @@
-"""Recommendation engine: collaborative filtering + content-based + popularity strategies."""
+"""Recommendation engine: collaborative filtering + content-based + popularity + cold-start strategies."""
 
 import time
 import logging
@@ -20,7 +20,14 @@ class RecommendationEngine:
     3. Newest: Recent items first
     4. Trending: Time-weighted popularity
     5. Hybrid: Weighted blend of above strategies
+    6. ColdStart: Multi-phase strategy for new users and new spaces
     """
+
+    # Cold-start phase weights: exploration → exploitation progression
+    COLD_START_POPULAR_WEIGHT = 0.50
+    COLD_START_NEWEST_WEIGHT = 0.30
+    COLD_START_EXPLORE_WEIGHT = 0.20  # Random exploration for diversity
+    COLD_START_THRESHOLD = 3  # Minimum interactions before switching to hybrid
 
     def __init__(self, candidate_pool_size: int = 500):
         self.candidate_pool_size = candidate_pool_size
@@ -40,6 +47,10 @@ class RecommendationEngine:
         self._item_factors: Dict[str, np.ndarray] = {}
         # Latent factor dimension
         self._n_factors = 50
+        # Cold-start: new space exposure tracking (space_id -> {impressions, first_seen})
+        self._new_space_exposure: Dict[str, dict] = {}
+        # Cold-start: space category affinity (category -> aggregated interaction score)
+        self._category_affinity: Dict[str, float] = defaultdict(float)
 
     @property
     def is_trained(self) -> bool:
@@ -82,6 +93,15 @@ class RecommendationEngine:
         current = self._user_interactions[user_id].get(space_id, 0.0)
         self._user_interactions[user_id][space_id] = current + weight
 
+        # Track category affinity for cold-start recommendations
+        space_meta = self._space_metadata.get(space_id, {})
+        for category in space_meta.get("categories", []):
+            self._category_affinity[category] += weight
+
+        # Track new space exposure for cold-start
+        if space_id in self._new_space_exposure:
+            self._new_space_exposure[space_id]["impressions"] += 1
+
     def register_space(self, space_id: str, categories: Optional[List[str]] = None,
                         created_at: Optional[float] = None) -> None:
         """Register a space for recommendation candidates."""
@@ -89,6 +109,104 @@ class RecommendationEngine:
             "categories": categories or [],
             "created_at": created_at or time.time(),
         }
+        # Track new spaces for cold-start exposure boost
+        self._new_space_exposure[space_id] = {
+            "impressions": 0,
+            "first_seen": time.time(),
+            "boost_until": time.time() + 86400 * 7,  # 7-day boost window
+        }
+
+    def _is_cold_start_user(self, user_id: str) -> bool:
+        """Check if a user is in cold-start phase (few interactions)."""
+        interaction_count = len(self._user_interactions.get(user_id, {}))
+        return interaction_count < self.COLD_START_THRESHOLD
+
+    def _get_user_category_affinity(self, user_id: str) -> Dict[str, float]:
+        """Compute a user's category affinity from their interactions."""
+        if user_id not in self._user_interactions:
+            return dict(self._category_affinity)  # Fall back to global
+
+        user_affinity: Dict[str, float] = defaultdict(float)
+        for space_id, score in self._user_interactions[user_id].items():
+            space_meta = self._space_metadata.get(space_id, {})
+            for category in space_meta.get("categories", []):
+                user_affinity[category] += score
+
+        # Normalize
+        total = sum(user_affinity.values()) or 1.0
+        return {k: v / total for k, v in user_affinity.items()}
+
+    def _get_new_space_exploration(
+        self, size: int, exclude_ids: Optional[set] = None
+    ) -> List[Tuple[str, float]]:
+        """
+        Cold-start: recommend new/underexposed spaces for exploration.
+
+        Boosts spaces within their first 7 days that have low impressions.
+        """
+        exclude = exclude_ids or set()
+        now = time.time()
+        candidates = []
+
+        for space_id, exposure in self._new_space_exposure.items():
+            if space_id in exclude:
+                continue
+            if now > exposure.get("boost_until", 0):
+                continue  # Boost window expired
+            if exposure["impressions"] >= 10:
+                continue  # Already well-exposed
+
+            meta = self._space_metadata.get(space_id, {})
+            age_days = (now - meta.get("created_at", now)) / 86400
+
+            # Newer + less exposed = higher exploration score
+            novelty_score = np.exp(-age_days / 3)  # 3-day half-life for newness
+            exposure_penalty = 1.0 / (1.0 + exposure["impressions"])
+            explore_score = novelty_score * exposure_penalty
+            candidates.append((space_id, float(explore_score)))
+
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[:size]
+
+    def _get_cold_start_recommendations(
+        self, user_id: str, size: int, exclude_ids: Optional[set] = None
+    ) -> List[Tuple[str, float]]:
+        """
+        Multi-phase cold-start strategy for new users.
+
+        Phase 1: Blend popularity (50%) + newest (30%) + exploration (20%)
+        Phase 2 (with category signals): Weight by user's category affinity
+        """
+        exclude = exclude_ids or set()
+
+        popular = dict(self._get_popular_recommendations(size * 2, exclude))
+        newest = dict(self._get_newest_recommendations(size * 2, exclude))
+        explore = dict(self._get_new_space_exploration(size * 2, exclude))
+
+        # Get user category affinity for personalized cold-start
+        user_affinity = self._get_user_category_affinity(user_id)
+
+        all_spaces = set(popular) | set(newest) | set(explore)
+        cold_scores: Dict[str, float] = {}
+
+        for sid in all_spaces:
+            base_score = (
+                self.COLD_START_POPULAR_WEIGHT * popular.get(sid, 0.0)
+                + self.COLD_START_NEWEST_WEIGHT * newest.get(sid, 0.0)
+                + self.COLD_START_EXPLORE_WEIGHT * explore.get(sid, 0.0)
+            )
+
+            # Apply category affinity boost
+            space_meta = self._space_metadata.get(sid, {})
+            affinity_boost = 1.0
+            for category in space_meta.get("categories", []):
+                if category in user_affinity:
+                    affinity_boost += 0.2 * user_affinity[category]
+
+            cold_scores[sid] = base_score * min(affinity_boost, 1.5)
+
+        sorted_results = sorted(cold_scores.items(), key=lambda x: x[1], reverse=True)
+        return sorted_results[:size]
 
     def train(self) -> None:
         """
@@ -266,7 +384,8 @@ class RecommendationEngine:
 
         Args:
             user_id: Target user ID.
-            mode: Recommendation strategy (popular/personalized/newest/trending/hybrid).
+            mode: Recommendation strategy (popular/personalized/newest/trending/hybrid/cold_start).
+                  "hybrid" auto-detects cold-start users and switches to cold_start strategy.
             size: Number of recommendations.
             categories: Optional category filter.
             exclude_ids: Space IDs to exclude.
@@ -295,6 +414,12 @@ class RecommendationEngine:
 
         total_candidates = len(all_candidates)
 
+        # Auto-detect cold-start: if mode is "hybrid" and user is new, use cold_start
+        effective_mode = mode
+        if mode == "hybrid" and self._is_cold_start_user(user_id):
+            effective_mode = "cold_start"
+            logger.info(f"User {user_id} is cold-start, switching to cold_start strategy")
+
         # Route to strategy
         strategy_map = {
             "popular": lambda: self._get_popular_recommendations(size, exclude),
@@ -302,9 +427,10 @@ class RecommendationEngine:
             "newest": lambda: self._get_newest_recommendations(size, exclude),
             "trending": lambda: self._get_trending_recommendations(size, exclude),
             "hybrid": lambda: self._get_hybrid_recommendations(user_id, size, exclude),
+            "cold_start": lambda: self._get_cold_start_recommendations(user_id, size, exclude),
         }
 
-        raw_results = strategy_map.get(mode, strategy_map["hybrid"])()
+        raw_results = strategy_map.get(effective_mode, strategy_map["hybrid"])()
 
         # Format results
         items = []
@@ -319,14 +445,14 @@ class RecommendationEngine:
                     "freshness": round(1.0 / (rank + 1), 4),
                     "overall": round(overall_score, 4),
                 },
-                "reason": self._generate_reason(mode, overall_score),
+                "reason": self._generate_reason(effective_mode, overall_score),
                 "rank": rank,
             })
 
         elapsed = (time.perf_counter() - start) * 1000
-        logger.debug(f"Recommendation completed in {elapsed:.1f}ms, mode={mode}")
+        logger.debug(f"Recommendation completed in {elapsed:.1f}ms, mode={effective_mode}")
 
-        return items, mode, total_candidates
+        return items, effective_mode, total_candidates
 
     def _generate_reason(self, mode: str, score: float) -> str:
         """Generate a human-readable recommendation reason."""
@@ -338,6 +464,13 @@ class RecommendationEngine:
             return "最新创建的空间"
         elif mode == "trending":
             return "当前流行趋势"
+        elif mode == "cold_start":
+            if score > 0.7:
+                return "为你推荐的热门空间"
+            elif score > 0.4:
+                return "探索新空间"
+            else:
+                return "发现更多可能"
         elif mode == "hybrid":
             if score > 0.7:
                 return "为你精选"
@@ -348,9 +481,16 @@ class RecommendationEngine:
         return "推荐"
 
     def get_status(self) -> dict:
-        """Get model training status."""
+        """Get model training status including cold-start info."""
+        new_spaces = sum(
+            1 for e in self._new_space_exposure.values()
+            if e["impressions"] == 0
+        )
         return {
             "is_trained": self._is_trained,
             "model_version": self._model_version,
             "training_samples": self._training_samples,
+            "total_users": len(self._user_interactions),
+            "total_spaces": len(self._space_metadata),
+            "new_spaces_in_boost": new_spaces,
         }

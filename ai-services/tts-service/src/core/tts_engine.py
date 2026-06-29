@@ -1,4 +1,4 @@
-"""TTS Engine: text-to-speech synthesis with multiple voice presets.
+"""TTS Engine: text-to-speech synthesis with multiple voice presets and emotion control.
 
 Supports mock synthesis for development and integration with real TTS models
 like XTTS-v2, CosyVoice 2, or ChatTTS for production.
@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 class TTSEngine:
     """
-    Text-to-Speech synthesis engine.
+    Text-to-Speech synthesis engine with emotion control.
 
-    Provides mock synthesis with configurable voice presets.
+    Provides mock synthesis with configurable voice presets and emotional styles.
     Ready for integration with real models (XTTS-v2 / CosyVoice 2).
     """
 
@@ -45,6 +45,26 @@ class TTSEngine:
         "elder":       {"name": "长者之声", "gender": "neutral", "description": "慈祥和蔼长者声", "sample_text": "慢慢来，不着急"},
     }
 
+    # Emotion presets: maps emotion labels to (speed_mod, pitch_mod, vibrato_rate, vibrato_depth, volume_mod)
+    EMOTION_CONFIGS = {
+        "neutral":   {"name": "中性",  "speed_mod": 1.0,  "pitch_mod": 1.0,  "vibrato_rate": 5.0,  "vibrato_depth": 0.01, "volume_mod": 1.0},
+        "happy":     {"name": "开心",  "speed_mod": 1.15, "pitch_mod": 1.08, "vibrato_rate": 6.5,  "vibrato_depth": 0.02, "volume_mod": 1.1},
+        "sad":       {"name": "悲伤",  "speed_mod": 0.75, "pitch_mod": 0.92, "vibrato_rate": 3.5,  "vibrato_depth": 0.03, "volume_mod": 0.8},
+        "angry":     {"name": "愤怒",  "speed_mod": 1.25, "pitch_mod": 1.12, "vibrato_rate": 8.0,  "vibrato_depth": 0.015, "volume_mod": 1.2},
+        "fearful":   {"name": "恐惧",  "speed_mod": 1.3,  "pitch_mod": 1.15, "vibrato_rate": 9.0,  "vibrato_depth": 0.025, "volume_mod": 0.7},
+        "surprised": {"name": "惊讶",  "speed_mod": 1.2,  "pitch_mod": 1.18, "vibrato_rate": 4.0,  "vibrato_depth": 0.01, "volume_mod": 1.15},
+        "gentle":    {"name": "温柔",  "speed_mod": 0.85, "pitch_mod": 0.95, "vibrato_rate": 4.5,  "vibrato_depth": 0.015, "volume_mod": 0.9},
+        "excited":   {"name": "激动",  "speed_mod": 1.3,  "pitch_mod": 1.15, "vibrato_rate": 7.0,  "vibrato_depth": 0.02, "volume_mod": 1.25},
+    }
+
+    # Supported streaming formats
+    STREAMING_CHUNK_SIZES = {
+        "tiny": 0.25,    # 250ms chunks
+        "small": 0.5,    # 500ms (default)
+        "normal": 1.0,   # 1s
+        "large": 2.0,    # 2s
+    }
+
     def __init__(
         self,
         model_name: str = "mock-tts",
@@ -56,6 +76,7 @@ class TTSEngine:
         self.sample_rate = sample_rate
         self._is_loaded = False
         self._real_model = None
+        self._streaming_enabled = True
 
     @property
     def is_loaded(self) -> bool:
@@ -72,28 +93,73 @@ class TTSEngine:
             logger.warning(f"Failed to load TTS model: {e}. Using mock synthesis.")
             self._is_loaded = True
 
+    def _apply_emotion_to_audio(
+        self,
+        audio: np.ndarray,
+        emotion: str,
+        sample_rate: int,
+    ) -> np.ndarray:
+        """
+        Apply emotional characteristics to generated audio.
+
+        Modifies speed, pitch contour, vibrato, and volume based on emotion config.
+        """
+        if emotion not in self.EMOTION_CONFIGS:
+            return audio
+
+        emo = self.EMOTION_CONFIGS[emotion]
+        num_samples = len(audio)
+        t = np.arange(num_samples) / sample_rate
+
+        # Apply vibrato (frequency modulation)
+        if emo["vibrato_depth"] > 0:
+            vibrato = 1.0 + emo["vibrato_depth"] * np.sin(
+                2 * np.pi * emo["vibrato_rate"] * t
+            )
+            # Resample with vibrato by stretching/compressing time
+            cumsum = np.cumsum(vibrato)
+            cumsum = cumsum / cumsum[-1] * (num_samples - 1)
+            audio = np.interp(cumsum, np.arange(num_samples), audio)
+
+        # Apply volume modulation envelope
+        # Sad/fearful: softer; happy/excited: louder
+        audio = audio * emo["volume_mod"]
+
+        # Re-normalize
+        max_val = np.max(np.abs(audio))
+        if max_val > 0:
+            audio = audio / max_val * 0.9
+
+        return audio.astype(np.float32)
+
     def _generate_mock_audio(
         self,
         text: str,
         voice: str,
         speed: float,
         pitch: float,
+        emotion: str = "neutral",
     ) -> bytes:
         """
-        Generate mock audio using simple sine wave synthesis.
+        Generate mock audio using simple sine wave synthesis with emotion.
 
-        Creates a WAV file with sine wave tones modulated by text characteristics.
+        Creates a WAV file with sine wave tones modulated by text characteristics
+        and emotional style.
         """
         config = self.VOICE_CONFIGS.get(voice, self.VOICE_CONFIGS["female_warm"])
         base_freq, formant_shift, timbre_seed = config
 
+        # Apply emotion speed/pitch modifiers
+        emo_config = self.EMOTION_CONFIGS.get(emotion, self.EMOTION_CONFIGS["neutral"])
+        effective_speed = speed * emo_config["speed_mod"]
+        effective_pitch = pitch * emo_config["pitch_mod"]
+
         # Calculate duration based on text length and speed
-        # Approximate: ~4 chars per second for Chinese, adjusted by speed
-        chars_per_second = 4.0 * speed
+        chars_per_second = 4.0 * effective_speed
         duration = max(len(text) / chars_per_second, 0.5)
 
         num_samples = int(self.sample_rate * duration)
-        rng = np.random.RandomState(hash(text) % 2**31)
+        rng = np.random.RandomState(hash(text + emotion) % 2**31)
 
         # Generate audio samples
         t = np.arange(num_samples) / self.sample_rate
@@ -104,7 +170,7 @@ class TTSEngine:
         amplitudes = [0.6, 0.2, 0.1, 0.05, 0.05]
 
         for h, amp in zip(harmonics, amplitudes):
-            freq = base_freq * h * formant_shift * pitch
+            freq = base_freq * h * formant_shift * effective_pitch
             # Add slight frequency modulation for naturalness
             mod = 1.0 + 0.02 * np.sin(2 * np.pi * 5.0 * t + timbre_seed)
             audio += amp * np.sin(2 * np.pi * freq * t * mod)
@@ -121,6 +187,10 @@ class TTSEngine:
         max_val = np.max(np.abs(audio))
         if max_val > 0:
             audio = audio / max_val * 0.9
+
+        # Apply emotion effects (vibrato, volume modulation)
+        if emotion != "neutral":
+            audio = self._apply_emotion_to_audio(audio, emotion, self.sample_rate)
 
         # Convert to WAV bytes
         return self._numpy_to_wav(audio)
@@ -145,16 +215,18 @@ class TTSEngine:
         voice: str = "female_warm",
         speed: float = 1.0,
         pitch: float = 1.0,
+        emotion: str = "neutral",
         sample_rate: int = 24000,
     ) -> Tuple[bytes, float]:
         """
-        Synthesize text to speech audio.
+        Synthesize text to speech audio with emotion control.
 
         Args:
             text: Input text to synthesize.
             voice: Voice preset name.
             speed: Speech speed multiplier.
             pitch: Pitch adjustment multiplier.
+            emotion: Emotion style (neutral/happy/sad/angry/fearful/surprised/gentle/excited).
             sample_rate: Output sample rate.
 
         Returns:
@@ -165,7 +237,7 @@ class TTSEngine:
         original_sr = self.sample_rate
         self.sample_rate = sample_rate
         try:
-            wav_bytes = self._generate_mock_audio(text, voice, speed, pitch)
+            wav_bytes = self._generate_mock_audio(text, voice, speed, pitch, emotion)
             # Calculate duration from WAV
             with wave.open(io.BytesIO(wav_bytes), 'rb') as wf:
                 duration = wf.getnframes() / wf.getframerate()
@@ -173,7 +245,10 @@ class TTSEngine:
             self.sample_rate = original_sr
 
         elapsed = (time.perf_counter() - start) * 1000
-        logger.debug(f"TTS synthesized in {elapsed:.1f}ms, duration={duration:.1f}s")
+        logger.debug(
+            f"TTS synthesized in {elapsed:.1f}ms, duration={duration:.1f}s, "
+            f"voice={voice}, emotion={emotion}"
+        )
 
         return wav_bytes, duration
 
@@ -183,17 +258,19 @@ class TTSEngine:
         voice: str = "female_warm",
         speed: float = 1.0,
         pitch: float = 1.0,
+        emotion: str = "neutral",
         sample_rate: int = 24000,
         chunk_duration: float = 0.5,
     ) -> Generator[Tuple[int, bytes, bool], None, None]:
         """
-        Stream TTS audio in chunks via SSE.
+        Stream TTS audio in chunks via SSE with emotion support.
 
         Args:
             text: Input text.
             voice: Voice preset.
             speed: Speech speed.
             pitch: Pitch adjustment.
+            emotion: Emotion style.
             sample_rate: Output sample rate.
             chunk_duration: Duration per chunk in seconds.
 
@@ -201,7 +278,8 @@ class TTSEngine:
             Tuple of (chunk_index, audio_chunk_bytes, is_final).
         """
         wav_bytes, total_duration = self.synthesize(
-            text=text, voice=voice, speed=speed, pitch=pitch, sample_rate=sample_rate,
+            text=text, voice=voice, speed=speed, pitch=pitch,
+            emotion=emotion, sample_rate=sample_rate,
         )
 
         # Split into chunks
@@ -209,26 +287,30 @@ class TTSEngine:
             frame_rate = wf.getframerate()
             frames_per_chunk = int(frame_rate * chunk_duration)
             chunk_index = 0
+            total_frames = wf.getnframes()
+            frames_read = 0
 
-            while True:
+            while frames_read < total_frames:
                 frames = wf.readframes(frames_per_chunk)
                 if not frames:
                     break
 
+                frames_read += len(frames) // (wf.getsampwidth() * wf.getnchannels())
+
                 # Wrap chunk as standalone WAV
                 chunk_buf = io.BytesIO()
                 with wave.open(chunk_buf, 'wb') as chunk_wf:
-                    chunk_wf.setnchannels(1)
-                    chunk_wf.setsampwidth(2)
+                    chunk_wf.setnchannels(wf.getnchannels())
+                    chunk_wf.setsampwidth(wf.getsampwidth())
                     chunk_wf.setframerate(frame_rate)
                     chunk_wf.writeframes(frames)
 
-                is_final = wf.tell() >= wf.getnframes() * 2  # 16-bit = 2 bytes per sample
+                is_final = frames_read >= total_frames
                 yield chunk_index, chunk_buf.getvalue(), is_final
                 chunk_index += 1
 
     def get_model_status(self) -> dict:
-        """Get current model and voice information."""
+        """Get current model, voice, and emotion information."""
         voices = [
             {
                 "name": meta["name"],
@@ -239,13 +321,19 @@ class TTSEngine:
             }
             for vid, meta in self.VOICE_METADATA.items()
         ]
+        emotions = [
+            {"emotion_id": eid, "name": emo["name"]}
+            for eid, emo in self.EMOTION_CONFIGS.items()
+        ]
         return {
             "model_name": self.model_name,
             "is_loaded": self._is_loaded,
             "device": self.device,
+            "streaming_enabled": self._streaming_enabled,
             "supported_formats": ["wav", "mp3", "pcm", "ogg"],
             "supported_sample_rates": [8000, 16000, 22050, 24000, 44100, 48000],
             "available_voices": voices,
+            "available_emotions": emotions,
         }
 
     def unload_model(self) -> None:

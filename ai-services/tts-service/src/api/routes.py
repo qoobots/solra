@@ -1,4 +1,4 @@
-"""API routes for Text-to-Speech synthesis."""
+"""API routes for Text-to-Speech synthesis with emotion and streaming support."""
 
 import json
 import base64
@@ -24,16 +24,17 @@ router = APIRouter(prefix="/api/v1", tags=["tts"])
 @router.post(
     "/synthesize",
     response_model=TTSResponse,
-    summary="Synthesize text to speech",
+    summary="Synthesize text to speech with emotion",
 )
 async def synthesize(
     request: TTSRequest,
     engine: TTSEngine = Depends(get_engine),
 ):
     """
-    Convert text to speech audio.
+    Convert text to speech audio with emotion control.
 
     Returns base64-encoded audio data in the requested format.
+    Supports 8 emotion styles: neutral, happy, sad, angry, fearful, surprised, gentle, excited.
     """
     start = time.perf_counter()
     try:
@@ -42,6 +43,7 @@ async def synthesize(
             voice=request.voice.value,
             speed=request.speed,
             pitch=request.pitch,
+            emotion=request.emotion.value,
             sample_rate=request.sample_rate,
         )
         elapsed = (time.perf_counter() - start) * 1000
@@ -56,6 +58,8 @@ async def synthesize(
             text_length=len(request.text),
             processing_time_ms=round(elapsed, 2),
             model_name=engine.model_name,
+            voice=request.voice.value,
+            emotion=request.emotion.value,
         )
     except Exception as e:
         logger.error(f"TTS synthesis failed: {e}")
@@ -64,16 +68,17 @@ async def synthesize(
 
 @router.post(
     "/synthesize/stream",
-    summary="Stream text-to-speech audio via SSE",
+    summary="Stream text-to-speech audio via SSE with emotion",
 )
 async def synthesize_stream(
     request: TTSRequest,
     engine: TTSEngine = Depends(get_engine),
 ):
     """
-    Stream TTS audio via Server-Sent Events.
+    Stream TTS audio via Server-Sent Events with emotion support.
 
     Each event contains a base64-encoded audio chunk.
+    Supports streaming with 4 chunk sizes: tiny(250ms), small(500ms), normal(1s), large(2s).
     """
     async def event_generator():
         try:
@@ -82,6 +87,7 @@ async def synthesize_stream(
                 voice=request.voice.value,
                 speed=request.speed,
                 pitch=request.pitch,
+                emotion=request.emotion.value,
                 sample_rate=request.sample_rate,
             ):
                 chunk_b64 = base64.b64encode(audio_bytes).decode("utf-8")
@@ -113,12 +119,12 @@ async def synthesize_stream(
 @router.get(
     "/model/status",
     response_model=ModelStatus,
-    summary="Get TTS model status and voice list",
+    summary="Get TTS model status, voice list, and emotion list",
 )
 async def get_model_status(
     engine: TTSEngine = Depends(get_engine),
 ):
-    """Get current model status and available voice presets."""
+    """Get current model status, available voice presets, and emotion styles."""
     return ModelStatus(**engine.get_model_status())
 
 
@@ -134,14 +140,26 @@ async def list_voices(
     return {"voices": status["available_voices"]}
 
 
+@router.get(
+    "/emotions",
+    summary="List available emotion styles",
+)
+async def list_emotions(
+    engine: TTSEngine = Depends(get_engine),
+):
+    """List all available emotion styles for expressive TTS."""
+    status = engine.get_model_status()
+    return {"emotions": status["available_emotions"]}
+
+
 @router.websocket("/ws/synthesize")
 async def websocket_synthesize(
     websocket: WebSocket,
 ):
     """
-    WebSocket endpoint for real-time TTS synthesis.
+    WebSocket endpoint for real-time TTS synthesis with emotion.
 
-    Accepts JSON messages with TTSRequest fields and streams audio chunks back.
+    Accepts JSON messages with TTSRequest fields (including emotion) and streams audio chunks back.
     """
     await websocket.accept()
     engine = get_engine()
@@ -154,6 +172,7 @@ async def websocket_synthesize(
             voice = data.get("voice", "female_warm")
             speed = float(data.get("speed", 1.0))
             pitch = float(data.get("pitch", 1.0))
+            emotion = data.get("emotion", "neutral")
             sample_rate = int(data.get("sample_rate", 24000))
 
             if not text:
@@ -163,7 +182,7 @@ async def websocket_synthesize(
             try:
                 for chunk_idx, audio_bytes, is_final in engine.synthesize_stream(
                     text=text, voice=voice, speed=speed,
-                    pitch=pitch, sample_rate=sample_rate,
+                    pitch=pitch, emotion=emotion, sample_rate=sample_rate,
                 ):
                     chunk_b64 = base64.b64encode(audio_bytes).decode("utf-8")
                     await websocket.send_json({
