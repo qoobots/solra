@@ -1,0 +1,30 @@
+# Solra iOS Fastlane — Gymfile
+# IPA 构建参数配置
+
+scheme("SolraApp")
+
+# 支持导出方法: app-store, ad-hoc, development, enterprise
+export_method(ENV["EXPORT_METHOD"] || "app-store")
+
+# 输出目录
+output_directory("fastlane/build_output")
+
+# 包含 dSYM 符号文件
+include_symbols(true)
+
+# 包含 bitcode（当前 Apple 已废弃 bitcode，默认关闭）
+include_bitcode(false)
+
+# 清理构建
+clean(true)
+
+# Xcode 版本
+if ENV["XCODE_VERSION"]
+  xcversion(ENV["XCODE_VERSION"])
+end
+
+# Swift 编译优化
+xcargs(
+  "SWIFT_COMPILATION_MODE=wholemodule",
+  "OTHER_SWIFT_FLAGS=-Xfrontend -warn-long-function-bodies=200"
+)

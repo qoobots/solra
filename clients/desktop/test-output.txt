@@ -1,0 +1,80 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90md:/05workspaces/solra/clients/desktop[39m
+
+[90mstderr[2m | src/stores/useAuthStore.test.ts[2m > [22m[2museAuthStore (Desktop)[2m > [22m[2mshould handle fetchProfile error gracefully
+[22m[39mFailed to fetch profile: Error: Network error
+    at [90md:\05workspaces\solra\clients\desktop\[39msrc\stores\useAuthStore.test.ts:229:39
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:146:14
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:533:11
+    at runWithTimeout [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:39:7[90m)[39m
+    at runTest [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1056:17[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runFiles [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1262:5[90m)[39m
+    at startTests [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1271:3[90m)[39m
+
+ [32m✓[39m src/stores/useAuthStore.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+[90mstderr[2m | src/stores/useSpaceStore.test.ts[2m > [22m[2museSpaceStore (Desktop)[2m > [22m[2mshould set error when both HTTP and IPC fail
+[22m[39mfetchSpaces error: Error: IPC down
+    at [90md:\05workspaces\solra\clients\desktop\[39msrc\stores\useSpaceStore.test.ts:133:38
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:146:14
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:533:11
+    at runWithTimeout [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:39:7[90m)[39m
+    at runTest [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1056:17[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runFiles [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1262:5[90m)[39m
+    at startTests [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1271:3[90m)[39m
+
+[90mstderr[2m | src/stores/useSpaceStore.test.ts[2m > [22m[2museSpaceStore (Desktop)[2m > [22m[2mshould handle enterSpace failure
+[22m[39menterSpace error: Error: IPC error
+    at [90md:\05workspaces\solra\clients\desktop\[39msrc\stores\useSpaceStore.test.ts:184:38
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:146:14
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:533:11
+    at runWithTimeout [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:39:7[90m)[39m
+    at runTest [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1056:17[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runFiles [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1262:5[90m)[39m
+    at startTests [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1271:3[90m)[39m
+
+[90mstderr[2m | src/stores/useSpaceStore.test.ts[2m > [22m[2museSpaceStore (Desktop)[2m > [22m[2mshould exit space even if IPC fails (graceful)
+[22m[39mCore SDK exit_space 调用失败（开发模式可忽略）
+
+ [32m✓[39m src/stores/useSpaceStore.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+[90mstderr[2m | src/stores/useRendererStore.test.ts[2m > [22m[2museRendererStore (Desktop)[2m > [22m[2mshould handle init renderer failure gracefully
+[22m[39m初始化渲染器失败: Error: GPU not available
+    at [90md:\05workspaces\solra\clients\desktop\[39msrc\stores\useRendererStore.test.ts:51:38
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:146:14
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:533:11
+    at runWithTimeout [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:39:7[90m)[39m
+    at runTest [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1056:17[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runFiles [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1262:5[90m)[39m
+    at startTests [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1271:3[90m)[39m
+
+[90mstderr[2m | src/stores/useRendererStore.test.ts[2m > [22m[2museRendererStore (Desktop)[2m > [22m[2mshould handle resize failure gracefully
+[22m[39m调整渲染器尺寸失败: Error: Renderer not initialized
+    at [90md:\05workspaces\solra\clients\desktop\[39msrc\stores\useRendererStore.test.ts:76:38
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:146:14
+    at [90mfile:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:533:11
+    at runWithTimeout [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:39:7[90m)[39m
+    at runTest [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1056:17[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runSuite [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1205:15[90m)[39m
+    at runFiles [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1262:5[90m)[39m
+    at startTests [90m(file:///d:/05workspaces/solra/clients/desktop/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1271:3[90m)[39m
+
+ [32m✓[39m src/stores/useRendererStore.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m28 passed[39m[22m[90m (28)[39m
+[2m   Start at [22m 09:48:48
+[2m   Duration [22m 2.23s[2m (transform 356ms, setup 0ms, collect 1.03s, tests 105ms, environment 3.04s, prepare 647ms)[22m
+

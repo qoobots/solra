@@ -1,0 +1,155 @@
+# ──────────────────────────────────────────────────
+# Solra iOS — Fastlane 自动化构建与发布配置
+# 用途: 签名管理、IPA构建、TestFlight分发、App Store提交
+# ──────────────────────────────────────────────────
+
+default_platform(:ios)
+
+platform :ios do
+  before_all do
+    # 确保 CocoaPods / SPM 依赖已安装
+    # 当前使用 SPM (Package.swift)，无需额外安装步骤
+    ENV["FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT"] = "120"
+  end
+
+  # ──────────────────────────────────────────────
+  # 代码签名管理 (Match)
+  # ──────────────────────────────────────────────
+  desc "同步开发证书与 Provisioning Profile"
+  lane :sync_signing do
+    match(
+      type: "development",
+      app_identifier: ENV["BUNDLE_ID"] || "com.solra.app",
+      readonly: is_ci,
+      force: false
+    )
+  end
+
+  desc "同步发布证书与 Provisioning Profile"
+  lane :sync_signing_release do
+    match(
+      type: "appstore",
+      app_identifier: ENV["BUNDLE_ID"] || "com.solra.app",
+      readonly: is_ci,
+      force: false
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # 单元测试
+  # ──────────────────────────────────────────────
+  desc "运行单元测试"
+  lane :test do
+    run_tests(
+      scheme: "SolraApp",
+      devices: ["iPhone 16 Pro"],
+      code_coverage: true,
+      output_directory: "fastlane/test_output"
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # 开发构建 (Debug → Simulator / Device)
+  # ──────────────────────────────────────────────
+  desc "构建 Debug IPA (本地开发验证)"
+  lane :build_debug do
+    # 通过 xcodebuild 构建，因项目使用 SPM (无 .xcodeproj)
+    sh(
+      "xcodebuild",
+      "-scheme", "SolraApp",
+      "-sdk", "iphoneos",
+      "-configuration", "Debug",
+      "-derivedDataPath", "build/DerivedData",
+      "CODE_SIGN_IDENTITY=",
+      "CODE_SIGNING_REQUIRED=NO",
+      "CODE_SIGNING_ALLOWED=NO"
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # TestFlight Beta 发布
+  # ──────────────────────────────────────────────
+  desc "构建并上传到 TestFlight"
+  lane :beta do
+    # 同步发布签名
+    sync_signing_release
+
+    # 增加 build number
+    increment_build_number(
+      build_number: latest_testflight_build_number(app_identifier: ENV["BUNDLE_ID"] || "com.solra.app") + 1
+    )
+
+    # 构建 Release IPA
+    build_app(
+      scheme: "SolraApp",
+      configuration: "Release",
+      export_method: "app-store",
+      include_symbols: true,
+      output_directory: "fastlane/build_output"
+    )
+
+    # 上传到 TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: false,
+      changelog: generate_changelog,
+      distribute_external: true,
+      groups: ["Internal Testers", "Beta Testers"],
+      notify_external_testers: true
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # App Store 正式发布
+  # ──────────────────────────────────────────────
+  desc "构建并提交到 App Store"
+  lane :release do
+    # 同步发布签名
+    sync_signing_release
+
+    # 确保版本号
+    ensure_git_status_clean unless is_ci
+
+    # 构建
+    build_app(
+      scheme: "SolraApp",
+      configuration: "Release",
+      export_method: "app-store",
+      include_symbols: true,
+      output_directory: "fastlane/build_output"
+    )
+
+    # 提交审核
+    upload_to_app_store(
+      force: false,
+      skip_metadata: false,
+      skip_screenshots: false,
+      automatic_release: false,
+      phased_release: true
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # CI 集成 (GitHub Actions)
+  # ──────────────────────────────────────────────
+  desc "CI 专用 — 构建并运行测试"
+  lane :ci_build do
+    # 开发签名
+    sync_signing if ENV["MATCH_PASSWORD"]
+
+    run_tests(
+      scheme: "SolraApp",
+      devices: ["iPhone 16 Pro"],
+      code_coverage: true,
+      output_directory: "fastlane/test_output"
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # 辅助方法
+  # ──────────────────────────────────────────────
+  desc "生成变更日志"
+  private_lane :generate_changelog do
+    changelog = sh("git log -10 --pretty=format:'- %s' --no-merges")
+    changelog.empty? ? "Bug fixes and performance improvements" : changelog
+  end
+end

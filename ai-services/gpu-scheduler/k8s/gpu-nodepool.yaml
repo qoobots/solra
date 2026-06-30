@@ -1,0 +1,103 @@
+# ──────────────────────────────────────────────────
+# Solra AI Services — GPU 节点池配置 (Karpenter)
+# 用途: 动态 GPU 节点供给，支持 A100/A10/T4 多种 GPU 类型
+# ──────────────────────────────────────────────────
+
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: solra-gpu-pool
+spec:
+  template:
+    metadata:
+      labels:
+        accelerator: nvidia-gpu
+        solra.io/gpu-tier: "a100"
+    spec:
+      # 节点要求
+      requirements:
+        - key: "karpenter.k8s.aws/instance-category"
+          operator: In
+          values: ["g"]
+        - key: "karpenter.k8s.aws/instance-generation"
+          operator: Gt
+          values: ["5"]
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+        - key: "kubernetes.io/os"
+          operator: In
+          values: ["linux"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"]
+
+      # 节点标签
+      nodeClassRef:
+        name: solra-gpu-node
+
+      # 资源限制
+      limits:
+        cpu: 96
+        memory: 512Gi
+        nvidia.com/gpu: 8
+
+      # 污点标记
+      taints:
+        - key: "nvidia.com/gpu"
+          effect: "NoSchedule"
+          value: "true"
+
+      # 终止宽限期
+      terminationGracePeriod: 30m
+
+  # 中断处理
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    consolidateAfter: 30m
+
+---
+# GPU NodeClass
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: solra-gpu-node
+spec:
+  # AMI 选择器
+  amiSelectorTerms:
+    - name: "amazon-eks-gpu-node-1.29-*"
+
+  # 子网选择器
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: solra-cluster
+
+  # 安全组选择器
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: solra-cluster
+        Name: "solra-gpu-node-sg"
+
+  # 块设备
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 200Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+
+  # 用户数据 (安装 NVIDIA 驱动)
+  userData: |
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="//"
+
+    --//
+    Content-Type: text/x-shellscript; charset="us-ascii"
+    #!/bin/bash
+    # NVIDIA GPU Operator 将通过 Helm Chart 统一管理
+    # 此脚本仅做基本内核模块加载
+    modprobe nvidia || true
+    modprobe nvidia-uvm || true
+    nvidia-smi || echo "NVIDIA driver not yet installed"
+    --//--

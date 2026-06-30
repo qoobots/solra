@@ -446,6 +446,85 @@ def verify_models(category: Optional[str] = None) -> None:
 
 # ── Main ───────────────────────────────────────────────────────────────────
 
+def generate_report(output_path: Optional[str] = None) -> None:
+    """Generate a model readiness report (Markdown)."""
+    lines = []
+    lines.append("# Solra AI Models - Readiness Report")
+    lines.append(f"\n**Date**: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    lines.append(f"**Models Directory**: `{MODELS_DIR.resolve()}`")
+    lines.append("")
+
+    # Summary table
+    lines.append("## Summary")
+    lines.append("")
+    lines.append("| Category | Priority | Total | Downloaded | Ready % |")
+    lines.append("|----------|----------|-------|------------|---------|")
+
+    categories = {}
+    for m in MODEL_CATALOG:
+        categories.setdefault((m.category, m.priority), []).append(m)
+
+    for (cat, pri), models in sorted(categories.items()):
+        total = len(models)
+        ready = sum(1 for m in models if is_model_downloaded(m))
+        pct = ready / total * 100 if total else 0
+        status_icon = "✅" if pct == 100 else ("🟡" if pct >= 50 else "❌")
+        lines.append(f"| {cat} | {pri} | {total} | {ready} | {status_icon} {pct:.0f}% |")
+
+    # Overall
+    total_all = len(MODEL_CATALOG)
+    ready_all = sum(1 for m in MODEL_CATALOG if is_model_downloaded(m))
+    total_size = sum(m.size_gb for m in MODEL_CATALOG)
+    ready_size = sum(m.size_gb for m in MODEL_CATALOG if is_model_downloaded(m))
+    lines.append(f"\n**Overall**: {ready_all}/{total_all} models ready ({ready_size:.1f}/{total_size:.1f} GB)")
+    lines.append("")
+
+    # Per-model detail
+    lines.append("## Model Details")
+    lines.append("")
+    lines.append("| Status | Model | Category | Priority | Size | License |")
+    lines.append("|--------|-------|----------|----------|------|---------|")
+
+    for m in sorted(MODEL_CATALOG, key=lambda x: ({"P0": 0, "P1": 1, "P2": 2}.get(x.priority, 99), x.category)):
+        status = "✅" if is_model_downloaded(m) else "❌"
+        gated = "🔒 " if m.gated else ""
+        lines.append(f"| {status} | {m.model_id} | {m.category} | {m.priority} | {m.size_gb:.1f} GB | {gated}{m.license_} |")
+
+    lines.append("")
+    lines.append("## Service Readiness")
+    lines.append("")
+    lines.append("| Service | Required Models | Status |")
+    lines.append("|---------|----------------|--------|")
+
+    service_models = {
+        "llm-router": ["llm"],
+        "safety-model-service": ["safety"],
+        "embedding-service": ["embedding"],
+        "recommendation-pipeline": ["llm", "embedding"],
+        "tts-service": ["tts"],
+    }
+
+    for svc, cats in service_models.items():
+        svc_models = [m for m in MODEL_CATALOG if m.category in cats]
+        svc_ready = sum(1 for m in svc_models if is_model_downloaded(m))
+        svc_total = len(svc_models)
+        svc_pct = svc_ready / svc_total * 100 if svc_total else 0
+        icon = "✅ Ready" if svc_pct == 100 else ("🟡 Partial" if svc_pct > 0 else "❌ Missing")
+        lines.append(f"| {svc} | {svc_ready}/{svc_total} | {icon} |")
+
+    lines.append("")
+
+    report = "\n".join(lines)
+
+    if output_path:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report, encoding="utf-8")
+        logger.info(f"Report written to: {out.resolve()}")
+    else:
+        print(report)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Solra AI Services - Model Download & Management",
@@ -457,6 +536,7 @@ Examples:
   python download_models.py --category llm      Download LLM models only
   python download_models.py --verify            Verify all downloaded models
   python download_models.py --dry-run           Preview download plan
+  python download_models.py --report            Generate readiness report
         """,
     )
     parser.add_argument("--all", action="store_true", help="Download all models")
@@ -464,13 +544,17 @@ Examples:
                         help="Download models of a specific category")
     parser.add_argument("--list", action="store_true", help="List all available models")
     parser.add_argument("--verify", action="store_true", help="Verify downloaded models")
+    parser.add_argument("--report", action="store_true", help="Generate model readiness report")
+    parser.add_argument("--output", type=str, help="Output path for report (used with --report)")
     parser.add_argument("--force", action="store_true", help="Force re-download even if cached")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be downloaded without downloading")
 
     args = parser.parse_args()
 
-    if args.list:
+    if args.report:
+        generate_report(args.output)
+    elif args.list:
         list_models()
     elif args.verify:
         verify_models(args.category)

@@ -1,0 +1,5 @@
+# Solra Android Fastlane — Appfile
+# 应用标识与 Google Play 配置
+
+package_name(ENV["ANDROID_PACKAGE_NAME"] || "com.solra.app")
+json_key_file(ENV["GOOGLE_PLAY_JSON_KEY"] || "play-store-key.json")

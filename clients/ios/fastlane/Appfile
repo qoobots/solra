@@ -1,0 +1,9 @@
+# Solra iOS Fastlane — Appfile
+# 应用标识与 Apple ID 配置
+
+app_identifier(ENV["BUNDLE_ID"] || "com.solra.app")
+apple_id(ENV["APPLE_ID"] || "")
+
+# 团队 ID (从 App Store Connect 获取)
+team_id(ENV["APPLE_TEAM_ID"] || "")
+itc_team_id(ENV["APPLE_ITC_TEAM_ID"] || "")

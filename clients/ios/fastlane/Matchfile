@@ -1,0 +1,22 @@
+# Solra iOS Fastlane — Matchfile
+# 代码签名管理：使用 git 仓库存储证书与 Provisioning Profiles
+
+git_url(ENV["MATCH_GIT_URL"] || "git@github.com:solra/ios-certificates.git")
+git_branch(ENV["MATCH_GIT_BRANCH"] || "main")
+
+type("development")
+app_identifier(ENV["BUNDLE_ID"] || "com.solra.app")
+
+# 加密密码（通过 CI secrets 注入）
+if ENV["MATCH_PASSWORD"]
+  ENV["MATCH_PASSWORD"] = ENV["MATCH_PASSWORD"]
+end
+
+# 生成所有类型证书
+generate_apple_certs(true)
+
+# 只读模式（CI 环境）
+readonly(is_ci)
+
+# 强制覆盖（首次设置或证书过期时使用）
+force_for_new_devices(false)

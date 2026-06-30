@@ -1,0 +1,9 @@
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/stores/__smoke.test.ts[2m [ src/stores/__smoke.test.ts ][22m
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'config')[39m
+[90m [2m❯[22m src/stores/__smoke.test.ts:[2m3:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+

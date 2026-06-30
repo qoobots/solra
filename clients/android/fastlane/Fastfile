@@ -1,0 +1,136 @@
+# ──────────────────────────────────────────────────
+# Solra Android — Fastlane 自动化构建与发布配置
+# 用途: 签名管理、AAB/APK构建、Google Play分发、内部测试
+# ──────────────────────────────────────────────────
+
+default_platform(:android)
+
+platform :android do
+  before_all do
+    ENV["GRADLE_OPTS"] = "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx4g'"
+  end
+
+  # ──────────────────────────────────────────────
+  # 单元测试
+  # ──────────────────────────────────────────────
+  desc "运行单元测试"
+  lane :test do
+    gradle(
+      task: "test",
+      flavor: "",
+      build_type: "Debug"
+    )
+  end
+
+  desc "运行 Instrumentation 测试"
+  lane :instrumentation_test do
+    gradle(
+      task: "connectedAndroidTest",
+      build_type: "Debug"
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # 开发构建
+  # ──────────────────────────────────────────────
+  desc "构建 Debug APK"
+  lane :build_debug do
+    gradle(
+      task: "assemble",
+      build_type: "Debug"
+    )
+  end
+
+  desc "构建 Release APK"
+  lane :build_release do
+    gradle(
+      task: "assemble",
+      build_type: "Release"
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # 内部测试分发 (Firebase App Distribution)
+  # ──────────────────────────────────────────────
+  desc "构建并上传到 Firebase App Distribution"
+  lane :beta do
+    # 增加版本号
+    increment_version_code(
+      gradle_file_path: "app/build.gradle.kts"
+    )
+
+    # 构建 Release APK + AAB
+    gradle(
+      task: "bundle",
+      build_type: "Release"
+    )
+
+    # 上传到 Firebase App Distribution
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID"] || "",
+      groups: "internal-testers",
+      release_notes: generate_changelog
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # Google Play 正式发布
+  # ──────────────────────────────────────────────
+  desc "构建并提交到 Google Play 内部测试轨道"
+  lane :internal do
+    gradle(
+      task: "bundle",
+      build_type: "Release"
+    )
+
+    upload_to_play_store(
+      track: "internal",
+      release_status: "draft",
+      skip_upload_apk: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "发布到 Google Play Alpha 轨道"
+  lane :alpha do
+    gradle(task: "bundle", build_type: "Release")
+    upload_to_play_store(
+      track: "alpha",
+      release_status: "completed",
+      skip_upload_apk: true
+    )
+  end
+
+  desc "发布到 Google Play Production"
+  lane :production do
+    gradle(task: "bundle", build_type: "Release")
+    upload_to_play_store(
+      track: "production",
+      release_status: "draft",
+      skip_upload_apk: true
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # CI 集成
+  # ──────────────────────────────────────────────
+  desc "CI 专用 — 构建 + 测试"
+  lane :ci_build do
+    gradle(
+      task: "assembleRelease testReleaseUnitTest",
+      properties: {
+        "org.gradle.daemon" => "false"
+      }
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # 辅助方法
+  # ──────────────────────────────────────────────
+  desc "生成变更日志"
+  private_lane :generate_changelog do
+    changelog = sh("git log -10 --pretty=format:'- %s' --no-merges")
+    changelog.empty? ? "Bug fixes and performance improvements" : changelog
+  end
+end

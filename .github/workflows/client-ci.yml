@@ -142,6 +142,11 @@ jobs:
           cd clients/desktop
           npm ci
 
+      - name: Run Desktop Unit Tests (Vitest)
+        run: |
+          cd clients/desktop
+          npm run test
+
       - name: Build Web UI
         run: |
           cd clients/desktop
@@ -172,6 +177,14 @@ jobs:
           name: desktop-windows-x64
           path: clients/desktop/src-tauri/target/debug/bundle/msi/*.msi
           retention-days: 7
+
+      - name: Upload Vitest Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-test-reports
+          path: clients/desktop/test-results/
+          retention-days: 3
 
   # ---------- Web (lightweight) ----------
   web-build:

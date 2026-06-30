@@ -1,0 +1,146 @@
+# ──────────────────────────────────────────────────
+# Solra GPU Scheduler — Kubernetes 生产部署配置
+# 用途: GPU 节点调度、NVIDIA 设备插件、自动扩缩容
+# ──────────────────────────────────────────────────
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-scheduler
+  namespace: solra-ai
+  labels:
+    app: gpu-scheduler
+    tier: ai-infrastructure
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # GPU 资源独占，不支持滚动更新
+  selector:
+    matchLabels:
+      app: gpu-scheduler
+  template:
+    metadata:
+      labels:
+        app: gpu-scheduler
+    spec:
+      # GPU 节点选择器
+      nodeSelector:
+        accelerator: nvidia-gpu
+        solra.io/gpu-tier: "a100"  # A100 40GB/80GB
+
+      # GPU 容忍度
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      # 服务账号
+      serviceAccountName: gpu-scheduler
+
+      containers:
+        - name: gpu-scheduler
+          image: ghcr.io/solra/gpu-scheduler:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+
+          # 环境变量
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: PROMETHEUS_MULTIPROC_DIR
+              value: "/tmp/prometheus"
+
+          # 资源限制
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+              nvidia.com/gpu: "1"  # GPU 调度器本身占用 1 张 GPU
+
+          # 健康检查
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+
+          # 存储
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: dshm
+              mountPath: /dev/shm
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-scheduler
+  namespace: solra-ai
+  labels:
+    app: gpu-scheduler
+spec:
+  type: ClusterIP
+  selector:
+    app: gpu-scheduler
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+
+---
+# Horizontal Pod Autoscaler (预留，当前单副本)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gpu-scheduler
+  namespace: solra-ai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gpu-scheduler
+  minReplicas: 1
+  maxReplicas: 1  # GPU 调度器单副本
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
