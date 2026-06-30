@@ -2,12 +2,17 @@
   <div class="create-view">
     <div class="create-card">
       <h1>创建新空间</h1>
-      <el-form label-position="top">
+      <el-form label-position="top" @submit.prevent="handleCreate">
         <el-form-item label="空间名称">
           <el-input v-model="title" placeholder="给你的空间起个名字" size="large" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item label="空间描述">
           <el-input v-model="description" type="textarea" :rows="4" placeholder="描述你的空间..." maxlength="1000" show-word-limit />
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="category" placeholder="选择分类" size="large" style="width:100%">
+            <el-option v-for="opt in categoryOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="标签">
           <el-select-v2 v-model="tags" :options="tagOptions" multiple placeholder="选择标签" style="width:100%" />
@@ -19,7 +24,15 @@
             <el-radio value="PRIVATE">私密</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-button type="primary" size="large" class="btn-submit">创建空间</el-button>
+        <el-button
+          type="primary"
+          size="large"
+          class="btn-submit"
+          :loading="submitting"
+          @click="handleCreate"
+        >
+          创建空间
+        </el-button>
       </el-form>
     </div>
   </div>
@@ -27,18 +40,68 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useSpaceStore } from '@/stores/useSpaceStore'
+import { ElMessage } from 'element-plus'
+
+const router = useRouter()
+const spaceStore = useSpaceStore()
 
 const title = ref('')
 const description = ref('')
 const tags = ref<string[]>([])
 const visibility = ref('PUBLIC')
+const category = ref('OTHER')
+const submitting = ref(false)
 
 const tagOptions = [
   { label: '社交', value: '社交' }, { label: '游戏', value: '游戏' },
   { label: '音乐', value: '音乐' }, { label: '艺术', value: '艺术' },
   { label: '技术', value: '技术' }, { label: '学习', value: '学习' },
   { label: '冥想', value: '冥想' }, { label: '演出', value: '演出' },
+  { label: '自然', value: '自然' }, { label: '运动', value: '运动' },
+  { label: '美食', value: '美食' }, { label: '旅行', value: '旅行' },
 ]
+
+const categoryOptions = [
+  { label: '其他', value: 'OTHER' },
+  { label: '社交', value: 'SOCIAL' },
+  { label: '游戏', value: 'GAMING' },
+  { label: '音乐', value: 'MUSIC' },
+  { label: '艺术', value: 'ART' },
+  { label: '教育', value: 'EDUCATION' },
+  { label: '自然', value: 'NATURE' },
+  { label: '商业', value: 'BUSINESS' },
+]
+
+async function handleCreate() {
+  if (!title.value.trim()) {
+    ElMessage.warning('请填写空间名称')
+    return
+  }
+  if (!description.value.trim()) {
+    ElMessage.warning('请填写空间描述')
+    return
+  }
+  submitting.value = true
+  try {
+    const space = await spaceStore.createSpace({
+      title: title.value.trim(),
+      description: description.value.trim(),
+      tags: tags.value,
+      visibility: visibility.value,
+      category: category.value,
+    })
+    if (space) {
+      ElMessage.success('空间创建成功！')
+      router.push(`/spaces/${space.spaceId}`)
+    } else {
+      ElMessage.error(spaceStore.error || '创建失败')
+    }
+  } finally {
+    submitting.value = false
+  }
+}
 </script>
 
 <style lang="scss" scoped>

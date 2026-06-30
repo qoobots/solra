@@ -4,43 +4,87 @@
       <h2>虚拟商城</h2>
     </header>
     <div class="tab-bar">
-      <el-button v-for="cat in categories" :key="cat.key" :type="selectedCat === cat.key ? 'primary' : 'default'" @click="selectedCat = cat.key">{{ cat.label }}</el-button>
+      <el-button
+        v-for="cat in categories"
+        :key="cat.key"
+        :type="selectedCategory === cat.key ? 'primary' : 'default'"
+        @click="selectedCategory = cat.key"
+      >
+        {{ cat.label }}
+      </el-button>
     </div>
-    <div class="item-grid">
+
+    <div v-if="loading" class="loading-state">
+      <p>正在加载商品...</p>
+    </div>
+
+    <div v-else-if="error" class="error-state">
+      <p>{{ error }}</p>
+      <el-button @click="storeStore.fetchItems()">重试</el-button>
+    </div>
+
+    <div v-else-if="filteredItems.length === 0" class="empty-state">
+      <p>该分类暂无商品</p>
+    </div>
+
+    <div v-else class="item-grid">
       <div v-for="item in filteredItems" :key="item.itemId" class="item-card">
-        <div class="item-icon">{{ item.icon }}</div>
+        <div class="item-icon">{{ item.icon || categoryIcon(item.category) }}</div>
         <h4>{{ item.name }}</h4>
         <p class="item-price">¥{{ item.price }}</p>
-        <el-button size="small" type="primary">购买</el-button>
+        <p class="item-desc" v-if="item.description">{{ item.description }}</p>
+        <el-button
+          size="small"
+          :type="item.isOwned ? 'success' : 'primary'"
+          :disabled="item.isOwned"
+          @click="handlePurchase(item.itemId)"
+        >
+          {{ item.isOwned ? '已拥有' : '购买' }}
+        </el-button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { onMounted, ref } from 'vue'
+import { useStoreStore } from '@/stores/useStoreStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { ElMessage } from 'element-plus'
+import { storeToRefs } from 'pinia'
 
-const selectedCat = ref('all')
-const categories = [
-  { key: 'all', label: '全部' },
-  { key: 'AVATAR_SKIN', label: '虚拟人皮肤' },
-  { key: 'SPACE_DECORATION', label: '空间装饰' },
-  { key: 'EMOTE', label: '表情动作' },
-  { key: 'EFFECT', label: '特效' },
-  { key: 'SUBSCRIPTION', label: '订阅' },
-]
+const storeStore = useStoreStore()
+const authStore = useAuthStore()
+const { items, filteredItems, selectedCategory, loading, error, categories } = storeToRefs(storeStore)
 
-const items = ref([
-  { itemId: '1', name: '霓虹皮肤', price: 12.99, category: 'AVATAR_SKIN', icon: '👤' },
-  { itemId: '2', name: '星空穹顶', price: 29.99, category: 'SPACE_DECORATION', icon: '🌟' },
-  { itemId: '3', name: '比心手势', price: 6.99, category: 'EMOTE', icon: '🫶' },
-  { itemId: '4', name: '粒子飘落', price: 9.99, category: 'EFFECT', icon: '✨' },
-  { itemId: '5', name: '创作者订阅', price: 49.99, category: 'SUBSCRIPTION', icon: '👑' },
-])
+onMounted(async () => {
+  await storeStore.fetchItems()
+  await storeStore.fetchSubscriptions()
+})
 
-const filteredItems = computed(() =>
-  selectedCat.value === 'all' ? items.value : items.value.filter(i => i.category === selectedCat.value)
-)
+async function handlePurchase(itemId: string) {
+  if (!authStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  const success = await storeStore.purchaseItem(itemId)
+  if (success) {
+    ElMessage.success('购买成功！')
+  } else {
+    ElMessage.error(storeStore.error || '购买失败')
+  }
+}
+
+function categoryIcon(category: string): string {
+  const icons: Record<string, string> = {
+    AVATAR_SKIN: '👤',
+    SPACE_DECORATION: '🌟',
+    EMOTE: '🫶',
+    EFFECT: '✨',
+    SUBSCRIPTION: '👑',
+  }
+  return icons[category] || '📦'
+}
 </script>
 
 <style lang="scss" scoped>
@@ -60,6 +104,11 @@ const filteredItems = computed(() =>
   text-align: center;
   .item-icon { font-size: 40px; margin-bottom: 8px; }
   h4 { margin-bottom: 4px; }
-  .item-price { color: var(--solra-accent); font-weight: 600; margin-bottom: 12px; }
+  .item-price { color: var(--solra-accent); font-weight: 600; margin-bottom: 4px; }
+  .item-desc { font-size: 12px; color: var(--solra-text-secondary); margin-bottom: 12px; }
+}
+
+.loading-state, .error-state, .empty-state {
+  text-align: center; padding: 60px 20px; color: var(--solra-text-secondary); font-size: 16px;
 }
 </style>

@@ -19,10 +19,37 @@
     <main class="feed-container">
       <div class="feed-header">
         <h2>探索空间</h2>
-        <router-link to="/create" class="btn-create">+ 创建空间</router-link>
+        <div class="feed-actions">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索空间..."
+            class="search-input"
+            clearable
+            @keyup.enter="handleSearch"
+            @clear="spaceStore.fetchSpaces(true)"
+          >
+            <template #prefix>
+              <span>🔍</span>
+            </template>
+          </el-input>
+          <router-link to="/create" class="btn-create">+ 创建空间</router-link>
+        </div>
       </div>
 
-      <div class="space-grid">
+      <div v-if="loading && spaces.length === 0" class="loading-state">
+        <p>正在加载空间...</p>
+      </div>
+
+      <div v-else-if="error" class="error-state">
+        <p>{{ error }}</p>
+        <el-button @click="spaceStore.fetchSpaces(true)">重试</el-button>
+      </div>
+
+      <div v-else-if="spaces.length === 0" class="empty-state">
+        <p>暂无空间，<router-link to="/create">创建第一个空间</router-link></p>
+      </div>
+
+      <div v-else class="space-grid">
         <div v-for="space in spaces" :key="space.spaceId" class="space-card" @click="enterSpace(space.spaceId)">
           <div class="card-thumb">
             <img :src="space.thumbnailUrl" :alt="space.title" loading="lazy" />
@@ -42,36 +69,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useSpaceStore } from '@/stores/useSpaceStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
+const spaceStore = useSpaceStore()
+const authStore = useAuthStore()
+const { isAuthenticated, userDisplayName } = storeToRefs(authStore)
+const { spaces, loading, error } = storeToRefs(spaceStore)
 
-interface SpaceItem {
-  spaceId: string
-  title: string
-  description: string
-  thumbnailUrl: string
-  tags: string[]
-  creator: { displayName: string } | null
-  onlineCount: number
-}
+const searchQuery = ref('')
 
-const isAuthenticated = computed(() => false)
-const userDisplayName = computed(() => '')
-
-const spaces = ref<SpaceItem[]>([
-  { spaceId: '1', title: '赛博茶馆', description: '聊天交友', thumbnailUrl: '', tags: ['社交', '聊天'], creator: { displayName: 'Alice' }, onlineCount: 42 },
-  { spaceId: '2', title: '星空画廊', description: 'AI艺术展', thumbnailUrl: '', tags: ['艺术', 'AI'], creator: { displayName: 'Bob' }, onlineCount: 18 },
-  { spaceId: '3', title: '代码峡谷', description: '程序员聚集地', thumbnailUrl: '', tags: ['技术', '学习'], creator: { displayName: 'Charlie' }, onlineCount: 67 },
-  { spaceId: '4', title: '音乐森林', description: '虚拟演唱会', thumbnailUrl: '', tags: ['音乐', '演出'], creator: { displayName: 'Diana' }, onlineCount: 103 },
-  { spaceId: '5', title: '禅意庭院', description: '冥想放松', thumbnailUrl: '', tags: ['冥想', '自然'], creator: { displayName: 'Eve' }, onlineCount: 9 },
-  { spaceId: '6', title: '赛博竞技场', description: '对抗竞技', thumbnailUrl: '', tags: ['游戏', '竞技'], creator: { displayName: 'Frank' }, onlineCount: 55 },
-])
+onMounted(async () => {
+  await spaceStore.fetchSpaces(true)
+  if (authStore.isAuthenticated) {
+    await authStore.fetchProfile()
+  }
+})
 
 function enterSpace(spaceId: string) {
   router.push(`/spaces/${spaceId}`)
 }
+
+async function handleSearch() {
+  if (searchQuery.value.trim()) {
+    await spaceStore.searchSpaces(searchQuery.value.trim())
+  } else {
+    await spaceStore.fetchSpaces(true)
+  }
+}
+</script>
 </script>
 
 <style lang="scss" scoped>
@@ -100,15 +130,30 @@ function enterSpace(spaceId: string) {
 .feed-container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 .feed-header {
   display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px;
   margin-bottom: 24px;
   h2 { font-size: 28px; }
+  .feed-actions {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .search-input {
+    width: 260px;
+  }
   .btn-create {
     padding: 10px 24px;
     background: var(--solra-accent);
     color: #fff;
     border-radius: 12px;
     font-weight: 600;
+    white-space: nowrap;
   }
+}
+
+.loading-state, .error-state, .empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--solra-text-secondary);
+  font-size: 16px;
 }
 
 .space-grid {

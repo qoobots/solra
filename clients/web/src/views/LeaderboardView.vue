@@ -2,15 +2,27 @@
   <div class="leaderboard-view">
     <header class="lb-header">
       <h2>排行榜</h2>
-      <el-select v-model="boardType" class="lb-select">
-        <el-option label="信仰等级" value="FAITH_LEVEL" />
-        <el-option label="空间创建数" value="SPACE_COUNT" />
-        <el-option label="社交得分" value="SOCIAL_SCORE" />
+      <el-select v-model="boardType" class="lb-select" placeholder="选择榜单">
+        <el-option v-for="opt in boardOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
       </el-select>
     </header>
-    <div class="lb-list">
-      <div v-for="entry in entries" :key="entry.rank" class="lb-entry" :class="{ 'top-three': entry.rank <= 3 }">
-        <span class="rank">#{{ entry.rank }}</span>
+
+    <div v-if="loading" class="loading-state">
+      <p>正在加载排行榜...</p>
+    </div>
+
+    <div v-else-if="error" class="error-state">
+      <p>{{ error }}</p>
+      <el-button @click="leaderboardStore.fetchLeaderboard()">重试</el-button>
+    </div>
+
+    <div v-else-if="currentEntries.length === 0" class="empty-state">
+      <p>暂无排行数据</p>
+    </div>
+
+    <div v-else class="lb-list">
+      <div v-for="entry in currentEntries" :key="entry.rank" class="lb-entry" :class="{ 'top-three': entry.rank <= 3 }">
+        <span class="rank">{{ rankIcon(entry.rank) }}</span>
         <span class="name">{{ entry.user?.displayName }}</span>
         <span class="score">{{ entry.score }}</span>
       </div>
@@ -19,31 +31,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { onMounted, watch } from 'vue'
+import { useLeaderboardStore, type LeaderboardType } from '@/stores/useLeaderboardStore'
+import { storeToRefs } from 'pinia'
 
-const boardType = ref('FAITH_LEVEL')
+const leaderboardStore = useLeaderboardStore()
+const { boardType, currentEntries, loading, error } = storeToRefs(leaderboardStore)
 
-const leaderboards: Record<string, any[]> = {
-  FAITH_LEVEL: [
-    { rank: 1, user: { displayName: 'Alice' }, score: 99, faithLevel: 99 },
-    { rank: 2, user: { displayName: 'Bob' }, score: 87, faithLevel: 87 },
-    { rank: 3, user: { displayName: 'Charlie' }, score: 76, faithLevel: 76 },
-    { rank: 4, user: { displayName: 'Diana' }, score: 65, faithLevel: 65 },
-    { rank: 5, user: { displayName: 'Eve' }, score: 54, faithLevel: 54 },
-  ],
-  SPACE_COUNT: [
-    { rank: 1, user: { displayName: 'Bob' }, score: 128 },
-    { rank: 2, user: { displayName: 'Alice' }, score: 95 },
-    { rank: 3, user: { displayName: 'Frank' }, score: 72 },
-  ],
-  SOCIAL_SCORE: [
-    { rank: 1, user: { displayName: 'Diana' }, score: 1024 },
-    { rank: 2, user: { displayName: 'Charlie' }, score: 888 },
-    { rank: 3, user: { displayName: 'Alice' }, score: 756 },
-  ],
+const boardOptions = [
+  { label: '信仰等级', value: 'FAITH_LEVEL' as LeaderboardType },
+  { label: '空间创建数', value: 'SPACE_COUNT' as LeaderboardType },
+  { label: '社交得分', value: 'SOCIAL_SCORE' as LeaderboardType },
+]
+
+onMounted(() => {
+  leaderboardStore.fetchLeaderboard()
+})
+
+watch(boardType, (newType) => {
+  leaderboardStore.fetchLeaderboard(newType)
+})
+
+function rankIcon(rank: number): string {
+  if (rank === 1) return '🥇'
+  if (rank === 2) return '🥈'
+  if (rank === 3) return '🥉'
+  return `#${rank}`
 }
-
-const entries = computed(() => leaderboards[boardType.value] || [])
 </script>
 
 <style lang="scss" scoped>
@@ -62,5 +76,9 @@ const entries = computed(() => leaderboards[boardType.value] || [])
   .rank { font-weight: 700; font-size: 18px; color: var(--solra-accent); width: 40px; }
   .name { flex: 1; font-size: 16px; }
   .score { font-weight: 600; color: var(--solra-accent); }
+}
+
+.loading-state, .error-state, .empty-state {
+  text-align: center; padding: 60px 20px; color: var(--solra-text-secondary); font-size: 16px;
 }
 </style>

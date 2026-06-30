@@ -56,6 +56,15 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   document.title = (to.meta.title as string) || '索拉 Solra'
+
+  if (to.meta.requiresAuth) {
+    const token = localStorage.getItem('solra_token')
+    if (!token) {
+      next({ name: 'login', query: { redirect: to.fullPath } })
+      return
+    }
+  }
+
   next()
 })
 

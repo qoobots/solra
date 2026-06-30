@@ -18,9 +18,9 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
-// 响应拦截器：统一错误处理
+// 响应拦截器：统一错误处理 + 数据解包
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => response.data,
   (error) => {
     if (error.response?.status === 401) {
       const authStore = useAuthStore()

@@ -2,12 +2,14 @@
 /**
  * 3D 空间详情页 — Desktop 核心页面
  * 嵌入 RenderViewport 组件进行 OpenGL/Vulkan 原生渲染
+ * 支持 AI 虚拟人对话 + WebRTC 音视频
  */
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSpaceStore } from '@/stores/useSpaceStore'
 import { useRendererStore } from '@/stores/useRendererStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { invoke } from '@tauri-apps/api/core'
 import RenderViewport from '@/components/renderer/RenderViewport.vue'
 
 const route = useRoute()
@@ -22,6 +24,9 @@ const currentFps = ref(60)
 const chatInput = ref('')
 const chatMessages = ref<{ role: 'user' | 'avatar'; content: string }[]>([])
 const isInSpace = ref(false)
+const conversationId = ref<string | null>(null)
+const isStreaming = ref(false)
+const isWebrtcConnected = ref(false)
 
 onMounted(async () => {
   await spaceStore.enterSpace(spaceId)
@@ -43,13 +48,37 @@ function onFpsUpdate(fps: number) {
 }
 
 async function sendChatMessage() {
-  if (!chatInput.value.trim()) return
+  if (!chatInput.value.trim() || isStreaming.value) return
   const msg = chatInput.value.trim()
   chatMessages.value.push({ role: 'user', content: msg })
   chatInput.value = ''
+  isStreaming.value = true
 
-  // TODO: 调用 AI 虚拟人对话
-  chatMessages.value.push({ role: 'avatar', content: `收到你的消息：${msg}` })
+  try {
+    // 如果还未开始对话，先初始化
+    if (!conversationId.value) {
+      const conv = await invoke<{ id: string; status: string }>(
+        'start_conversation',
+        { avatarId: spaceId, spaceId }
+      )
+      conversationId.value = conv.id
+    }
+
+    // 通过 Tauri IPC 调用端侧推理 / 云端 LLM
+    const reply = await invoke<string>('send_message', {
+      conversationId: conversationId.value,
+      message: msg,
+    })
+    chatMessages.value.push({ role: 'avatar', content: reply })
+  } catch (e) {
+    console.error('AI 对话失败:', e)
+    chatMessages.value.push({
+      role: 'avatar',
+      content: '抱歉，虚拟人暂时无法回应。请检查 Core SDK 是否已加载。',
+    })
+  } finally {
+    isStreaming.value = false
+  }
 }
 
 function goBack() {
@@ -71,10 +100,17 @@ function goBack() {
         <button class="toolbar-btn" @click="goBack">
           ← 返回
         </button>
-        <span class="space-name">{{ spaceStore.currentSpace?.name || spaceId }}</span>
+        <span class="space-name">{{ spaceStore.currentSpace?.title || spaceId }}</span>
         <div class="toolbar-actions">
           <span class="fps-display">{{ currentFps }} FPS</span>
           <span class="gpu-tag">{{ rendererStore.gpuBackend }}</span>
+          <span
+            class="webrtc-indicator"
+            :class="{ connected: isWebrtcConnected }"
+            :title="isWebrtcConnected ? 'WebRTC 已连接' : 'WebRTC 未连接'"
+          >
+            {{ isWebrtcConnected ? '🔊' : '🔇' }}
+          </span>
         </div>
       </div>
 
@@ -83,21 +119,25 @@ function goBack() {
         <div class="panel-section">
           <h3>空间信息</h3>
           <div v-if="spaceStore.currentSpace" class="space-info">
-            <p class="author">作者：{{ spaceStore.currentSpace.author_name }}</p>
+            <p class="author" v-if="spaceStore.currentSpace.creator">
+              创作者：{{ spaceStore.currentSpace.creator.displayName }}
+            </p>
             <p class="desc">{{ spaceStore.currentSpace.description }}</p>
             <div class="stats">
-              <span>👁️ {{ spaceStore.currentSpace.visitor_count?.toLocaleString() }}</span>
-              <span>❤️ {{ spaceStore.currentSpace.like_count }}</span>
+              <span>🟢 {{ spaceStore.currentSpace.onlineCount }} 在线</span>
+              <span>👁️ {{ spaceStore.currentSpace.totalVisits?.toLocaleString() }} 访问</span>
             </div>
             <div class="tags" v-if="spaceStore.currentSpace.tags?.length">
               <span v-for="tag in spaceStore.currentSpace.tags" :key="tag" class="tag">{{ tag }}</span>
             </div>
           </div>
+          <div v-else-if="spaceStore.loading" class="info-loading">加载中...</div>
+          <div v-else class="info-loading">空间信息不可用</div>
         </div>
 
         <div class="panel-section chat-section">
-          <h3>AI 虚拟人</h3>
-          <div class="chat-messages">
+          <h3>AI 虚拟人 {{ isStreaming ? '💭' : '🤖' }}</h3>
+          <div class="chat-messages" ref="chatContainer">
             <div
               v-for="(msg, idx) in chatMessages"
               :key="idx"
@@ -114,16 +154,36 @@ function goBack() {
               v-model="chatInput"
               type="text"
               placeholder="输入消息..."
+              :disabled="isStreaming"
               @keyup.enter="sendChatMessage"
             />
-            <button @click="sendChatMessage">发送</button>
+            <button @click="sendChatMessage" :disabled="isStreaming">
+              {{ isStreaming ? '...' : '发送' }}
+            </button>
           </div>
         </div>
 
         <div class="panel-section">
           <h3>在线用户</h3>
           <div class="online-list">
-            <div class="online-empty">暂无其他用户</div>
+            <div
+              v-if="spaceStore.currentSpace?.participants?.length"
+              class="participant-items"
+            >
+              <div
+                v-for="p in spaceStore.currentSpace.participants"
+                :key="p.userId"
+                class="participant-item"
+              >
+                <div class="participant-avatar">
+                  <img v-if="p.avatarUrl" :src="p.avatarUrl" :alt="p.displayName" />
+                  <span v-else>👤</span>
+                </div>
+                <span class="participant-name">{{ p.displayName }}</span>
+                <span class="online-dot" :class="{ online: p.isOnline }"></span>
+              </div>
+            </div>
+            <div v-else class="online-empty">暂无其他用户</div>
           </div>
         </div>
       </div>
@@ -197,6 +257,12 @@ function goBack() {
       padding: 2px 6px;
       border-radius: 4px;
     }
+
+    .webrtc-indicator {
+      font-size: 14px;
+      opacity: 0.4;
+      &.connected { opacity: 1; }
+    }
   }
 }
 
@@ -261,6 +327,13 @@ function goBack() {
       }
     }
   }
+
+  .info-loading {
+    color: #484f58;
+    font-size: 13px;
+    text-align: center;
+    padding: 20px 0;
+  }
 }
 
 .chat-section {
@@ -277,6 +350,7 @@ function goBack() {
     gap: 8px;
     margin-bottom: 12px;
     min-height: 120px;
+    max-height: 260px;
   }
 
   .chat-bubble {
@@ -320,9 +394,8 @@ function goBack() {
       font-size: 13px;
       outline: none;
 
-      &:focus {
-        border-color: #58a6ff;
-      }
+      &:focus { border-color: #58a6ff; }
+      &:disabled { opacity: 0.5; }
     }
 
     button {
@@ -334,9 +407,8 @@ function goBack() {
       cursor: pointer;
       font-size: 13px;
 
-      &:hover {
-        background: #2ea043;
-      }
+      &:hover { background: #2ea043; }
+      &:disabled { opacity: 0.5; cursor: not-allowed; }
     }
   }
 }
@@ -347,6 +419,51 @@ function goBack() {
     color: #484f58;
     font-size: 13px;
     padding: 16px 0;
+  }
+
+  .participant-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .participant-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .participant-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #21262d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-size: 14px;
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .participant-name {
+      flex: 1;
+      font-size: 13px;
+      color: #c9d1d9;
+    }
+
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #484f58;
+
+      &.online { background: #3fb950; }
+    }
   }
 }
 </style>
