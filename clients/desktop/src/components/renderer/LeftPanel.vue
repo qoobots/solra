@@ -2,8 +2,10 @@
 /**
  * 左侧面板 — 场景控制 / 空间导航 / 工具面板
  *
- * 在 SpaceDetailView 中定位在 3D 视口左侧，
- * 提供场景渲染控制、空间切换、快捷工具等功能。
+ * 重构版：
+ *   - 场景控制参数通过 emit 事件通知父组件
+ *   - 父组件（SpaceDetailView）调用 RenderViewport 的暴露方法执行实际操作
+ *   - 保持 UI 与渲染逻辑解耦
  */
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -14,7 +16,7 @@ const router = useRouter()
 const spaceStore = useSpaceStore()
 const rendererStore = useRendererStore()
 
-// 面板折叠状态
+// 面板状态
 const activeSection = ref<'scene' | 'spaces' | 'tools'>('scene')
 const scenePanelCollapsed = ref(false)
 const spacesPanelCollapsed = ref(false)
@@ -28,20 +30,36 @@ const ambientIntensity = ref(0.6)
 const sunIntensity = ref(3.5)
 const cameraSpeed = ref(1.0)
 
-// 空间列表（从 store 获取）
+// 空间列表
 const spaceList = computed(() => spaceStore.spaces)
-
-// 当前空间信息
 const currentSpaceName = computed(() =>
   spaceStore.currentSpace?.title || '未命名空间'
 )
 
+// ========== Emits ==========
+const emit = defineEmits<{
+  (e: 'wireframe-change', enabled: boolean): void
+  (e: 'grid-visibility-change', visible: boolean): void
+  (e: 'particles-visibility-change', visible: boolean): void
+  (e: 'ambient-intensity-change', value: number): void
+  (e: 'sun-intensity-change', value: number): void
+  (e: 'camera-speed-change', value: number): void
+  (e: 'scene-reset'): void
+}>()
+
+// ========== 带 emit 的响应式更新 ==========
+import { watch } from 'vue'
+
+watch(wireframeMode, (v) => emit('wireframe-change', v))
+watch(showGrid, (v) => emit('grid-visibility-change', v))
+watch(showParticles, (v) => emit('particles-visibility-change', v))
+watch(ambientIntensity, (v) => emit('ambient-intensity-change', v))
+watch(sunIntensity, (v) => emit('sun-intensity-change', v))
+watch(cameraSpeed, (v) => emit('camera-speed-change', v))
+
+// ========== 面板交互 ==========
 function toggleSection(section: 'scene' | 'spaces' | 'tools') {
-  if (activeSection.value === section) {
-    activeSection.value = section // keep open, toggle content visibility
-  } else {
-    activeSection.value = section
-  }
+  activeSection.value = section
 }
 
 function isSectionActive(section: 'scene' | 'spaces' | 'tools') {
@@ -63,43 +81,30 @@ function resetSceneDefaults() {
   ambientIntensity.value = 0.6
   sunIntensity.value = 3.5
   cameraSpeed.value = 1.0
+  emit('scene-reset')
 }
 </script>
 
 <template>
   <div class="left-panel">
-    <!-- 面板头部 — 空间名称 -->
+    <!-- 面板头部 -->
     <div class="panel-header">
       <div class="header-space-info">
         <span class="header-icon">🌌</span>
         <span class="header-title" :title="currentSpaceName">{{ currentSpaceName }}</span>
       </div>
-      <button class="header-home-btn" @click="goHome" title="返回首页">
-        ⌂
-      </button>
+      <button class="header-home-btn" @click="goHome" title="返回首页">⌂</button>
     </div>
 
     <!-- 分区导航标签 -->
     <div class="section-tabs">
-      <button
-        :class="['tab-btn', { active: isSectionActive('scene') }]"
-        @click="toggleSection('scene')"
-        title="场景控制"
-      >
+      <button :class="['tab-btn', { active: isSectionActive('scene') }]" @click="toggleSection('scene')" title="场景控制">
         🎬 场景
       </button>
-      <button
-        :class="['tab-btn', { active: isSectionActive('spaces') }]"
-        @click="toggleSection('spaces')"
-        title="空间列表"
-      >
+      <button :class="['tab-btn', { active: isSectionActive('spaces') }]" @click="toggleSection('spaces')" title="空间列表">
         📁 空间
       </button>
-      <button
-        :class="['tab-btn', { active: isSectionActive('tools') }]"
-        @click="toggleSection('tools')"
-        title="工具面板"
-      >
+      <button :class="['tab-btn', { active: isSectionActive('tools') }]" @click="toggleSection('tools')" title="工具面板">
         🔧 工具
       </button>
     </div>
@@ -127,35 +132,17 @@ function resetSceneDefaults() {
           </div>
           <div class="control-row">
             <label>环境光强度</label>
-            <input
-              type="range"
-              v-model.number="ambientIntensity"
-              min="0"
-              max="2"
-              step="0.1"
-            />
+            <input type="range" v-model.number="ambientIntensity" min="0" max="2" step="0.1" />
             <span class="range-value">{{ ambientIntensity.toFixed(1) }}</span>
           </div>
           <div class="control-row">
             <label>主光源强度</label>
-            <input
-              type="range"
-              v-model.number="sunIntensity"
-              min="0"
-              max="10"
-              step="0.5"
-            />
+            <input type="range" v-model.number="sunIntensity" min="0" max="10" step="0.5" />
             <span class="range-value">{{ sunIntensity.toFixed(1) }}</span>
           </div>
           <div class="control-row">
             <label>相机速度</label>
-            <input
-              type="range"
-              v-model.number="cameraSpeed"
-              min="0.1"
-              max="5"
-              step="0.1"
-            />
+            <input type="range" v-model.number="cameraSpeed" min="0.1" max="5" step="0.1" />
             <span class="range-value">{{ cameraSpeed.toFixed(1) }}</span>
           </div>
           <button class="reset-btn" @click="resetSceneDefaults">重置默认</button>
@@ -211,10 +198,10 @@ function resetSceneDefaults() {
           <div class="tool-group">
             <h4>操作提示</h4>
             <div class="tip-list">
-              <div class="tip-item">🖱️ 拖拽旋转视角</div>
+              <div class="tip-item">🖱️ 左键拖拽旋转</div>
               <div class="tip-item">🔍 滚轮缩放</div>
-              <div class="tip-item">⌨️ WASD 移动</div>
               <div class="tip-item">📷 右键平移</div>
+              <div class="tip-item">🔄 自动环绕</div>
             </div>
           </div>
         </div>
@@ -239,7 +226,6 @@ function resetSceneDefaults() {
   user-select: none;
 }
 
-// ---- 头部 ----
 .panel-header {
   display: flex;
   align-items: center;
@@ -254,11 +240,7 @@ function resetSceneDefaults() {
     min-width: 0;
     flex: 1;
 
-    .header-icon {
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-
+    .header-icon { font-size: 18px; flex-shrink: 0; }
     .header-title {
       font-size: 14px;
       font-weight: 600;
@@ -284,14 +266,10 @@ function resetSceneDefaults() {
     flex-shrink: 0;
     margin-left: 8px;
 
-    &:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: #e6edf3;
-    }
+    &:hover { background: rgba(255, 255, 255, 0.15); color: #e6edf3; }
   }
 }
 
-// ---- 分区标签 ----
 .section-tabs {
   display: flex;
   border-bottom: 1px solid #21262d;
@@ -307,31 +285,18 @@ function resetSceneDefaults() {
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
 
-    &:hover {
-      color: #8b949e;
-    }
-
-    &.active {
-      color: #58a6ff;
-      border-bottom-color: #58a6ff;
-    }
+    &:hover { color: #8b949e; }
+    &.active { color: #58a6ff; border-bottom-color: #58a6ff; }
   }
 }
 
-// ---- 内容区 ----
 .panel-content {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
 
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #30363d;
-    border-radius: 2px;
-  }
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
 }
 
 .content-section {
@@ -349,23 +314,13 @@ function resetSceneDefaults() {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 
-    &:hover {
-      color: #c9d1d9;
-      background: rgba(255, 255, 255, 0.03);
-    }
-
-    .collapse-arrow {
-      font-size: 10px;
-      color: #484f58;
-    }
+    &:hover { color: #c9d1d9; background: rgba(255, 255, 255, 0.03); }
+    .collapse-arrow { font-size: 10px; color: #484f58; }
   }
 
-  .section-body {
-    padding: 0 14px 14px;
-  }
+  .section-body { padding: 0 14px 14px; }
 }
 
-// ---- 控制行 ----
 .control-row {
   display: flex;
   align-items: center;
@@ -414,34 +369,17 @@ function resetSceneDefaults() {
   cursor: pointer;
   transition: background 0.15s;
 
-  &:hover {
-    background: rgba(88, 166, 255, 0.2);
-  }
+  &:hover { background: rgba(88, 166, 255, 0.2); }
 }
 
-// ---- 空间列表 ----
 .empty-hint {
   text-align: center;
   padding: 20px 0;
-
-  p {
-    margin: 0;
-    font-size: 13px;
-    color: #484f58;
-  }
-
-  .sub-hint {
-    font-size: 11px;
-    margin-top: 4px;
-    color: #30363d;
-  }
+  p { margin: 0; font-size: 13px; color: #484f58; }
+  .sub-hint { font-size: 11px; margin-top: 4px; color: #30363d; }
 }
 
-.space-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+.space-list { display: flex; flex-direction: column; gap: 2px; }
 
 .space-item {
   display: flex;
@@ -452,19 +390,10 @@ function resetSceneDefaults() {
   cursor: pointer;
   transition: background 0.15s;
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
+  &:hover { background: rgba(255, 255, 255, 0.05); }
+  &.current { background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.2); }
 
-  &.current {
-    background: rgba(88, 166, 255, 0.1);
-    border: 1px solid rgba(88, 166, 255, 0.2);
-  }
-
-  .space-item-icon {
-    font-size: 16px;
-    flex-shrink: 0;
-  }
+  .space-item-icon { font-size: 16px; flex-shrink: 0; }
 
   .space-item-info {
     flex: 1;
@@ -481,16 +410,10 @@ function resetSceneDefaults() {
       text-overflow: ellipsis;
     }
 
-    .space-item-meta {
-      font-size: 11px;
-      color: #6e7681;
-      flex-shrink: 0;
-      margin-left: 8px;
-    }
+    .space-item-meta { font-size: 11px; color: #6e7681; flex-shrink: 0; margin-left: 8px; }
   }
 }
 
-// ---- 工具面板 ----
 .tool-group {
   margin-bottom: 12px;
 
@@ -510,31 +433,15 @@ function resetSceneDefaults() {
   align-items: center;
   padding: 4px 0;
 
-  .info-label {
-    font-size: 12px;
-    color: #6e7681;
-  }
-
-  .info-value {
-    font-size: 12px;
-    color: #c9d1d9;
-    font-family: monospace;
-
-    &.fps-value {
-      color: #3fb950;
-    }
-  }
+  .info-label { font-size: 12px; color: #6e7681; }
+  .info-value { font-size: 12px; color: #c9d1d9; font-family: monospace; }
+  .fps-value { color: #3fb950; }
 }
 
 .tip-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
-
-  .tip-item {
-    font-size: 11px;
-    color: #484f58;
-    padding: 2px 0;
-  }
+  .tip-item { font-size: 11px; color: #484f58; padding: 2px 0; }
 }
 </style>
