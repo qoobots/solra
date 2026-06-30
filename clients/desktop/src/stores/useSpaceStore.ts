@@ -47,7 +47,7 @@ export const useSpaceStore = defineStore('space-desktop', () => {
   const error = ref<string | null>(null)
 
   // 通过 HTTP API 获取空间列表
-  async function fetchSpaces(reset = false): Promise<void> {
+  async function fetchSpaces(_reset = false): Promise<void> {
     loading.value = true
     error.value = null
     try {

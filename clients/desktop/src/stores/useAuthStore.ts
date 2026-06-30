@@ -4,6 +4,7 @@ import api from '@/api'
 
 export interface UserProfile {
   userId: string
+  username: string
   displayName: string
   avatarUrl: string
   bio: string
@@ -11,6 +12,7 @@ export interface UserProfile {
   spaceCount: number
   email: string
   phoneNumber: string
+  subscriptionTier: string
   createdAt: string
 }
 
@@ -75,6 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await api.get('/api/auth/v1/profile') as any
       user.value = {
         userId: res.userId,
+        username: res.username || res.displayName || '',
         displayName: res.displayName,
         avatarUrl: res.avatarUrl || '',
         bio: res.bio || '',
@@ -82,6 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
         spaceCount: res.spaceCount || 0,
         email: res.email || '',
         phoneNumber: res.phoneNumber || '',
+        subscriptionTier: res.subscriptionTier || 'Free',
         createdAt: res.createdAt || '',
       }
     } catch (e: any) {

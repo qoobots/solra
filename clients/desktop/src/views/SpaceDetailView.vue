@@ -8,7 +8,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSpaceStore } from '@/stores/useSpaceStore'
 import { useRendererStore } from '@/stores/useRendererStore'
-import { useAuthStore } from '@/stores/useAuthStore'
 import { invoke } from '@tauri-apps/api/core'
 import RenderViewport from '@/components/renderer/RenderViewport.vue'
 
@@ -16,8 +15,6 @@ const route = useRoute()
 const router = useRouter()
 const spaceStore = useSpaceStore()
 const rendererStore = useRendererStore()
-const authStore = useAuthStore()
-
 const spaceId = route.params.spaceId as string
 const rendererReady = ref(false)
 const currentFps = ref(60)

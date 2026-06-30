@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router'
 const authStore = useAuthStore()
 const router = useRouter()
 
-const profile = authStore.userProfile
+const profile = authStore.user
 const displayName = ref(profile?.displayName || '')
 const editing = ref(false)
 

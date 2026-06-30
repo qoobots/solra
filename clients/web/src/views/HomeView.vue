@@ -102,7 +102,6 @@ async function handleSearch() {
   }
 }
 </script>
-</script>
 
 <style lang="scss" scoped>
 .home-view {
