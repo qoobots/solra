@@ -1,6 +1,7 @@
 #include "scene_graph.hpp"
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <stdexcept>
 
 namespace solra::render {
@@ -20,13 +21,12 @@ Mat4 mat4Mul(const Mat4& a, const Mat4& b) {
 }
 
 // ---- Transform ----
-Mat4 Transform::localMatrix() {
+Mat4 Transform::localMatrix() const {
     Mat4 m = mat4Identity();
     m = ::solra::render::translate(m, position);
     // Simplified rotation→matrix (full impl uses quaternion-to-matrix)
-    m = ::solra::render::scale(m, ::solra::render::scale);
+    m = ::solra::render::scale(m, this->scale);
     // ...
-    dirty = false;
     return m;
 }
 
@@ -124,24 +124,27 @@ SceneGraph::SceneGraph(std::shared_ptr<SceneNode> rt) : root(rt ? rt : std::make
 
 SceneNode* SceneGraph::findNode(const std::string& name) const {
     SceneNode* result = nullptr;
-    root->traverse([&](SceneNode* n) {
+    std::function<void(SceneNode*)> pre = [&](SceneNode* n) {
         if (n->name == name) result = n;
-    });
+    };
+    root->traverse(pre);
     return result;
 }
 
 std::vector<SceneNode*> SceneGraph::findNodesByTag(const std::string& tag) const {
     std::vector<SceneNode*> results;
-    root->traverse([&](SceneNode* n) {
+    std::function<void(SceneNode*)> pre = [&](SceneNode* n) {
         if (n->name.find(tag) != std::string::npos) results.push_back(n);
-    });
+    };
+    root->traverse(pre);
     return results;
 }
 
 std::vector<SceneNode*> SceneGraph::frustumCull(const Mat4& viewProj) const {
     // Placeholder: return all nodes (full frustum culling integrates with BVH)
     std::vector<SceneNode*> visible;
-    root->traverse([&](SceneNode* n) { visible.push_back(n); });
+    std::function<void(SceneNode*)> pre = [&](SceneNode* n) { visible.push_back(n); };
+    root->traverse(pre);
     return visible;
 }
 

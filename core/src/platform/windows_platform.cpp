@@ -1,6 +1,8 @@
 #include "windows_platform.hpp"
 #include <windows.h>
+#include <wininet.h>
 #include <shlobj.h>
+#include <memory>
 #include <vector>
 
 namespace solra::platform::windows {

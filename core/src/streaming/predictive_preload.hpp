@@ -37,6 +37,9 @@ struct PreloadItem {
     std::chrono::steady_clock::time_point enqueuedAt;
     uint32_t retryCount = 0;
     static constexpr uint32_t kMaxRetries = 3;
+
+    // For priority queue ordering (higher score = higher priority)
+    bool operator<(const PreloadItem& other) const { return score < other.score; }
 };
 
 // ---- PredictiveLoader ----

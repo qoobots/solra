@@ -27,7 +27,7 @@ endif()
 
 add_library(solra_core_platform STATIC ${SOLRA_PLATFORM_SOURCES})
 target_include_directories(solra_core_platform
-  PUBLIC ${CMAKE_SOURCE_DIR}/include
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(solra_core_platform

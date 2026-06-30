@@ -10,7 +10,7 @@ set(SOLRA_INFERENCE_SOURCES
 
 add_library(solra_core_inference STATIC ${SOLRA_INFERENCE_SOURCES})
 target_include_directories(solra_core_inference
-  PUBLIC ${CMAKE_SOURCE_DIR}/include
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE ${CMAKE_SOURCE_DIR}/third_party/llama.cpp
 )

@@ -6,6 +6,7 @@ fn main() {
 
     // 检测 libsolracore.dll 是否存在
     let search_paths = [
+        "core/libsolracore.dll",
         "../core/libsolracore.dll",
         "../../core/build/windows/Release/libsolracore.dll",
         "../../core/build/windows/Debug/libsolracore.dll",

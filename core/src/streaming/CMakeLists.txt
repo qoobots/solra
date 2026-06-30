@@ -11,7 +11,7 @@ set(SOLRA_STREAMING_SOURCES
 
 add_library(solra_core_streaming STATIC ${SOLRA_STREAMING_SOURCES})
 target_include_directories(solra_core_streaming
-  PUBLIC ${CMAKE_SOURCE_DIR}/include
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(solra_core_streaming

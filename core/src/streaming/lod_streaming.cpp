@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -145,7 +146,7 @@ void LodPriorityScheduler::SortChunks(
     const std::function<float(const AssetChunk&)>& view_angle_fn) {
 
   std::sort(chunks.begin(), chunks.end(),
-      [&](const AssetChunk* a, const AssetChunk* b) {
+      [&](AssetChunk* a, AssetChunk* b) {
         float pa = CalculatePriority(*a, camera_distance_fn(*a),
                                      view_angle_fn(*a), a->is_required);
         float pb = CalculatePriority(*b, camera_distance_fn(*b),

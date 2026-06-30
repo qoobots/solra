@@ -1,7 +1,10 @@
 #pragma once
 // Cross-platform shader compilation pipeline
 // Input: GLSL/HLSL/Metal Shading Language → Output: SPIR-V + platform-specific binaries
+#include "gpu_abstraction.hpp"  // for ShaderStage
+
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 #include <optional>

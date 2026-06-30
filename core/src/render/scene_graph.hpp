@@ -1,6 +1,7 @@
 #pragma once
 // 3D Scene Graph: hierarchical spatial management with dirty-flag propagation
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 #include <memory>
@@ -33,7 +34,7 @@ public:
     void setRotation(const Quat& r) { rotation = r; dirty = true; }
     void setScale(const Vec3& s)    { scale = s;    dirty = true; }
 
-    Mat4 localMatrix();
+    Mat4 localMatrix() const;
 };
 
 // ---- Base Node ----

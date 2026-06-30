@@ -1,7 +1,9 @@
 #pragma once
 // Windows Platform Layer: editor/debugging support + DirectX backend
 #include <cstdint>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace solra::platform::windows {
 
