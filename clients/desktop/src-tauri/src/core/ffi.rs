@@ -107,12 +107,22 @@ impl CoreSdk {
         CORE_SDK.get().map(|s| s.handle.lock().unwrap().is_some()).unwrap_or(false)
     }
 
+    /// 检查 Core SDK 动态库是否已加载（非 Mock 模式）
+    pub fn is_loaded() -> bool {
+        CORE_SDK.get().is_some()
+    }
+
     /// 从动态库中获取符号（供子模块使用）
     pub fn get_symbol<T>(&self, name: &[u8]) -> Result<libloading::Symbol<'_, T>, String> {
         unsafe {
             self.lib.get::<T>(name).map_err(|e| format!("查找符号失败: {}", e))
         }
     }
+}
+
+/// 公共检查函数：Core SDK 是否已实际加载
+pub fn is_core_sdk_loaded() -> bool {
+    CoreSdk::is_loaded()
 }
 
 /// 动态加载 Core SDK (libsolracore.dll)

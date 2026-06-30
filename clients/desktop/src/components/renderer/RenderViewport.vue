@@ -78,19 +78,26 @@ watch(() => [props.width, props.height], ([w, h]) => {
 // ---- Core SDK 初始化 ----
 async function tryInitCoreSdk(width: number, height: number): Promise<boolean> {
   try {
-    // 动态导入 Tauri invoke，避免在非 Tauri 环境崩溃
     const { invoke } = await import('@tauri-apps/api/core')
-    const state = await invoke<{ initialized: boolean; fps: number; gpu_backend: string }>(
-      'init_renderer',
-      { width, height }
-    )
-    if (state.initialized) {
+    const state = await invoke<{
+      initialized: boolean
+      fps: number
+      gpu_backend: string
+      core_sdk_loaded?: boolean
+    }>('init_renderer', { width, height })
+
+    // 只有当 Core SDK 真正加载且渲染器初始化成功时才使用原生渲染
+    // Mock 模式返回的 initialized 不代表真正的渲染后端可用
+    if (state.initialized && state.core_sdk_loaded === true) {
       rendererStore.fps = state.fps
       rendererStore.gpuBackend = state.gpu_backend
       return true
     }
+
+    // Core SDK 未加载 → 降级到 Three.js
+    console.log('[RenderViewport] Core SDK 未加载，使用 Three.js 备选渲染')
   } catch {
-    // Tauri IPC 不可用 → 降级到 Three.js
+    console.log('[RenderViewport] Tauri IPC 不可用，使用 Three.js 渲染')
   }
   return false
 }
