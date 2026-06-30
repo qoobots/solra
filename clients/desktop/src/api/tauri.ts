@@ -30,6 +30,30 @@ export async function exitSpace(spaceId: string): Promise<void> {
   return invoke('exit_space', { spaceId })
 }
 
+export interface CreateSpaceRequest {
+  name: string
+  description: string
+  category: string
+  is_public: boolean
+}
+
+export async function createSpace(request: CreateSpaceRequest): Promise<{ id: string; name: string }> {
+  return invoke('create_space', { request })
+}
+
+export interface LeaderboardEntry {
+  rank: number
+  space_id: string
+  name: string
+  author: string
+  score: number
+  trend: string
+}
+
+export async function getLeaderboard(period: string): Promise<LeaderboardEntry[]> {
+  return invoke('get_leaderboard', { period })
+}
+
 // ---- 虚拟人相关 ----
 
 export async function startConversation(avatarId: string, spaceId: string): Promise<{ id: string; status: string }> {
@@ -72,4 +96,46 @@ export async function getSystemInfo(): Promise<SystemInfo> {
 
 export async function getCoreVersion(): Promise<string> {
   return invoke('get_core_version')
+}
+
+export interface ProfileUpdateRequest {
+  display_name?: string
+  bio?: string
+  avatar_url?: string
+}
+
+export async function updateProfile(request: ProfileUpdateRequest): Promise<any> {
+  return invoke('update_profile', { request })
+}
+
+export async function getProfile(): Promise<any> {
+  return invoke('get_profile')
+}
+
+export interface StoreItem {
+  id: string
+  name: string
+  description: string
+  price: number
+  currency: string
+  category: string
+  thumbnail_url: string
+}
+
+export async function getStoreItems(category?: string): Promise<StoreItem[]> {
+  return invoke('get_store_items', { category })
+}
+
+export interface MessageItem {
+  id: string
+  msg_type: string
+  title: string
+  content: string
+  sender: string
+  timestamp: string
+  read: boolean
+}
+
+export async function getMessages(tab?: string): Promise<MessageItem[]> {
+  return invoke('get_messages', { tab })
 }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import api from '@/api'
 
 interface StoreItem {
   id: string
@@ -22,6 +24,58 @@ const categories = [
   { key: 'prop', label: '道具' },
   { key: 'effect', label: '特效' },
 ]
+
+async function fetchItems(category?: string) {
+  loading.value = true
+  try {
+    // 优先 HTTP API
+    const params: Record<string, string> = {}
+    if (category && category !== 'all') params.category = category
+    const res = await api.get('/api/store/v1/items', { params }) as any
+    const data = (res.items || res.data || []).map(mapItem)
+    items.value = data
+  } catch {
+    // 回退到 Tauri IPC
+    try {
+      const cat = activeCategory.value !== 'all' ? activeCategory.value : undefined
+      const data = await invoke<any[]>('get_store_items', { category: cat })
+      items.value = data.map((i: any) => ({
+        id: i.id,
+        name: i.name,
+        description: i.description,
+        price: i.price,
+        currency: i.currency,
+        category: i.category,
+        thumbnail: i.thumbnail_url,
+      }))
+    } catch (e) {
+      console.error('加载商城失败:', e)
+      items.value = []
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+function mapItem(raw: any): StoreItem {
+  return {
+    id: raw.itemId || raw.id || '',
+    name: raw.name || raw.title || '',
+    description: raw.description || '',
+    price: raw.price || 0,
+    currency: raw.currency || 'CNY',
+    category: raw.category || '',
+    thumbnail: raw.thumbnailUrl || raw.imageUrl || '',
+  }
+}
+
+watch(activeCategory, (cat) => {
+  fetchItems(cat === 'all' ? undefined : cat)
+})
+
+onMounted(() => {
+  fetchItems()
+})
 </script>
 
 <template>

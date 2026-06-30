@@ -9,6 +9,7 @@ use tauri::Manager;
 
 /// 应用启动时的初始化逻辑
 /// - 初始化日志
+/// - 初始化服务（ApiClient、AuthService、CacheService）
 /// - 尝试加载 Core SDK (libsolracore.dll)
 /// - 注册 IPC 命令
 pub fn run() {
@@ -20,6 +21,23 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             log::info!("Solra Desktop 启动中...");
+
+            // 初始化 API 客户端
+            let api_client = services::api_client::ApiClient::new(
+                option_env!("SOLRA_API_BASE_URL").unwrap_or("https://api.solra.io")
+            );
+            app.manage(api_client);
+
+            // 初始化认证服务
+            let auth_service = services::auth_service::AuthService::new();
+            app.manage(auth_service);
+
+            // 初始化缓存服务（最大 2GB）
+            let cache_dir = app.path().app_cache_dir()
+                .map_err(|e| format!("获取缓存目录失败: {}", e))
+                .unwrap_or_else(|_| std::path::PathBuf::from("./cache"));
+            let cache_service = services::cache_service::CacheService::new(cache_dir, 2048);
+            app.manage(cache_service);
 
             // 尝试加载 Core SDK
             match core::ffi::load_core_sdk() {
@@ -38,6 +56,8 @@ pub fn run() {
             ipc::space_cmd::get_space_detail,
             ipc::space_cmd::enter_space,
             ipc::space_cmd::exit_space,
+            ipc::space_cmd::create_space,
+            ipc::space_cmd::get_leaderboard,
             ipc::avatar_cmd::start_conversation,
             ipc::avatar_cmd::send_message,
             ipc::avatar_cmd::stop_conversation,
@@ -46,6 +66,10 @@ pub fn run() {
             ipc::render_cmd::get_fps,
             ipc::system_cmd::get_system_info,
             ipc::system_cmd::get_core_version,
+            ipc::system_cmd::update_profile,
+            ipc::system_cmd::get_profile,
+            ipc::system_cmd::get_store_items,
+            ipc::system_cmd::get_messages,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Solra Desktop 失败");

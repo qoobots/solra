@@ -1,16 +1,16 @@
 // 流式加载引擎 FFI 桥接
 // 对应 core/include/solra/solra_streaming.h
 
-use super::ffi::{CoreSdk, SolraHandle, SolraResult};
+use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
 use std::ffi::{c_char, c_void, CString};
 
 type SolraStreamingLoadSpaceFn = unsafe extern "C" fn(
-    SolraHandle, *const c_char,
+    SolraRawHandle, *const c_char,
     Option<unsafe extern "C" fn(f32, *const c_char, *mut c_void)>,
     *mut c_void,
 ) -> i32;
-type SolraStreamingCancelFn = unsafe extern "C" fn(SolraHandle) -> i32;
-type SolraStreamingGetCacheSizeFn = unsafe extern "C" fn(SolraHandle, *mut usize) -> i32;
+type SolraStreamingCancelFn = unsafe extern "C" fn(SolraRawHandle) -> i32;
+type SolraStreamingGetCacheSizeFn = unsafe extern "C" fn(SolraRawHandle, *mut usize) -> i32;
 
 /// 加载进度回调
 pub type ProgressCallback = Box<dyn Fn(f32, &str) + Send + 'static>;
@@ -44,9 +44,9 @@ pub fn load_space(
 
     let result = unsafe {
         let func: SolraStreamingLoadSpaceFn = std::mem::transmute(
-            sdk.lib.get(b"solra_streaming_load_space").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraStreamingLoadSpaceFn>(b"solra_streaming_load_space")?
         );
-        func(handle, space_id_c.as_ptr(), Some(trampoline), user_data)
+        func(handle.as_ptr(), space_id_c.as_ptr(), Some(trampoline), user_data)
     };
 
     unsafe {
@@ -68,9 +68,9 @@ pub fn cancel() -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraStreamingCancelFn = std::mem::transmute(
-            sdk.lib.get(b"solra_streaming_cancel").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraStreamingCancelFn>(b"solra_streaming_cancel")?
         );
-        func(handle)
+        func(handle.as_ptr())
     };
 
     if result != SolraResult::Success as i32 {
@@ -89,9 +89,9 @@ pub fn get_cache_size() -> Result<usize, String> {
     let mut size: usize = 0;
     let result = unsafe {
         let func: SolraStreamingGetCacheSizeFn = std::mem::transmute(
-            sdk.lib.get(b"solra_streaming_get_cache_size").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraStreamingGetCacheSizeFn>(b"solra_streaming_get_cache_size")?
         );
-        func(handle, &mut size)
+        func(handle.as_ptr(), &mut size)
     };
 
     if result != SolraResult::Success as i32 {

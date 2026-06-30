@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useRouter } from 'vue-router'
+import { invoke } from '@tauri-apps/api/core'
+import api from '@/api'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -9,6 +11,7 @@ const router = useRouter()
 const profile = authStore.user
 const displayName = ref(profile?.displayName || '')
 const editing = ref(false)
+const saving = ref(false)
 
 function handleLogout() {
   authStore.logout()
@@ -17,11 +20,40 @@ function handleLogout() {
 
 function toggleEdit() {
   editing.value = !editing.value
+  if (editing.value) {
+    displayName.value = profile?.displayName || ''
+  }
 }
 
-function saveProfile() {
-  // TODO: 调用 API 保存个人资料
-  editing.value = false
+async function saveProfile() {
+  if (!displayName.value.trim()) return
+  saving.value = true
+
+  try {
+    // 优先使用 HTTP API
+    const res = await api.post('/api/auth/v1/profile', {
+      displayName: displayName.value.trim(),
+    }) as any
+
+    if (authStore.user) {
+      authStore.user.displayName = res.displayName || displayName.value.trim()
+    }
+  } catch {
+    // 回退到 Tauri IPC
+    try {
+      await invoke('update_profile', {
+        request: { display_name: displayName.value.trim() },
+      })
+      if (authStore.user) {
+        authStore.user.displayName = displayName.value.trim()
+      }
+    } catch (e: any) {
+      console.error('保存失败:', e)
+    }
+  } finally {
+    saving.value = false
+    editing.value = false
+  }
 }
 </script>
 

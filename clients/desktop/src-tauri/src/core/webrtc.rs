@@ -1,12 +1,12 @@
 // WebRTC 引擎 FFI 桥接
 // 对应 core/include/solra/solra_webrtc.h
 
-use super::ffi::{CoreSdk, SolraHandle, SolraResult};
+use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
 use std::ffi::{c_char, CString};
 
-type SolraWebrtcConnectFn = unsafe extern "C" fn(SolraHandle, *const c_char, *const c_char) -> i32;
-type SolraWebrtcSendDataFn = unsafe extern "C" fn(SolraHandle, *const u8, usize) -> i32;
-type SolraWebrtcDisconnectFn = unsafe extern "C" fn(SolraHandle) -> i32;
+type SolraWebrtcConnectFn = unsafe extern "C" fn(SolraRawHandle, *const c_char, *const c_char) -> i32;
+type SolraWebrtcSendDataFn = unsafe extern "C" fn(SolraRawHandle, *const u8, usize) -> i32;
+type SolraWebrtcDisconnectFn = unsafe extern "C" fn(SolraRawHandle) -> i32;
 
 /// 连接到 WebRTC 房间
 pub fn connect(room_id: &str, token: &str) -> Result<(), String> {
@@ -19,9 +19,9 @@ pub fn connect(room_id: &str, token: &str) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraWebrtcConnectFn = std::mem::transmute(
-            sdk.lib.get(b"solra_webrtc_connect").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraWebrtcConnectFn>(b"solra_webrtc_connect")?
         );
-        func(handle, room_c.as_ptr(), token_c.as_ptr())
+        func(handle.as_ptr(), room_c.as_ptr(), token_c.as_ptr())
     };
 
     if result != SolraResult::Success as i32 {
@@ -40,9 +40,9 @@ pub fn send_data(data: &[u8]) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraWebrtcSendDataFn = std::mem::transmute(
-            sdk.lib.get(b"solra_webrtc_send_data").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraWebrtcSendDataFn>(b"solra_webrtc_send_data")?
         );
-        func(handle, data.as_ptr(), data.len())
+        func(handle.as_ptr(), data.as_ptr(), data.len())
     };
 
     if result != SolraResult::Success as i32 {
@@ -60,9 +60,9 @@ pub fn disconnect() -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraWebrtcDisconnectFn = std::mem::transmute(
-            sdk.lib.get(b"solra_webrtc_disconnect").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraWebrtcDisconnectFn>(b"solra_webrtc_disconnect")?
         );
-        func(handle)
+        func(handle.as_ptr())
     };
 
     if result != SolraResult::Success as i32 {

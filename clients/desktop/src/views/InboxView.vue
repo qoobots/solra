@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import api from '@/api'
 
 interface Message {
   id: string
@@ -14,6 +16,54 @@ interface Message {
 const messages = ref<Message[]>([])
 const activeTab = ref<'all' | 'unread'>('all')
 const loading = ref(false)
+
+async function fetchMessages(tab: string) {
+  loading.value = true
+  try {
+    // 优先 HTTP API
+    const params: Record<string, string> = {}
+    if (tab === 'unread') params.tab = 'unread'
+    const res = await api.get('/api/msg/v1/messages', { params }) as any
+    const data = (res.messages || res.data || []).map((m: any) => ({
+      id: m.messageId || m.id || '',
+      type: (m.type as 'system' | 'user' | 'mention') || 'system',
+      title: m.title || '',
+      content: m.content || '',
+      sender: m.sender || '系统',
+      timestamp: m.timestamp || m.createdAt || '',
+      read: m.read ?? false,
+    }))
+    messages.value = data
+  } catch {
+    // 回退到 Tauri IPC
+    try {
+      const t = activeTab.value !== 'all' ? activeTab.value : undefined
+      const data = await invoke<any[]>('get_messages', { tab: t })
+      messages.value = data.map((m: any) => ({
+        id: m.id,
+        type: (m.msg_type as 'system' | 'user' | 'mention') || 'system',
+        title: m.title,
+        content: m.content,
+        sender: m.sender,
+        timestamp: m.timestamp,
+        read: m.read,
+      }))
+    } catch (e) {
+      console.error('加载消息失败:', e)
+      messages.value = []
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(activeTab, (tab) => {
+  fetchMessages(tab)
+})
+
+onMounted(() => {
+  fetchMessages(activeTab.value)
+})
 </script>
 
 <template>

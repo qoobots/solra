@@ -1,12 +1,12 @@
 // 动画系统 FFI 桥接
 // 对应 core/include/solra/solra_animation.h
 
-use super::ffi::{CoreSdk, SolraHandle, SolraResult};
+use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
 use std::ffi::{c_char, CString};
 
-type SolraAnimationPlayFn = unsafe extern "C" fn(SolraHandle, *const c_char, *const c_char, f32) -> i32;
-type SolraAnimationStopFn = unsafe extern "C" fn(SolraHandle, *const c_char) -> i32;
-type SolraAnimationSetBlendShapeFn = unsafe extern "C" fn(SolraHandle, *const c_char, *const f32, i32) -> i32;
+type SolraAnimationPlayFn = unsafe extern "C" fn(SolraRawHandle, *const c_char, *const c_char, f32) -> i32;
+type SolraAnimationStopFn = unsafe extern "C" fn(SolraRawHandle, *const c_char) -> i32;
+type SolraAnimationSetBlendShapeFn = unsafe extern "C" fn(SolraRawHandle, *const c_char, *const f32, i32) -> i32;
 
 /// 播放动画
 pub fn play(avatar_id: &str, animation_name: &str, speed: f32) -> Result<(), String> {
@@ -19,9 +19,9 @@ pub fn play(avatar_id: &str, animation_name: &str, speed: f32) -> Result<(), Str
 
     let result = unsafe {
         let func: SolraAnimationPlayFn = std::mem::transmute(
-            sdk.lib.get(b"solra_animation_play").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraAnimationPlayFn>(b"solra_animation_play")?
         );
-        func(handle, avatar_c.as_ptr(), anim_c.as_ptr(), speed)
+        func(handle.as_ptr(), avatar_c.as_ptr(), anim_c.as_ptr(), speed)
     };
 
     if result != SolraResult::Success as i32 {
@@ -41,9 +41,9 @@ pub fn stop(avatar_id: &str) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraAnimationStopFn = std::mem::transmute(
-            sdk.lib.get(b"solra_animation_stop").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraAnimationStopFn>(b"solra_animation_stop")?
         );
-        func(handle, avatar_c.as_ptr())
+        func(handle.as_ptr(), avatar_c.as_ptr())
     };
 
     if result != SolraResult::Success as i32 {
@@ -63,9 +63,9 @@ pub fn set_blend_shape(avatar_id: &str, weights: &[f32]) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraAnimationSetBlendShapeFn = std::mem::transmute(
-            sdk.lib.get(b"solra_animation_set_blend_shape").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraAnimationSetBlendShapeFn>(b"solra_animation_set_blend_shape")?
         );
-        func(handle, avatar_c.as_ptr(), weights.as_ptr(), weights.len() as i32)
+        func(handle.as_ptr(), avatar_c.as_ptr(), weights.as_ptr(), weights.len() as i32)
     };
 
     if result != SolraResult::Success as i32 {

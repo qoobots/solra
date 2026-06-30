@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import api from '@/api'
 
 interface LeaderEntry {
   rank: number
@@ -19,6 +21,49 @@ const periods = [
   { key: 'weekly' as const, label: '周榜' },
   { key: 'monthly' as const, label: '月榜' },
 ]
+
+async function fetchLeaderboard(p: string) {
+  loading.value = true
+  try {
+    // 优先 HTTP API
+    const res = await api.get('/api/spc/v1/leaderboard', { params: { period: p } }) as any
+    const data = (res.entries || res.data || []).map((e: any, i: number) => ({
+      rank: e.rank || (i + 1),
+      spaceId: e.spaceId || e.id || '',
+      name: e.title || e.name || '',
+      author: e.author || e.creatorName || '',
+      score: e.score || 0,
+      trend: (e.trend as 'up' | 'down' | 'same') || 'same',
+    }))
+    entries.value = data
+  } catch {
+    // 回退到 Tauri IPC
+    try {
+      const data = await invoke<any[]>('get_leaderboard', { period: p })
+      entries.value = data.map((e: any) => ({
+        rank: e.rank,
+        spaceId: e.space_id,
+        name: e.name,
+        author: e.author,
+        score: e.score,
+        trend: e.trend as 'up' | 'down' | 'same',
+      }))
+    } catch (e) {
+      console.error('加载排行榜失败:', e)
+      entries.value = []
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(period, (p) => {
+  fetchLeaderboard(p)
+})
+
+onMounted(() => {
+  fetchLeaderboard(period.value)
+})
 </script>
 
 <template>

@@ -1,16 +1,16 @@
 // 端侧推理引擎 FFI 桥接
 // 对应 core/include/solra/solra_inference.h
 
-use super::ffi::{CoreSdk, SolraHandle, SolraResult};
+use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
 use std::ffi::{c_char, c_void, CString};
 
-type SolraInferenceLoadModelFn = unsafe extern "C" fn(SolraHandle, *const c_char) -> i32;
+type SolraInferenceLoadModelFn = unsafe extern "C" fn(SolraRawHandle, *const c_char) -> i32;
 type SolraInferenceSendMessageFn = unsafe extern "C" fn(
-    SolraHandle, *const c_char, *const c_char,
+    SolraRawHandle, *const c_char, *const c_char,
     Option<unsafe extern "C" fn(*const c_char, *mut c_void)>,
     *mut c_void,
 ) -> i32;
-type SolraInferenceStopFn = unsafe extern "C" fn(SolraHandle) -> i32;
+type SolraInferenceStopFn = unsafe extern "C" fn(SolraRawHandle) -> i32;
 
 /// 推理回调类型（从 C 回调转为 Rust 闭包）
 pub type InferenceCallback = Box<dyn Fn(&str) + Send + 'static>;
@@ -25,9 +25,9 @@ pub fn load_model(model_path: &str) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraInferenceLoadModelFn = std::mem::transmute(
-            sdk.lib.get(b"solra_inference_load_model").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraInferenceLoadModelFn>(b"solra_inference_load_model")?
         );
-        func(handle, path_c.as_ptr())
+        func(handle.as_ptr(), path_c.as_ptr())
     };
 
     if result != SolraResult::Success as i32 {
@@ -65,10 +65,10 @@ pub fn send_message(
 
     let result = unsafe {
         let func: SolraInferenceSendMessageFn = std::mem::transmute(
-            sdk.lib.get(b"solra_inference_send_message").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraInferenceSendMessageFn>(b"solra_inference_send_message")?
         );
         func(
-            handle,
+            handle.as_ptr(),
             conv_id_c.as_ptr(),
             msg_c.as_ptr(),
             Some(trampoline),
@@ -96,9 +96,9 @@ pub fn stop() -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraInferenceStopFn = std::mem::transmute(
-            sdk.lib.get(b"solra_inference_stop").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraInferenceStopFn>(b"solra_inference_stop")?
         );
-        func(handle)
+        func(handle.as_ptr())
     };
 
     if result != SolraResult::Success as i32 {

@@ -10,7 +10,6 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "title": "索拉 Solra",
     "windows": [
       {
         "title": "索拉 Solra — 发现空间",
@@ -47,9 +46,6 @@
   "plugins": {
     "shell": {
       "open": true
-    },
-    "notification": {
-      "all": true
     }
   }
 }

@@ -1,7 +1,7 @@
 // 渲染引擎 FFI 桥接
 // 对应 core/include/solra/solra_render.h
 
-use super::ffi::{CoreSdk, SolraHandle, SolraResult};
+use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
 use std::ffi::{c_char, c_float, c_int, CString};
 
 /// 渲染后端类型
@@ -42,11 +42,11 @@ impl Default for CameraConfig {
     }
 }
 
-type SolraRenderCreateSceneFn = unsafe extern "C" fn(SolraHandle, *const c_char) -> i32;
-type SolraRenderUpdateFn = unsafe extern "C" fn(SolraHandle, c_float) -> i32;
-type SolraRenderGetFpsFn = unsafe extern "C" fn(SolraHandle, *mut c_float) -> i32;
-type SolraRenderSetCameraFn = unsafe extern "C" fn(SolraHandle, *const CameraConfig) -> i32;
-type SolraRenderResizeFn = unsafe extern "C" fn(SolraHandle, c_int, c_int) -> i32;
+type SolraRenderCreateSceneFn = unsafe extern "C" fn(SolraRawHandle, *const c_char) -> i32;
+type SolraRenderUpdateFn = unsafe extern "C" fn(SolraRawHandle, c_float) -> i32;
+type SolraRenderGetFpsFn = unsafe extern "C" fn(SolraRawHandle, *mut c_float) -> i32;
+type SolraRenderSetCameraFn = unsafe extern "C" fn(SolraRawHandle, *const CameraConfig) -> i32;
+type SolraRenderResizeFn = unsafe extern "C" fn(SolraRawHandle, c_int, c_int) -> i32;
 
 /// 创建 3D 场景
 pub fn create_scene(scene_id: &str) -> Result<(), String> {
@@ -58,9 +58,9 @@ pub fn create_scene(scene_id: &str) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraRenderCreateSceneFn = std::mem::transmute(
-            sdk.lib.get(b"solra_render_create_scene").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraRenderCreateSceneFn>(b"solra_render_create_scene")?
         );
-        func(handle, scene_id_c.as_ptr())
+        func(handle.as_ptr(), scene_id_c.as_ptr())
     };
 
     if result != SolraResult::Success as i32 {
@@ -78,9 +78,9 @@ pub fn update(delta_time: f32) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraRenderUpdateFn = std::mem::transmute(
-            sdk.lib.get(b"solra_render_update").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraRenderUpdateFn>(b"solra_render_update")?
         );
-        func(handle, delta_time)
+        func(handle.as_ptr(), delta_time)
     };
 
     if result != SolraResult::Success as i32 {
@@ -99,9 +99,9 @@ pub fn get_fps() -> Result<f32, String> {
     let mut fps: f32 = 0.0;
     let result = unsafe {
         let func: SolraRenderGetFpsFn = std::mem::transmute(
-            sdk.lib.get(b"solra_render_get_fps").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraRenderGetFpsFn>(b"solra_render_get_fps")?
         );
-        func(handle, &mut fps)
+        func(handle.as_ptr(), &mut fps)
     };
 
     if result != SolraResult::Success as i32 {
@@ -119,9 +119,9 @@ pub fn set_camera(camera: &CameraConfig) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraRenderSetCameraFn = std::mem::transmute(
-            sdk.lib.get(b"solra_render_set_camera").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraRenderSetCameraFn>(b"solra_render_set_camera")?
         );
-        func(handle, camera)
+        func(handle.as_ptr(), camera)
     };
 
     if result != SolraResult::Success as i32 {
@@ -139,9 +139,9 @@ pub fn resize(width: i32, height: i32) -> Result<(), String> {
 
     let result = unsafe {
         let func: SolraRenderResizeFn = std::mem::transmute(
-            sdk.lib.get(b"solra_render_resize").map_err(|e| format!("{}", e))?
+            sdk.get_symbol::<SolraRenderResizeFn>(b"solra_render_resize")?
         );
-        func(handle, width, height)
+        func(handle.as_ptr(), width, height)
     };
 
     if result != SolraResult::Success as i32 {

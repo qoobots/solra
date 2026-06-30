@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { invoke } from '@tauri-apps/api/core'
+import api from '@/api'
 
 const router = useRouter()
 
@@ -9,6 +11,7 @@ const description = ref('')
 const category = ref('social')
 const isPublic = ref(true)
 const loading = ref(false)
+const errorMsg = ref('')
 
 const categories = [
   { value: 'social', label: '社交' },
@@ -21,13 +24,43 @@ const categories = [
 async function handleCreate() {
   if (!spaceName.value.trim()) return
   loading.value = true
+  errorMsg.value = ''
+
   try {
-    // TODO: 调用 API 创建空间
-    setTimeout(() => {
-      loading.value = false
+    // 优先使用 HTTP API 创建空间
+    const res = await api.post('/api/spc/v1/spaces', {
+      title: spaceName.value.trim(),
+      description: description.value.trim(),
+      category: category.value,
+      visibility: isPublic.value ? 'PUBLIC' : 'PRIVATE',
+    }) as any
+
+    const spaceId = res.spaceId || res.id || ''
+    if (spaceId) {
+      router.push(`/spaces/${spaceId}`)
+    } else {
       router.push('/')
-    }, 1500)
+    }
   } catch {
+    // HTTP API 不可用时回退到 Tauri IPC
+    try {
+      const res = await invoke<{ id: string; name: string }>('create_space', {
+        request: {
+          name: spaceName.value.trim(),
+          description: description.value.trim(),
+          category: category.value,
+          is_public: isPublic.value,
+        },
+      })
+      if (res.id) {
+        router.push(`/spaces/${res.id}`)
+      } else {
+        router.push('/')
+      }
+    } catch (e: any) {
+      errorMsg.value = typeof e === 'string' ? e : (e?.message || '创建失败，请稍后重试')
+    }
+  } finally {
     loading.value = false
   }
 }
@@ -70,6 +103,10 @@ async function handleCreate() {
 
         <el-form-item label="可见性">
           <el-switch v-model="isPublic" active-text="公开" inactive-text="私有" />
+        </el-form-item>
+
+        <el-form-item v-if="errorMsg">
+          <div class="error-msg">{{ errorMsg }}</div>
         </el-form-item>
 
         <el-form-item>
@@ -121,5 +158,15 @@ async function handleCreate() {
   background: var(--solra-bg-secondary, #161b22);
   border: 1px solid var(--solra-border, #30363d);
   border-radius: 12px;
+}
+
+.error-msg {
+  color: #f85149;
+  font-size: 13px;
+  padding: 8px 12px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  border-radius: 6px;
+  width: 100%;
 }
 </style>
