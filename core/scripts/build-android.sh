@@ -29,8 +29,20 @@ if [ -z "${ANDROID_NDK_HOME:-}" ]; then
   exit 1
 fi
 
+# Setup vcpkg if available
+VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg}"
+if [ -f "${VCPKG_ROOT}/vcpkg" ]; then
+  echo "Installing vcpkg dependencies (arm64-android)..."
+  cd "${CORE_DIR}"
+  "${VCPKG_ROOT}/vcpkg" install --triplet arm64-android --vcpkg-root "${VCPKG_ROOT}" --x-manifest-root=. --x-install-root="${VCPKG_ROOT}/installed"
+fi
+
 # Configure
 echo "Configuring CMake (Android ${ANDROID_ABI})..."
+VCPKG_TOOLCHAIN_ARGS=""
+if [ -f "${VCPKG_ROOT}/vcpkg" ]; then
+  VCPKG_TOOLCHAIN_ARGS="-DVCPKG_TARGET_TRIPLET=arm64-android -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/toolchains/android.cmake"
+fi
 cmake -B "${BUILD_DIR}" \
   -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
@@ -38,6 +50,7 @@ cmake -B "${BUILD_DIR}" \
   -DANDROID_PLATFORM="android-${ANDROID_API}" \
   -DANDROID_STL=c++_shared \
   -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+  ${VCPKG_TOOLCHAIN_ARGS} \
   -DSOLRA_BUILD_RENDER=ON \
   -DSOLRA_BUILD_INFERENCE=ON \
   -DSOLRA_BUILD_STREAMING=ON \

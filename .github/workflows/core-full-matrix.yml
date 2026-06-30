@@ -84,13 +84,15 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
           $HOME/vcpkg/bootstrap-vcpkg.sh
           cd core
-          $HOME/vcpkg/vcpkg install --triplet arm64-ios --vcpkg-root $HOME/vcpkg
+          $HOME/vcpkg/vcpkg install --triplet arm64-ios --vcpkg-root $HOME/vcpkg --x-manifest-root=. --x-install-root=$HOME/vcpkg/installed
 
       - name: Configure (iOS arm64)
         run: |
           cmake -B build/ios-${{ matrix.config }} \
             -G Xcode \
             -DCMAKE_TOOLCHAIN_FILE=core/cmake/toolchains/ios.toolchain.cmake \
+            -DVCPKG_TARGET_TRIPLET=arm64-ios \
+            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/toolchains/ios.cmake \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
@@ -108,6 +110,8 @@ jobs:
           cmake -B build/ios-simulator-${{ matrix.config }} \
             -G Xcode \
             -DCMAKE_TOOLCHAIN_FILE=core/cmake/toolchains/ios.toolchain.cmake \
+            -DVCPKG_TARGET_TRIPLET=arm64-ios \
+            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/toolchains/ios.cmake \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphonesimulator \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
@@ -165,7 +169,7 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
           $HOME/vcpkg/bootstrap-vcpkg.sh
           cd core
-          $HOME/vcpkg/vcpkg install --triplet arm64-android --vcpkg-root $HOME/vcpkg
+          $HOME/vcpkg/vcpkg install --triplet arm64-android --vcpkg-root $HOME/vcpkg --x-manifest-root=. --x-install-root=$HOME/vcpkg/installed
 
       - name: Configure (Android ${{ matrix.abi }})
         run: |
@@ -173,6 +177,8 @@ jobs:
           cmake -B build/android-${{ matrix.abi }}-${{ matrix.config }} \
             -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DVCPKG_TARGET_TRIPLET=arm64-android \
+            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/toolchains/android.cmake \
             -DANDROID_ABI=${{ matrix.abi }} \
             -DANDROID_PLATFORM=android-26 \
             -DANDROID_STL=c++_shared \
@@ -239,7 +245,7 @@ jobs:
       - name: Install vcpkg dependencies
         run: |
           cd core
-          $env:USERPROFILE/vcpkg/vcpkg install --triplet x64-windows --vcpkg-root $env:USERPROFILE/vcpkg
+          $env:USERPROFILE/vcpkg/vcpkg install --triplet x64-windows --vcpkg-root $env:USERPROFILE/vcpkg --x-manifest-root=. --x-install-root=$env:USERPROFILE/vcpkg/installed
 
       - name: Configure (Windows x64)
         run: |
@@ -299,7 +305,7 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
           $HOME/vcpkg/bootstrap-vcpkg.sh
           cd core
-          $HOME/vcpkg/vcpkg install --triplet arm64-osx --vcpkg-root $HOME/vcpkg
+          $HOME/vcpkg/vcpkg install --triplet arm64-osx --vcpkg-root $HOME/vcpkg --x-manifest-root=. --x-install-root=$HOME/vcpkg/installed
 
       - name: Configure (macOS ${{ matrix.arch }})
         run: |

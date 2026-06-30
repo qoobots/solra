@@ -41,8 +41,7 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
-          cd core
-          $HOME/vcpkg/vcpkg install --triplet x64-linux --vcpkg-root $HOME/vcpkg
+          $HOME/vcpkg/vcpkg install --triplet x64-linux --vcpkg-root $HOME/vcpkg --x-manifest-root=core --x-install-root=$HOME/vcpkg/installed
 
       - name: Configure CMake
         run: |
@@ -74,7 +73,7 @@ jobs:
       - name: Install vcpkg dependencies
         run: |
           cd core
-          $HOME/vcpkg/vcpkg install --triplet arm64-osx --vcpkg-root $HOME/vcpkg
+          $HOME/vcpkg/vcpkg install --triplet arm64-osx --vcpkg-root $HOME/vcpkg --x-manifest-root=. --x-install-root=$HOME/vcpkg/installed
 
       - name: Configure CMake
         run: |
@@ -106,7 +105,7 @@ jobs:
       - name: Install vcpkg dependencies
         run: |
           cd core
-          $env:USERPROFILE/vcpkg/vcpkg install --triplet x64-windows --vcpkg-root $env:USERPROFILE/vcpkg
+          $env:USERPROFILE/vcpkg/vcpkg install --triplet x64-windows --vcpkg-root $env:USERPROFILE/vcpkg --x-manifest-root=. --x-install-root=$env:USERPROFILE/vcpkg/installed
 
       - name: Configure CMake
         run: |

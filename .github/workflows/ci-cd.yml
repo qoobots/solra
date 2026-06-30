@@ -158,6 +158,12 @@ jobs:
           - { name: saf-service, dockerfile: infra/docker/Dockerfile.java, context: services/saf-service }
           - { name: avt-service, dockerfile: infra/docker/Dockerfile.java, context: services/avt-service }
           - { name: spc-service, dockerfile: infra/docker/Dockerfile.java, context: services/spc-service }
+          - { name: soc-service, dockerfile: infra/docker/Dockerfile.java, context: services/soc-service }
+          - { name: grw-service, dockerfile: infra/docker/Dockerfile.java, context: services/grw-service }
+          - { name: crt-service, dockerfile: infra/docker/Dockerfile.java, context: services/crt-service }
+          - { name: not-service, dockerfile: infra/docker/Dockerfile.java, context: services/not-service }
+          - { name: mon-service, dockerfile: infra/docker/Dockerfile.java, context: services/mon-service }
+          - { name: common, dockerfile: infra/docker/Dockerfile.java, context: services/common }
           - { name: safety-model-service, dockerfile: ai-services/safety-model-service/Dockerfile, context: ai-services/safety-model-service }
 
     steps:
@@ -209,7 +215,7 @@ jobs:
       - name: Update image tags
         run: |
           cd infra/kubernetes/helm/solra-services
-          for svc in auth-service saf-service avt-service spc-service; do
+          for svc in auth-service saf-service avt-service spc-service soc-service grw-service crt-service not-service mon-service; do
             yq -i ".${svc}.image.tag = \"${{ github.sha }}\"" values.yaml
           done
 

@@ -143,7 +143,29 @@ install(DIRECTORY include/solra
   FILES_MATCHING PATTERN "*.h"
 )
 
-install(TARGETS solra_core_core
+# Collect all built targets for installation
+set(SOLRA_INSTALL_TARGETS solra_core_core)
+
+if(TARGET solra_core_render)
+  list(APPEND SOLRA_INSTALL_TARGETS solra_core_render)
+endif()
+if(TARGET solra_core_inference)
+  list(APPEND SOLRA_INSTALL_TARGETS solra_core_inference)
+endif()
+if(TARGET solra_core_streaming)
+  list(APPEND SOLRA_INSTALL_TARGETS solra_core_streaming)
+endif()
+if(TARGET solra_core_webrtc)
+  list(APPEND SOLRA_INSTALL_TARGETS solra_core_webrtc)
+endif()
+if(TARGET solra_core_animation)
+  list(APPEND SOLRA_INSTALL_TARGETS solra_core_animation)
+endif()
+if(TARGET solra_core_platform)
+  list(APPEND SOLRA_INSTALL_TARGETS solra_core_platform)
+endif()
+
+install(TARGETS ${SOLRA_INSTALL_TARGETS}
   EXPORT solraCoreTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
