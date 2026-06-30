@@ -19,6 +19,8 @@ def get_engine() -> TTSEngine:
             model_name=config.MODEL_NAME,
             device=config.DEVICE,
             sample_rate=config.SAMPLE_RATE,
+            model_path=config.MODEL_PATH or None,
+            use_real_models=config.USE_REAL_MODELS,
         )
         _engine.load_model()
     return _engine

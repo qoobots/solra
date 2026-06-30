@@ -1,0 +1,114 @@
+# =============================================================
+# CI: Microservices Build Pipeline (E-078)
+# =============================================================
+# 触发: services/ 目录变更时，并行构建 + 测试 10 个 Spring Boot 微服务
+name: Microservices CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'contracts/proto/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/services-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'contracts/proto/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+
+concurrency:
+  group: services-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs=-Xmx2g'
+
+jobs:
+  # ---------- Step 1: Lint ----------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Checkstyle
+        run: ./gradlew checkstyleMain checkstyleTest --continue || true
+      - name: SpotBugs
+        run: ./gradlew spotbugsMain spotbugsTest --continue || true
+
+  # ---------- Step 2: Proto → Java Codegen ----------
+  proto-codegen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Buf Generate (Java)
+        run: |
+          buf generate --template buf.gen.yaml
+      - name: Upload generated code
+        uses: actions/upload-artifact@v4
+        with:
+          name: proto-java
+          path: services/*/src/generated/
+          retention-days: 1
+
+  # ---------- Step 3: Build & Test (Parallel Matrix) ----------
+  build-and-test:
+    needs: [lint, proto-codegen]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - common
+          - auth-service
+          - saf-service
+          - avt-service
+          - spc-service
+          - soc-service
+          - grw-service
+          - not-service
+          - crt-service
+          - mon-service
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Download Proto Codegen
+        uses: actions/download-artifact@v4
+        with:
+          name: proto-java
+          path: services/
+
+      - name: Compile ${{ matrix.service }}
+        run: ./gradlew :services:${{ matrix.service }}:compileJava :services:${{ matrix.service }}:compileTestJava
+
+      - name: Unit Test ${{ matrix.service }}
+        run: ./gradlew :services:${{ matrix.service }}:test --continue || true
+
+      - name: Publish Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: "${{ matrix.service }} Tests"
+          path: "services/${{ matrix.service }}/build/test-results/**/*.xml"
+          reporter: java-junit

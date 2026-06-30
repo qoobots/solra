@@ -1,10 +1,15 @@
 """TTS Engine: text-to-speech synthesis with multiple voice presets and emotion control.
 
 Supports mock synthesis for development and integration with real TTS models
-like XTTS-v2, CosyVoice 2, or ChatTTS for production.
+like CosyVoice 2 for production. The engine supports dual-mode operation:
+  - Mock mode: sine-wave synthesis with emotion modulation (no GPU required)
+  - Real mode: CosyVoice 2 model via HuggingFace (requires GPU for real-time)
+
+Toggle via environment: TTS_USE_REAL_MODELS=true
 """
 
 import io
+import os
 import wave
 import time
 import struct
@@ -20,10 +25,14 @@ logger = logging.getLogger(__name__)
 
 class TTSEngine:
     """
-    Text-to-Speech synthesis engine with emotion control.
+    Text-to-Speech synthesis engine with emotion control and dual-mode operation.
 
-    Provides mock synthesis with configurable voice presets and emotional styles.
-    Ready for integration with real models (XTTS-v2 / CosyVoice 2).
+    Mock mode: Deterministic sine-wave synthesis with emotion modulation.
+    Real mode: CosyVoice 2 model via HuggingFace Transformers.
+
+    Environment variables:
+        TTS_USE_REAL_MODELS: Set to "true" to load real CosyVoice 2 model.
+        TTS_MODEL_PATH: Path to local model files (default: models/tts/cosyvoice2-0.5b).
     """
 
     # Voice presets: (base_freq, formant_shift, timbre_seed)
@@ -65,33 +74,146 @@ class TTSEngine:
         "large": 2.0,    # 2s
     }
 
+    # Real model mapping for CosyVoice 2
+    REAL_MODEL_MAPPING = {
+        "cosyvoice2-0.5b": "FunAudioLLM/CosyVoice2-0.5B",
+    }
+
     def __init__(
         self,
         model_name: str = "mock-tts",
         device: str = "cpu",
         sample_rate: int = 24000,
+        model_path: Optional[str] = None,
+        use_real_models: bool = False,
     ):
         self.model_name = model_name
         self.device = device
         self.sample_rate = sample_rate
         self._is_loaded = False
         self._real_model = None
+        self._real_processor = None
         self._streaming_enabled = True
+        self._use_real_models = use_real_models
+        self._model_path = model_path or os.environ.get(
+            "TTS_MODEL_PATH",
+            os.path.join(os.path.dirname(__file__), "..", "..", "models", "tts", "cosyvoice2-0.5b"),
+        )
 
     @property
     def is_loaded(self) -> bool:
         return self._is_loaded
 
+    @property
+    def use_real_models(self) -> bool:
+        return self._use_real_models and self._real_model is not None
+
     def load_model(self) -> None:
-        """Load the TTS model into memory."""
+        """Load the TTS model into memory. Attempts real model first if enabled, falls back to mock."""
+        if self._use_real_models:
+            try:
+                self._load_real_model()
+                return
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load real TTS model: {e}. Falling back to mock synthesis."
+                )
+                self._use_real_models = False
+
+        # Mock mode
+        self._is_loaded = True
+        logger.info(f"TTS engine ready (mock mode): {self.model_name}, sr={self.sample_rate}")
+
+    def _load_real_model(self) -> None:
+        """Load CosyVoice 2 real model from local path or HuggingFace Hub."""
+        from pathlib import Path
+
+        model_path = Path(self._model_path)
+
+        # Determine model source: local path or HuggingFace Hub
+        if model_path.exists() and (model_path / "manifest.json").exists():
+            model_id = str(model_path)
+            logger.info(f"Loading CosyVoice 2 from local path: {model_id}")
+        else:
+            # Fall back to HuggingFace Hub
+            model_id = self.REAL_MODEL_MAPPING.get(
+                self.model_name, "FunAudioLLM/CosyVoice2-0.5B"
+            )
+            logger.info(f"Loading CosyVoice 2 from HuggingFace Hub: {model_id}")
+
         try:
-            # Attempt to load real model if available
-            # For now, use mock mode
+            from transformers import AutoModel, AutoProcessor
+
+            self._real_processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+            self._real_model = AutoModel.from_pretrained(
+                model_id,
+                trust_remote_code=True,
+                torch_dtype="auto",
+                device_map=self.device if self.device != "cpu" else None,
+            )
+            if self.device != "cpu":
+                self._real_model = self._real_model.to(self.device)
+            self._real_model.eval()
+
             self._is_loaded = True
-            logger.info(f"TTS engine ready (mock mode): {self.model_name}, sr={self.sample_rate}")
+            self._model_version = f"solra-tts-v1-real-{self.model_name}"
+            logger.info(
+                f"TTS engine ready (real mode): {self.model_name}, "
+                f"device={self.device}, sr={self.sample_rate}"
+            )
+
+        except ImportError as e:
+            raise RuntimeError(
+                f"Real TTS mode requires 'transformers' and 'torch' packages. "
+                f"Install with: pip install transformers torch. Error: {e}"
+            )
         except Exception as e:
-            logger.warning(f"Failed to load TTS model: {e}. Using mock synthesis.")
-            self._is_loaded = True
+            raise RuntimeError(f"Failed to load CosyVoice 2 model: {e}")
+
+    def _synthesize_real(
+        self,
+        text: str,
+        voice: str = "female_warm",
+        speed: float = 1.0,
+        pitch: float = 1.0,
+        emotion: str = "neutral",
+    ) -> bytes:
+        """Synthesize using real CosyVoice 2 model."""
+        if self._real_model is None or self._real_processor is None:
+            raise RuntimeError("Real TTS model not loaded")
+
+        import torch
+
+        voice_desc = self.VOICE_METADATA.get(voice, self.VOICE_METADATA["female_warm"])
+        emotion_desc = self.EMOTION_CONFIGS.get(emotion, self.EMOTION_CONFIGS["neutral"])
+
+        # Build prompt for CosyVoice 2
+        prompt_text = (
+            f"[{voice_desc['name']}][{emotion_desc['name']}][speed={speed:.1f}][pitch={pitch:.1f}]"
+        )
+        full_text = f"{prompt_text} {text}"
+
+        with torch.no_grad():
+            inputs = self._real_processor(text=full_text, return_tensors="pt")
+            if self.device != "cpu":
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+            speech_output = self._real_model.generate(**inputs)
+
+        # Convert tensor output to WAV bytes
+        if isinstance(speech_output, torch.Tensor):
+            audio_np = speech_output.cpu().numpy().squeeze()
+        else:
+            audio_np = np.array(speech_output).squeeze()
+
+        # Ensure float32 [-1, 1] range
+        if audio_np.dtype != np.float32:
+            audio_np = audio_np.astype(np.float32)
+        max_val = np.max(np.abs(audio_np))
+        if max_val > 0:
+            audio_np = audio_np / max_val * 0.9
+
+        return self._numpy_to_wav(audio_np)
 
     def _apply_emotion_to_audio(
         self,
@@ -234,19 +356,24 @@ class TTSEngine:
         """
         start = time.perf_counter()
 
-        original_sr = self.sample_rate
-        self.sample_rate = sample_rate
-        try:
-            wav_bytes = self._generate_mock_audio(text, voice, speed, pitch, emotion)
-            # Calculate duration from WAV
-            with wave.open(io.BytesIO(wav_bytes), 'rb') as wf:
-                duration = wf.getnframes() / wf.getframerate()
-        finally:
-            self.sample_rate = original_sr
+        if self.use_real_models:
+            wav_bytes = self._synthesize_real(text, voice, speed, pitch, emotion)
+        else:
+            original_sr = self.sample_rate
+            self.sample_rate = sample_rate
+            try:
+                wav_bytes = self._generate_mock_audio(text, voice, speed, pitch, emotion)
+            finally:
+                self.sample_rate = original_sr
+
+        # Calculate duration from WAV
+        with wave.open(io.BytesIO(wav_bytes), 'rb') as wf:
+            duration = wf.getnframes() / wf.getframerate()
 
         elapsed = (time.perf_counter() - start) * 1000
+        mode = "real" if self.use_real_models else "mock"
         logger.debug(
-            f"TTS synthesized in {elapsed:.1f}ms, duration={duration:.1f}s, "
+            f"TTS synthesized ({mode}) in {elapsed:.1f}ms, duration={duration:.1f}s, "
             f"voice={voice}, emotion={emotion}"
         )
 
@@ -327,7 +454,9 @@ class TTSEngine:
         ]
         return {
             "model_name": self.model_name,
+            "model_version": getattr(self, "_model_version", "solra-tts-v1-mock"),
             "is_loaded": self._is_loaded,
+            "use_real_models": self.use_real_models,
             "device": self.device,
             "streaming_enabled": self._streaming_enabled,
             "supported_formats": ["wav", "mp3", "pcm", "ogg"],
@@ -337,7 +466,13 @@ class TTSEngine:
         }
 
     def unload_model(self) -> None:
-        """Unload the TTS model."""
+        """Unload the TTS model and free GPU memory."""
+        if self._real_model is not None:
+            import torch
+            self._real_model.cpu()
+            del self._real_model
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
         self._real_model = None
+        self._real_processor = None
         self._is_loaded = False
         logger.info(f"TTS model {self.model_name} unloaded")

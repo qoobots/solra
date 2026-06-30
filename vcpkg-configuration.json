@@ -1,0 +1,6 @@
+{
+  "registries": [],
+  "overlay-triplets": [
+    "core/cmake/triplets"
+  ]
+}

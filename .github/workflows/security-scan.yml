@@ -1,0 +1,110 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 06:00 UTC
+  push:
+    branches: [main]
+    paths:
+      - '**/build.gradle.kts'
+      - '**/pyproject.toml'
+      - '**/CMakeLists.txt'
+      - '**/vcpkg.json'
+      - '**/package.json'
+      - '**/go.mod'
+      - '**/pom.xml'
+      - '**/requirements.txt'
+      - '.github/workflows/security-scan.yml'
+  pull_request:
+    paths:
+      - '**/build.gradle.kts'
+      - '**/pyproject.toml'
+      - '**/CMakeLists.txt'
+      - '**/vcpkg.json'
+      - '**/package.json'
+      - '**/go.mod'
+      - '**/pom.xml'
+      - '**/requirements.txt'
+
+jobs:
+  # ── CodeQL 代码安全分析 ──
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['java-kotlin', 'python', 'cpp']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Setup Java (for Java/Kotlin analysis)
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Auto-build (Python / Java)
+        if: matrix.language != 'cpp'
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Manual build (C++)
+        if: matrix.language == 'cpp'
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake
+          cd core && cmake -B build -DCMAKE_BUILD_TYPE=Release 2>&1 || true
+          cmake --build core/build --config Release 2>&1 || true
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  # ── 依赖扫描 (Trivy) ──
+  dependency-scan:
+    name: Dependency Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+        continue-on-error: true
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  # ── Git 密钥扫描 ──
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          config-path: .gitleaks.toml
+        continue-on-error: true

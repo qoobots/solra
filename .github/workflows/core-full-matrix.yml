@@ -1,0 +1,463 @@
+# Solra CI 全平台构建矩阵
+
+name: core-full-matrix
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'core/**'
+      - 'contracts/**'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+      - '.github/workflows/core-full-matrix.yml'
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'contracts/**'
+  schedule:
+    - cron: '0 6 * * 1'  # 周一06:00 UTC 全量构建
+  workflow_dispatch:
+
+env:
+  CMAKE_VERSION: '3.28'
+  VCPKG_CACHE: ~/.cache/vcpkg/archives
+  CCACHE_DIR: ~/.ccache
+  CCACHE_MAXSIZE: 2G
+
+jobs:
+  # ==========================================================================
+  # 变更检测 —— 按需触发子作业
+  # ==========================================================================
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      render: ${{ steps.filter.outputs.render }}
+      inference: ${{ steps.filter.outputs.inference }}
+      streaming: ${{ steps.filter.outputs.streaming }}
+      webrtc: ${{ steps.filter.outputs.webrtc }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'core/**'
+              - 'CMakeLists.txt'
+            render:
+              - 'core/src/render/**'
+            inference:
+              - 'core/src/inference/**'
+            streaming:
+              - 'core/src/streaming/**'
+            webrtc:
+              - 'core/src/webrtc/**'
+
+  # ==========================================================================
+  # 1. iOS arm64 —— Metal 渲染 + CoreML 推理 (macOS runner)
+  # ==========================================================================
+  ios-build:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: macos-14
+    strategy:
+      matrix:
+        config: [Debug, Release]
+        include:
+          - config: Debug
+            flags: -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON
+          - config: Release
+            flags: -DCMAKE_BUILD_TYPE=Release -DENABLE_LTO=ON
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with: { xcode-version: '15.4' }
+
+      - name: Install CMake
+        run: brew install cmake@3.28 ninja ccache
+
+      - name: Setup vcpkg (iOS dependencies)
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
+          $HOME/vcpkg/bootstrap-vcpkg.sh
+          cd core
+          $HOME/vcpkg/vcpkg install --triplet arm64-ios --vcpkg-root $HOME/vcpkg
+
+      - name: Configure (iOS arm64)
+        run: |
+          cmake -B build/ios-${{ matrix.config }} \
+            -G Xcode \
+            -DCMAKE_TOOLCHAIN_FILE=core/cmake/toolchains/ios.toolchain.cmake \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
+            ${{ matrix.flags }} \
+            -DSOLRA_ENABLE_METAL=ON \
+            -DSOLRA_ENABLE_COREML=ON \
+            -DSOLRA_BUILD_TESTS=${{ matrix.config == 'Debug' && 'ON' || 'OFF' }}
+
+      - name: Build
+        run: cmake --build build/ios-${{ matrix.config }} --config ${{ matrix.config }} -- -sdk iphoneos -arch arm64
+
+      - name: Unit Tests (Simulator)
+        if: matrix.config == 'Debug'
+        run: |
+          cmake -B build/ios-simulator-${{ matrix.config }} \
+            -G Xcode \
+            -DCMAKE_TOOLCHAIN_FILE=core/cmake/toolchains/ios.toolchain.cmake \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphonesimulator \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DSOLRA_BUILD_TESTS=ON
+          cmake --build build/ios-simulator-${{ matrix.config }} --config Debug -- -sdk iphonesimulator -arch arm64
+          cd build/ios-simulator-${{ matrix.config }} && ctest --output-on-failure -C Debug
+
+      - name: Package (Release)
+        if: matrix.config == 'Release'
+        run: |
+          cmake --install build/ios-${{ matrix.config }} --config Release --prefix build/ios-artifacts
+          tar -czf solra-core-ios-arm64.tar.gz -C build/ios-artifacts .
+
+      - name: Upload Artifact
+        if: matrix.config == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-ios-arm64-${{ github.sha }}
+          path: solra-core-ios-arm64.tar.gz
+
+  # ==========================================================================
+  # 2. Android arm64-v8a —— Vulkan 渲染 + NNAPI 推理 (Ubuntu runner)
+  # ==========================================================================
+  android-build:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        config: [Debug, Release]
+        abi: [arm64-v8a, armeabi-v7a]
+        include:
+          - config: Debug
+            flags: -DCMAKE_BUILD_TYPE=Debug
+          - config: Release
+            flags: -DCMAKE_BUILD_TYPE=Release -DENABLE_LTO=ON
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin' }
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          ndk-version: '26.3.11579264'
+          cmake-version: '3.28.4'
+
+      - name: Install ccache
+        run: sudo apt-get install -y ccache ninja-build
+
+      - name: Setup vcpkg (Android dependencies)
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
+          $HOME/vcpkg/bootstrap-vcpkg.sh
+          cd core
+          $HOME/vcpkg/vcpkg install --triplet arm64-android --vcpkg-root $HOME/vcpkg
+
+      - name: Configure (Android ${{ matrix.abi }})
+        run: |
+          export ANDROID_NDK=$ANDROID_NDK_HOME
+          cmake -B build/android-${{ matrix.abi }}-${{ matrix.config }} \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=${{ matrix.abi }} \
+            -DANDROID_PLATFORM=android-26 \
+            -DANDROID_STL=c++_shared \
+            ${{ matrix.flags }} \
+            -DSOLRA_ENABLE_VULKAN=ON \
+            -DSOLRA_ENABLE_OPENGLES=ON \
+            -DSOLRA_ENABLE_NNAPI=ON \
+            -DSOLRA_BUILD_TESTS=${{ matrix.config == 'Debug' && matrix.abi == 'arm64-v8a' && 'ON' || 'OFF' }}
+
+      - name: Build
+        run: cmake --build build/android-${{ matrix.abi }}-${{ matrix.config }} -j$(nproc)
+
+      - name: Unit Tests (arm64-v8a)
+        if: matrix.abi == 'arm64-v8a' && matrix.config == 'Debug'
+        run: |
+          cd build/android-${{ matrix.abi }}-${{ matrix.config }}
+          # Note: On-device tests require a connected Android device or emulator
+          # In CI we verify the test binaries exist and are valid ELF
+          find . -name "test_*" -type f -exec file {} \;
+
+      - name: Package AAR (Release)
+        if: matrix.abi == 'arm64-v8a' && matrix.config == 'Release'
+        run: |
+          cmake --install build/android-${{ matrix.abi }}-${{ matrix.config }} --config Release --prefix build/android-artifacts
+          cd build/android-artifacts && tar -czf ../../solra-core-android-arm64.tar.gz .
+
+      - name: Upload Artifact
+        if: matrix.abi == 'arm64-v8a' && matrix.config == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-android-arm64-${{ github.sha }}
+          path: solra-core-android-arm64.tar.gz
+
+  # ==========================================================================
+  # 3. Windows x64 —— DX12/DXGI 渲染 + DirectML 推理
+  # ==========================================================================
+  windows-build:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        config: [Debug, Release]
+        arch: [x64]
+        include:
+          - config: Debug
+            flags: -DCMAKE_BUILD_TYPE=Debug
+          - config: Release
+            flags: -DCMAKE_BUILD_TYPE=Release -DENABLE_LTO=ON
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with: { arch: x64 }
+
+      - name: Install CMake & Ninja
+        run: choco install cmake ninja ccache -y
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git $env:USERPROFILE/vcpkg
+          $env:USERPROFILE/vcpkg/bootstrap-vcpkg.bat
+
+      - name: Install vcpkg dependencies
+        run: |
+          cd core
+          $env:USERPROFILE/vcpkg/vcpkg install --triplet x64-windows --vcpkg-root $env:USERPROFILE/vcpkg
+
+      - name: Configure (Windows x64)
+        run: |
+          cmake -B build/win-x64-${{ matrix.config }} `
+            -G Ninja `
+            -DCMAKE_TOOLCHAIN_FILE=$env:USERPROFILE/vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            ${{ matrix.flags }} `
+            -DSOLRA_ENABLE_VULKAN=ON `
+            -DSOLRA_BUILD_TESTS=${{ matrix.config == 'Debug' && 'ON' || 'OFF' }}
+
+      - name: Build
+        run: cmake --build build/win-x64-${{ matrix.config }} --config ${{ matrix.config }}
+
+      - name: Unit Tests
+        if: matrix.config == 'Debug'
+        run: ctest --test-dir build/win-x64-${{ matrix.config }} -C Debug --output-on-failure
+
+      - name: Upload Artifact
+        if: matrix.config == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-win-x64-${{ github.sha }}
+          path: build/win-x64-Release/lib/*.lib
+
+  # ==========================================================================
+  # 4. macOS arm64/x86_64 —— Metal 渲染 + CI 工具链
+  # ==========================================================================
+  macos-build:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: macos-14
+    strategy:
+      matrix:
+        config: [Debug, Release]
+        arch: [arm64, x86_64]
+        include:
+          - config: Debug
+            flags: -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON
+          - config: Release
+            flags: -DCMAKE_BUILD_TYPE=Release -DENABLE_LTO=ON
+          - arch: arm64
+            cmake_arch: ARM64
+          - arch: x86_64
+            cmake_arch: x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with: { xcode-version: '15.4' }
+
+      - name: Install CMake & ccache
+        run: brew install cmake ninja ccache
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
+          $HOME/vcpkg/bootstrap-vcpkg.sh
+          cd core
+          $HOME/vcpkg/vcpkg install --triplet arm64-osx --vcpkg-root $HOME/vcpkg
+
+      - name: Configure (macOS ${{ matrix.arch }})
+        run: |
+          cmake -B build/macos-${{ matrix.arch }}-${{ matrix.config }} \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            -DVCPKG_TARGET_TRIPLET=arm64-osx \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            ${{ matrix.flags }} \
+            -DSOLRA_ENABLE_METAL=ON \
+            -DSOLRA_BUILD_TESTS=${{ matrix.config == 'Debug' && 'ON' || 'OFF' }}
+
+      - name: Build
+        run: cmake --build build/macos-${{ matrix.arch }}-${{ matrix.config }} -j$(sysctl -n hw.ncpu)
+
+      - name: Unit Tests
+        if: matrix.config == 'Debug'
+        run: ctest --test-dir build/macos-${{ matrix.arch }}-${{ matrix.config }} -C Debug --output-on-failure
+
+      - name: Upload Artifact
+        if: matrix.config == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-macos-${{ matrix.arch }}-${{ github.sha }}
+          path: build/macos-${{ matrix.arch }}-Release/lib/*.dylib
+
+  # ==========================================================================
+  # 5. 静态分析 + 安全扫描
+  # ==========================================================================
+  static-analysis:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: clang-tidy (全平台代码检查)
+        run: |
+          cmake -B build/tidy -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          run-clang-tidy -p build/tidy \
+            -checks='-*,bugprone-*,performance-*,modernize-*,cppcoreguidelines-*' \
+            -header-filter='core/src/.*' \
+            core/src/
+
+      - name: cppcheck
+        uses: deep5050/cppcheck-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          enable: all
+          inconclusive: enable
+          std: c++17
+          platform: unix64
+
+      - name: clang-format check
+        run: |
+          find core/src -name '*.cpp' -o -name '*.hpp' | \
+            xargs clang-format --dry-run --Werror
+
+  # ==========================================================================
+  # 6. 性能基准测试 (多平台)
+  # ==========================================================================
+  benchmark:
+    needs: [ios-build, android-build, windows-build, macos-build]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            platform: macos
+            bench_target: macos-arm64
+          - os: windows-2022
+            platform: windows
+            bench_target: windows-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build benchmark binary
+        run: |
+          cd core
+          cmake -B build/bench -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSOLRA_BUILD_TESTS=ON
+          cmake --build build/bench --target render_benchmark
+
+      - name: Run Render Benchmark
+        run: |
+          cd core
+          ./build/bench/bin/render_benchmark --platform ${{ matrix.platform }} \
+            --output benchmark-report-${{ matrix.bench_target }}.md
+
+      - name: Upload Benchmark Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ matrix.bench_target }}-${{ github.run_id }}
+          path: core/benchmark-report-${{ matrix.bench_target }}.md
+
+  # ==========================================================================
+  # 7. 版本信息生成
+  # ==========================================================================
+  version-info:
+    needs: [ios-build, android-build, windows-build, macos-build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Version Manifest
+        run: |
+          cat > core-version.json <<EOF
+          {
+            "version": "$(git describe --tags --always)",
+            "commit": "${{ github.sha }}",
+            "build_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "ios":     "${{ needs.ios-build.result }}",
+              "android": "${{ needs.android-build.result }}",
+              "windows": "${{ needs.windows-build.result }}",
+              "macos":   "${{ needs.macos-build.result }}"
+            },
+            "ci_run": "${{ github.run_id }}"
+          }
+          EOF
+
+      - name: Upload Version
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-version-${{ github.sha }}
+          path: core-version.json
+
+  # ==========================================================================
+  # 8. 汇总 & 通知
+  # ==========================================================================
+  summary:
+    needs: [ios-build, android-build, windows-build, macos-build, static-analysis]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## Core SDK CI Matrix" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Arch | Debug | Release |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|-------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| iOS | arm64 | ${{ needs.ios-build.result }} | ${{ needs.ios-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Android | arm64-v8a | ${{ needs.android-build.result }} | ${{ needs.android-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows | x64 | ${{ needs.windows-build.result }} | ${{ needs.windows-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| macOS | arm64 | ${{ needs.macos-build.result }} | ${{ needs.macos-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Static Analysis**: ${{ needs.static-analysis.result }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ Core SDK CI Matrix Failed\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

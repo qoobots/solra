@@ -1,4 +1,4 @@
-"""配置管理。"""
+"""TTS Service configuration management."""
 import os
 
 
@@ -10,6 +10,10 @@ class Config:
     SAMPLE_RATE = int(os.getenv("TTS_SAMPLE_RATE", "24000"))
     STREAMING_ENABLED = os.getenv("TTS_STREAMING", "true").lower() == "true"
     DEFAULT_VOICE = os.getenv("TTS_DEFAULT_VOICE", "female_warm")
+
+    # Real model integration (CosyVoice 2)
+    USE_REAL_MODELS = os.getenv("TTS_USE_REAL_MODELS", "false").lower() == "true"
+    MODEL_PATH = os.getenv("TTS_MODEL_PATH", "")  # Local model path, empty = use HF Hub
 
 
 config = Config()
