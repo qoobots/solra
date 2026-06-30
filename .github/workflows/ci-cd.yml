@@ -6,10 +6,12 @@
 name: Solra CI/CD Pipeline
 
 on:
-  push:
-    branches: [main, dev]
-  pull_request:
-    branches: [main]
+  # TODO: 待项目需要 CI/CD 时启用
+  # push:
+  #   branches: [main, dev]
+  # pull_request:
+  #   branches: [main]
+  workflow_dispatch:  # 仅手动触发
 
 env:
   REGISTRY: ghcr.io
