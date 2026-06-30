@@ -1,8 +1,9 @@
 // 渲染引擎 FFI 桥接
 // 对应 core/include/solra/solra_render.h
+//
+// TODO: 当 C 侧渲染 API 实现后，取消注释并通过 ffi.rs 的全局单例调用
 
-use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
-use std::ffi::{c_char, c_float, c_int, CString};
+use std::ffi::c_float;
 
 /// 渲染后端类型
 #[repr(i32)]
@@ -42,111 +43,27 @@ impl Default for CameraConfig {
     }
 }
 
-type SolraRenderCreateSceneFn = unsafe extern "C" fn(SolraRawHandle, *const c_char) -> i32;
-type SolraRenderUpdateFn = unsafe extern "C" fn(SolraRawHandle, c_float) -> i32;
-type SolraRenderGetFpsFn = unsafe extern "C" fn(SolraRawHandle, *mut c_float) -> i32;
-type SolraRenderSetCameraFn = unsafe extern "C" fn(SolraRawHandle, *const CameraConfig) -> i32;
-type SolraRenderResizeFn = unsafe extern "C" fn(SolraRawHandle, c_int, c_int) -> i32;
-
-/// 创建 3D 场景
-pub fn create_scene(scene_id: &str) -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let scene_id_c = CString::new(scene_id).map_err(|e| format!("无效的场景ID: {}", e))?;
-
-    let result = unsafe {
-        let func: SolraRenderCreateSceneFn = std::mem::transmute(
-            sdk.get_symbol::<SolraRenderCreateSceneFn>(b"solra_render_create_scene")?
-        );
-        func(handle.as_ptr(), scene_id_c.as_ptr())
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("创建场景失败: {}", result));
-    }
-
-    Ok(())
+/// 创建 3D 场景 (stub)
+pub fn create_scene(_scene_id: &str) -> Result<(), String> {
+    Err("render::create_scene 尚未实现".into())
 }
 
-/// 更新渲染帧
-pub fn update(delta_time: f32) -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let result = unsafe {
-        let func: SolraRenderUpdateFn = std::mem::transmute(
-            sdk.get_symbol::<SolraRenderUpdateFn>(b"solra_render_update")?
-        );
-        func(handle.as_ptr(), delta_time)
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("渲染更新失败: {}", result));
-    }
-
-    Ok(())
+/// 更新渲染帧 (stub)
+pub fn update(_delta_time: f32) -> Result<(), String> {
+    Err("render::update 尚未实现".into())
 }
 
-/// 获取当前 FPS
+/// 获取当前 FPS (stub)
 pub fn get_fps() -> Result<f32, String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let mut fps: f32 = 0.0;
-    let result = unsafe {
-        let func: SolraRenderGetFpsFn = std::mem::transmute(
-            sdk.get_symbol::<SolraRenderGetFpsFn>(b"solra_render_get_fps")?
-        );
-        func(handle.as_ptr(), &mut fps)
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("获取FPS失败: {}", result));
-    }
-
-    Ok(fps)
+    Err("render::get_fps 尚未实现".into())
 }
 
-/// 设置相机
-pub fn set_camera(camera: &CameraConfig) -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let result = unsafe {
-        let func: SolraRenderSetCameraFn = std::mem::transmute(
-            sdk.get_symbol::<SolraRenderSetCameraFn>(b"solra_render_set_camera")?
-        );
-        func(handle.as_ptr(), camera)
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("设置相机失败: {}", result));
-    }
-
-    Ok(())
+/// 设置相机 (stub)
+pub fn set_camera(_camera: &CameraConfig) -> Result<(), String> {
+    Err("render::set_camera 尚未实现".into())
 }
 
-/// 调整渲染尺寸
-pub fn resize(width: i32, height: i32) -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let result = unsafe {
-        let func: SolraRenderResizeFn = std::mem::transmute(
-            sdk.get_symbol::<SolraRenderResizeFn>(b"solra_render_resize")?
-        );
-        func(handle.as_ptr(), width, height)
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("调整渲染尺寸失败: {}", result));
-    }
-
-    Ok(())
+/// 调整渲染尺寸 (stub)
+pub fn resize(_width: i32, _height: i32) -> Result<(), String> {
+    Err("render::resize 尚未实现".into())
 }

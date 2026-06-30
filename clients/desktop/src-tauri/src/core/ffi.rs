@@ -42,17 +42,16 @@ impl SolraHandle {
 /// C FFI 兼容的原始句柄类型（用于函数指针签名）
 pub type SolraRawHandle = *mut c_void;
 
-/// Solra 配置结构体（对应 C 的 SolraConfig）
+/// Solra 核心配置结构体（对应 C 的 SolraCoreConfig）
 #[repr(C)]
-pub struct SolraConfig {
-    pub render_backend: RenderBackend,
-    pub inference_backend: InferenceBackend,
-    pub log_level: LogLevel,
-    pub cache_dir: *const c_char,
-    pub data_dir: *const c_char,
-    pub enable_webrtc: bool,
-    pub enable_streaming: bool,
-    pub max_cache_size_mb: c_int,
+pub struct SolraCoreConfig {
+    pub data_path: *const c_char,
+    pub display_width: c_int,
+    pub display_height: c_int,
+    pub target_fps: c_int,
+    pub enable_gpu: c_int,
+    pub log_level: c_int,
+    pub user_data: *mut c_void,
 }
 
 #[repr(i32)]
@@ -81,20 +80,22 @@ pub enum LogLevel {
     Error = 4,
 }
 
-/// Core SDK 函数指针类型定义
-type SolraCoreInitFn = unsafe extern "C" fn(*const SolraConfig, *mut *mut c_void) -> i32;
-type SolraCoreDestroyFn = unsafe extern "C" fn(*mut c_void) -> i32;
+/// Core SDK 函数指针类型定义（适配全局单例 C API）
+type SolraCoreInitFn = unsafe extern "C" fn(*const SolraCoreConfig) -> i32;
+type SolraCoreShutdownFn = unsafe extern "C" fn();
 type SolraCoreVersionFn = unsafe extern "C" fn() -> *const c_char;
 
-/// Core SDK 运行时
+/// Core SDK 运行时（全局单例模式）
 pub struct CoreSdk {
     #[allow(dead_code)]
     lib: libloading::Library,
     pub init: SolraCoreInitFn,
-    pub destroy: SolraCoreDestroyFn,
+    pub shutdown: SolraCoreShutdownFn,
     pub version: SolraCoreVersionFn,
-    pub handle: std::sync::Mutex<Option<SolraHandle>>,
 }
+
+/// 引擎是否已初始化标志
+static CORE_INITIALIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 impl CoreSdk {
     /// 获取全局 Core SDK 实例
@@ -102,9 +103,9 @@ impl CoreSdk {
         CORE_SDK.get()
     }
 
-    /// 检查是否已初始化
+    /// 检查引擎是否已初始化
     pub fn is_initialized() -> bool {
-        CORE_SDK.get().map(|s| s.handle.lock().unwrap().is_some()).unwrap_or(false)
+        CORE_INITIALIZED.load(std::sync::atomic::Ordering::Acquire)
     }
 
     /// 检查 Core SDK 动态库是否已加载（非 Mock 模式）
@@ -127,12 +128,14 @@ pub fn is_core_sdk_loaded() -> bool {
 
 /// 动态加载 Core SDK (libsolracore.dll)
 pub fn load_core_sdk() -> Result<(), String> {
-    // 搜索路径
+    // 搜索路径（按优先级排列）
     let search_paths = vec![
-        "core/libsolracore.dll",
+        "core/libsolracore.dll",                                      // 相对于 src-tauri/
+        "../core/build/windows/bin/libsolracore.dll",                 // 相对于 src-tauri/ 到 core/
+        "../../core/build/windows/bin/libsolracore.dll",              // 相对于 clients/desktop/
         "../../core/build/windows/Release/libsolracore.dll",
         "../../core/build/windows/Debug/libsolracore.dll",
-        "./libsolracore.dll",
+        "./libsolracore.dll",                                         // cwd
     ];
 
     let lib_path = search_paths.iter()
@@ -150,17 +153,16 @@ pub fn load_core_sdk() -> Result<(), String> {
 
         let init: SolraCoreInitFn = *lib.get(b"solra_core_init")
             .map_err(|e| format!("查找 solra_core_init 失败: {}", e))?;
-        let destroy: SolraCoreDestroyFn = *lib.get(b"solra_core_destroy")
-            .map_err(|e| format!("查找 solra_core_destroy 失败: {}", e))?;
-        let version: SolraCoreVersionFn = *lib.get(b"solra_core_version")
-            .map_err(|e| format!("查找 solra_core_version 失败: {}", e))?;
+        let shutdown: SolraCoreShutdownFn = *lib.get(b"solra_core_shutdown")
+            .map_err(|e| format!("查找 solra_core_shutdown 失败: {}", e))?;
+        let version: SolraCoreVersionFn = *lib.get(b"solra_core_get_version")
+            .map_err(|e| format!("查找 solra_core_get_version 失败: {}", e))?;
 
         let sdk = CoreSdk {
             lib,
             init,
-            destroy,
+            shutdown,
             version,
-            handle: std::sync::Mutex::new(None),
         };
 
         // 获取版本信息
@@ -180,42 +182,29 @@ pub fn load_core_sdk() -> Result<(), String> {
     Ok(())
 }
 
-/// 初始化 Core SDK 引擎
-pub fn init_core_engine(config: &SolraConfig) -> Result<SolraHandle, String> {
+/// 初始化 Core SDK 引擎（全局单例，无句柄）
+pub fn init_core_engine(config: &SolraCoreConfig) -> Result<(), String> {
     let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
 
-    let mut handle: *mut c_void = std::ptr::null_mut();
-    let result = unsafe { (sdk.init)(config, &mut handle) };
+    let result = unsafe { (sdk.init)(config) };
 
     if result != SolraResult::Success as i32 {
         return Err(format!("Core SDK 初始化失败: 错误码 {}", result));
     }
 
-    if handle.is_null() {
-        return Err("Core SDK 初始化返回空句柄".to_string());
-    }
-
-    let solra_handle = SolraHandle(handle);
-    *sdk.handle.lock().unwrap() = Some(solra_handle);
+    CORE_INITIALIZED.store(true, std::sync::atomic::Ordering::Release);
     log::info!("Core SDK 引擎初始化成功");
 
-    Ok(SolraHandle(handle))
+    Ok(())
 }
 
-/// 销毁 Core SDK 引擎
-pub fn destroy_core_engine() -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-
-    let mut handle_guard = sdk.handle.lock().unwrap();
-    if let Some(handle) = handle_guard.take() {
-        let result = unsafe { (sdk.destroy)(handle.as_ptr()) };
-        if result != SolraResult::Success as i32 {
-            log::warn!("Core SDK 销毁返回非零: {}", result);
-        }
-        log::info!("Core SDK 引擎已销毁");
+/// 关闭 Core SDK 引擎
+pub fn shutdown_core_engine() {
+    if let Some(sdk) = CoreSdk::get() {
+        unsafe { (sdk.shutdown)() };
+        CORE_INITIALIZED.store(false, std::sync::atomic::Ordering::Release);
+        log::info!("Core SDK 引擎已关闭");
     }
-
-    Ok(())
 }
 
 #[cfg(test)]

@@ -1,102 +1,25 @@
 // 流式加载引擎 FFI 桥接
 // 对应 core/include/solra/solra_streaming.h
-
-use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
-use std::ffi::{c_char, c_void, CString};
-
-type SolraStreamingLoadSpaceFn = unsafe extern "C" fn(
-    SolraRawHandle, *const c_char,
-    Option<unsafe extern "C" fn(f32, *const c_char, *mut c_void)>,
-    *mut c_void,
-) -> i32;
-type SolraStreamingCancelFn = unsafe extern "C" fn(SolraRawHandle) -> i32;
-type SolraStreamingGetCacheSizeFn = unsafe extern "C" fn(SolraRawHandle, *mut usize) -> i32;
+//
+// TODO: 当 C 侧流式加载 API 实现后，取消注释并通过 ffi.rs 的全局单例调用
 
 /// 加载进度回调
 pub type ProgressCallback = Box<dyn Fn(f32, &str) + Send + 'static>;
 
-/// 流式加载空间
+/// 流式加载空间 (stub)
 pub fn load_space(
-    space_id: &str,
-    callback: ProgressCallback,
+    _space_id: &str,
+    _callback: ProgressCallback,
 ) -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let space_id_c = CString::new(space_id).map_err(|e| format!("无效空间ID: {}", e))?;
-
-    let callback_box = Box::new(callback);
-    let user_data = Box::into_raw(callback_box) as *mut c_void;
-
-    unsafe extern "C" fn trampoline(progress: f32, status: *const c_char, user_data: *mut c_void) {
-        if user_data.is_null() {
-            return;
-        }
-        let callback: &mut ProgressCallback = &mut *(user_data as *mut ProgressCallback);
-        let status_str = if status.is_null() {
-            ""
-        } else {
-            std::ffi::CStr::from_ptr(status).to_str().unwrap_or("")
-        };
-        callback(progress, status_str);
-    }
-
-    let result = unsafe {
-        let func: SolraStreamingLoadSpaceFn = std::mem::transmute(
-            sdk.get_symbol::<SolraStreamingLoadSpaceFn>(b"solra_streaming_load_space")?
-        );
-        func(handle.as_ptr(), space_id_c.as_ptr(), Some(trampoline), user_data)
-    };
-
-    unsafe {
-        let _ = Box::from_raw(user_data as *mut ProgressCallback);
-    }
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("加载空间失败: {}", result));
-    }
-
-    Ok(())
+    Err("streaming::load_space 尚未实现".into())
 }
 
-/// 取消流式加载
+/// 取消流式加载 (stub)
 pub fn cancel() -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let result = unsafe {
-        let func: SolraStreamingCancelFn = std::mem::transmute(
-            sdk.get_symbol::<SolraStreamingCancelFn>(b"solra_streaming_cancel")?
-        );
-        func(handle.as_ptr())
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("取消加载失败: {}", result));
-    }
-
-    Ok(())
+    Err("streaming::cancel 尚未实现".into())
 }
 
-/// 获取缓存大小
+/// 获取缓存大小 (stub)
 pub fn get_cache_size() -> Result<usize, String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let mut size: usize = 0;
-    let result = unsafe {
-        let func: SolraStreamingGetCacheSizeFn = std::mem::transmute(
-            sdk.get_symbol::<SolraStreamingGetCacheSizeFn>(b"solra_streaming_get_cache_size")?
-        );
-        func(handle.as_ptr(), &mut size)
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("获取缓存大小失败: {}", result));
-    }
-
-    Ok(size)
+    Err("streaming::get_cache_size 尚未实现".into())
 }

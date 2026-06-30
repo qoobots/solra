@@ -139,6 +139,68 @@ if(SOLRA_BUILD_TESTS)
 endif()
 
 # ============================================================
+# Shared Library (DLL/SO) - Aggregate all static libs into one DLL
+# ============================================================
+add_library(solracore SHARED
+  src/core/core.cpp
+  src/core/version.cpp
+)
+
+# Add SOLRA_BUILD_DLL definition so headers use __declspec(dllexport)
+target_compile_definitions(solracore PRIVATE SOLRA_BUILD_DLL)
+
+# Link all internal static libraries (WHOLE_ARCHIVE to force symbol export)
+set(SOLRACORE_INTERNAL_LIBS solra_core_core solra_core_platform)
+if(TARGET solra_core_render)
+  list(APPEND SOLRACORE_INTERNAL_LIBS solra_core_render)
+endif()
+if(TARGET solra_core_inference)
+  list(APPEND SOLRACORE_INTERNAL_LIBS solra_core_inference)
+endif()
+if(TARGET solra_core_streaming)
+  list(APPEND SOLRACORE_INTERNAL_LIBS solra_core_streaming)
+endif()
+if(TARGET solra_core_webrtc)
+  list(APPEND SOLRACORE_INTERNAL_LIBS solra_core_webrtc)
+endif()
+if(TARGET solra_core_animation)
+  list(APPEND SOLRACORE_INTERNAL_LIBS solra_core_animation)
+endif()
+
+# On Windows (MinGW), use --whole-archive equivalent to export all symbols
+if(WIN32)
+  target_link_options(solracore PRIVATE
+    -Wl,--whole-archive
+  )
+  target_link_libraries(solracore PRIVATE ${SOLRACORE_INTERNAL_LIBS})
+  target_link_options(solracore PRIVATE
+    -Wl,--no-whole-archive
+  )
+else()
+  target_link_libraries(solracore PRIVATE
+    -Wl,--whole-archive ${SOLRACORE_INTERNAL_LIBS} -Wl,--no-whole-archive
+  )
+endif()
+
+# Link external dependencies
+target_link_libraries(solracore PRIVATE
+  spdlog::spdlog
+  nlohmann_json::nlohmann_json
+  glm::glm
+  protobuf::libprotobuf
+  ZLIB::ZLIB
+  OpenSSL::SSL
+  OpenSSL::Crypto
+)
+
+# Set output name to libsolracore
+set_target_properties(solracore PROPERTIES
+  OUTPUT_NAME solracore
+  PREFIX "lib"
+  SUFFIX ".dll"
+)
+
+# ============================================================
 # Install
 # ============================================================
 include(GNUInstallDirs)
@@ -149,7 +211,7 @@ install(DIRECTORY include/solra
 )
 
 # Collect all built targets for installation
-set(SOLRA_INSTALL_TARGETS solra_core_core)
+set(SOLRA_INSTALL_TARGETS solracore solra_core_core)
 
 if(TARGET solra_core_render)
   list(APPEND SOLRA_INSTALL_TARGETS solra_core_render)

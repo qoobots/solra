@@ -95,7 +95,7 @@ typedef struct SolraTexture *SolraTextureHandle;
  * @param config Renderer configuration (NULL = sensible defaults).
  * @return 0 on success, negative error code on failure.
  */
-int solra_render_init(const SolraRenderConfig *config);
+SOLRA_API int solra_render_init(const SolraRenderConfig *config);
 
 /**
  * Query GPU device information.
@@ -103,7 +103,7 @@ int solra_render_init(const SolraRenderConfig *config);
  * @param info Non-null pointer to receive GPU info.
  * @return 0 on success.
  */
-int solra_render_get_gpu_info(SolraGPUInfo *info);
+SOLRA_API int solra_render_get_gpu_info(SolraGPUInfo *info);
 
 /**
  * Render one frame.
@@ -113,8 +113,8 @@ int solra_render_get_gpu_info(SolraGPUInfo *info);
  *
  * @return 0 on success.
  */
-int solra_render_begin_frame(void);
-int solra_render_end_frame(void);
+SOLRA_API int solra_render_begin_frame(void);
+SOLRA_API int solra_render_end_frame(void);
 
 /**
  * Resize the render viewport.
@@ -122,12 +122,12 @@ int solra_render_end_frame(void);
  * @param width New width in pixels.
  * @param height New height in pixels.
  */
-void solra_render_resize(int width, int height);
+SOLRA_API void solra_render_resize(int width, int height);
 
 /**
  * Shutdown the rendering subsystem.
  */
-void solra_render_shutdown(void);
+SOLRA_API void solra_render_shutdown(void);
 
 /* ============================================================
  * Scene Management
@@ -138,21 +138,21 @@ void solra_render_shutdown(void);
  *
  * @return Scene handle, or NULL on failure.
  */
-SolraSceneHandle solra_scene_create(void);
+SOLRA_API SolraSceneHandle solra_scene_create(void);
 
 /**
  * Destroy a scene graph and all its nodes.
  *
  * @param scene Scene to destroy.
  */
-void solra_scene_destroy(SolraSceneHandle scene);
+SOLRA_API void solra_scene_destroy(SolraSceneHandle scene);
 
 /**
  * Set the active scene for rendering.
  *
  * @param scene Scene to render. NULL clears the active scene.
  */
-void solra_scene_set_active(SolraSceneHandle scene);
+SOLRA_API void solra_scene_set_active(SolraSceneHandle scene);
 
 /**
  * Create a scene node (empty by default).
@@ -161,7 +161,7 @@ void solra_scene_set_active(SolraSceneHandle scene);
  * @param name Optional node name for debugging.
  * @return Node handle, or NULL on failure.
  */
-SolraSceneNodeHandle solra_scene_node_create(SolraSceneHandle scene, const char *name);
+SOLRA_API SolraSceneNodeHandle solra_scene_node_create(SolraSceneHandle scene, const char *name);
 
 /**
  * Set the local transform of a scene node.
@@ -171,7 +171,7 @@ SolraSceneNodeHandle solra_scene_node_create(SolraSceneHandle scene, const char 
  * @param rotation Local rotation (quaternion).
  * @param scale Local scale (xyz).
  */
-void solra_scene_node_set_transform(
+SOLRA_API void solra_scene_node_set_transform(
   SolraSceneNodeHandle node,
   const SolraVec3 *position,
   const SolraQuat *rotation,
@@ -184,7 +184,7 @@ void solra_scene_node_set_transform(
  * @param node Target node.
  * @param mesh Mesh to attach (can be shared between nodes).
  */
-void solra_scene_node_attach_mesh(SolraSceneNodeHandle node, SolraMeshHandle mesh);
+SOLRA_API void solra_scene_node_attach_mesh(SolraSceneNodeHandle node, SolraMeshHandle mesh);
 
 /**
  * Set a child node under a parent node.
@@ -192,7 +192,7 @@ void solra_scene_node_attach_mesh(SolraSceneNodeHandle node, SolraMeshHandle mes
  * @param parent Parent node.
  * @param child Child node.
  */
-void solra_scene_node_add_child(SolraSceneNodeHandle parent, SolraSceneNodeHandle child);
+SOLRA_API void solra_scene_node_add_child(SolraSceneNodeHandle parent, SolraSceneNodeHandle child);
 
 /* ============================================================
  * Mesh Management
@@ -209,7 +209,7 @@ void solra_scene_node_add_child(SolraSceneNodeHandle parent, SolraSceneNodeHandl
  * @param index_type 16 or 32 bit indices.
  * @return Mesh handle, or NULL on failure.
  */
-SolraMeshHandle solra_mesh_create(
+SOLRA_API SolraMeshHandle solra_mesh_create(
   const void *vertices,
   int vertex_count,
   int vertex_stride,
@@ -221,12 +221,12 @@ SolraMeshHandle solra_mesh_create(
 /**
  * Destroy a mesh.
  */
-void solra_mesh_destroy(SolraMeshHandle mesh);
+SOLRA_API void solra_mesh_destroy(SolraMeshHandle mesh);
 
 /**
  * Get the axis-aligned bounding box of a mesh.
  */
-SolraAABB solra_mesh_get_bounds(SolraMeshHandle mesh);
+SOLRA_API SolraAABB solra_mesh_get_bounds(SolraMeshHandle mesh);
 
 /* ============================================================
  * Material Management
@@ -237,12 +237,12 @@ SolraAABB solra_mesh_get_bounds(SolraMeshHandle mesh);
  *
  * @return Material handle, or NULL on failure.
  */
-SolraMaterialHandle solra_material_create(void);
+SOLRA_API SolraMaterialHandle solra_material_create(void);
 
 /**
  * Set base color factor (albedo) of a material.
  */
-void solra_material_set_base_color(SolraMaterialHandle material, SolraColor color);
+SOLRA_API void solra_material_set_base_color(SolraMaterialHandle material, SolraColor color);
 
 /**
  * Set metallic and roughness factors.
@@ -250,19 +250,19 @@ void solra_material_set_base_color(SolraMaterialHandle material, SolraColor colo
  * @param metallic 0.0 (dielectric) to 1.0 (metallic).
  * @param roughness 0.0 (mirror) to 1.0 (diffuse).
  */
-void solra_material_set_metallic_roughness(SolraMaterialHandle material, float metallic, float roughness);
+SOLRA_API void solra_material_set_metallic_roughness(SolraMaterialHandle material, float metallic, float roughness);
 
 /**
  * Attach a texture to a material slot.
  *
  * Texture slots: "base_color", "normal", "metallic_roughness", "occlusion", "emissive"
  */
-int solra_material_set_texture(SolraMaterialHandle material, const char *slot, SolraTextureHandle texture);
+SOLRA_API int solra_material_set_texture(SolraMaterialHandle material, const char *slot, SolraTextureHandle texture);
 
 /**
  * Destroy a material.
  */
-void solra_material_destroy(SolraMaterialHandle material);
+SOLRA_API void solra_material_destroy(SolraMaterialHandle material);
 
 /* ============================================================
  * Texture Management
@@ -275,17 +275,17 @@ void solra_material_destroy(SolraMaterialHandle material);
  * @param generate_mipmaps Whether to auto-generate mipmap chain.
  * @return Texture handle, or NULL on failure.
  */
-SolraTextureHandle solra_texture_load(const char *path, int generate_mipmaps);
+SOLRA_API SolraTextureHandle solra_texture_load(const char *path, int generate_mipmaps);
 
 /**
  * Destroy a texture and free GPU memory.
  */
-void solra_texture_destroy(SolraTextureHandle texture);
+SOLRA_API void solra_texture_destroy(SolraTextureHandle texture);
 
 /**
  * Get texture dimensions.
  */
-void solra_texture_get_size(SolraTextureHandle texture, int *width, int *height);
+SOLRA_API void solra_texture_get_size(SolraTextureHandle texture, int *width, int *height);
 
 /* ============================================================
  * Shader Compilation Pipeline
@@ -306,7 +306,7 @@ void *solra_shader_compile(const char *source, const char *stage, const char *en
  *
  * @return 0 on success, negative on failure.
  */
-int solra_shader_reload_all(void);
+SOLRA_API int solra_shader_reload_all(void);
 
 #ifdef __cplusplus
 }

@@ -119,7 +119,7 @@ typedef void (*SolraTokenCallback)(const SolraToken *token, int is_final, void *
  * @param config Inference configuration.
  * @return 0 on success, negative error code on failure.
  */
-int solra_inference_init(const SolraInferenceConfig *config);
+SOLRA_API int solra_inference_init(const SolraInferenceConfig *config);
 
 /**
  * Check if a GPU/NPU backend is available on this device.
@@ -127,14 +127,14 @@ int solra_inference_init(const SolraInferenceConfig *config);
  * @param backend The backend to check.
  * @return 1 if available, 0 if not.
  */
-int solra_inference_is_backend_available(SolraInferenceBackend backend);
+SOLRA_API int solra_inference_is_backend_available(SolraInferenceBackend backend);
 
 /**
  * Get the best available backend for this device.
  *
  * @return Best available backend.
  */
-SolraInferenceBackend solra_inference_get_best_backend(void);
+SOLRA_API SolraInferenceBackend solra_inference_get_best_backend(void);
 
 /**
  * Get information about the loaded model.
@@ -142,7 +142,7 @@ SolraInferenceBackend solra_inference_get_best_backend(void);
  * @param info Non-null pointer to receive model info.
  * @return 0 on success.
  */
-int solra_inference_get_model_info(SolraModelInfo *info);
+SOLRA_API int solra_inference_get_model_info(SolraModelInfo *info);
 
 /* ============================================================
  * Inference Pipeline
@@ -158,7 +158,7 @@ int solra_inference_get_model_info(SolraModelInfo *info);
  * @param response_size Size of response buffer in bytes.
  * @return Number of bytes written to response (excluding null), or negative on error.
  */
-int solra_inference_generate(const char *prompt, char *response, size_t response_size);
+SOLRA_API int solra_inference_generate(const char *prompt, char *response, size_t response_size);
 
 /**
  * Generate a response from a prompt (streaming).
@@ -170,7 +170,7 @@ int solra_inference_generate(const char *prompt, char *response, size_t response
  * @param user_data Opaque pointer passed to callback.
  * @return 0 on success, negative on error.
  */
-int solra_inference_generate_stream(
+SOLRA_API int solra_inference_generate_stream(
   const char *prompt,
   SolraTokenCallback callback,
   void *user_data
@@ -179,14 +179,14 @@ int solra_inference_generate_stream(
 /**
  * Cancel an ongoing streaming generation.
  */
-void solra_inference_cancel_stream(void);
+SOLRA_API void solra_inference_cancel_stream(void);
 
 /**
  * Check if streaming generation is in progress.
  *
  * @return 1 if generating, 0 if idle.
  */
-int solra_inference_is_generating(void);
+SOLRA_API int solra_inference_is_generating(void);
 
 /* ============================================================
  * Model Hot-reload (OTA)
@@ -198,7 +198,7 @@ int solra_inference_is_generating(void);
  * @param model_path Path to new GGUF model file.
  * @return 0 on success, negative on error.
  */
-int solra_inference_reload_model(const char *model_path);
+SOLRA_API int solra_inference_reload_model(const char *model_path);
 
 /**
  * Register a callback for model update notifications.
@@ -207,7 +207,7 @@ int solra_inference_reload_model(const char *model_path);
  * @param user_data Opaque pointer.
  */
 typedef void (*SolraModelUpdateCallback)(const char *new_version, const char *changelog, void *user_data);
-void solra_inference_set_update_callback(SolraModelUpdateCallback callback, void *user_data);
+SOLRA_API void solra_inference_set_update_callback(SolraModelUpdateCallback callback, void *user_data);
 
 /* ============================================================
  * Shutdown
@@ -216,7 +216,7 @@ void solra_inference_set_update_callback(SolraModelUpdateCallback callback, void
 /**
  * Shutdown the inference engine. Frees all memory and GPU resources.
  */
-void solra_inference_shutdown(void);
+SOLRA_API void solra_inference_shutdown(void);
 
 #ifdef __cplusplus
 }

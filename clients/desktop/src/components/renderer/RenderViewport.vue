@@ -86,16 +86,19 @@ async function tryInitCoreSdk(width: number, height: number): Promise<boolean> {
       core_sdk_loaded?: boolean
     }>('init_renderer', { width, height })
 
-    // 只有当 Core SDK 真正加载且渲染器初始化成功时才使用原生渲染
-    // Mock 模式返回的 initialized 不代表真正的渲染后端可用
-    if (state.initialized && state.core_sdk_loaded === true) {
+    // 更新 GPU 后端信息（Core SDK 可能已加载但渲染模块尚未实现）
+    if (state.core_sdk_loaded === true) {
+      console.log('[RenderViewport] Core SDK 已加载，版本信息将通过 Tauri IPC 获取')
       rendererStore.fps = state.fps
-      rendererStore.gpuBackend = state.gpu_backend
-      return true
+      // 保留 "Core SDK · OpenGL" 标识，表示 Core 层已就绪
+      rendererStore.gpuBackend = 'Core SDK · OpenGL'
     }
 
-    // Core SDK 未加载 → 降级到 Three.js
-    console.log('[RenderViewport] Core SDK 未加载，使用 Three.js 备选渲染')
+    // 当前阶段：Core SDK 渲染模块（solra_render）尚未完成实现
+    // 暂时总是使用 Three.js 作为视口内渲染后端
+    // 等 render.rs 实现完成后，再将 return true 的条件设为：
+    //   state.initialized && state.core_sdk_loaded === true
+    console.log('[RenderViewport] 使用 Three.js 渲染（Core SDK 渲染模块待实现）')
   } catch {
     console.log('[RenderViewport] Tauri IPC 不可用，使用 Three.js 渲染')
   }
@@ -136,8 +139,10 @@ function initThreeJS(width: number, height: number) {
   createFloatingGeometries()
   createParticleField()
 
-  // 设置 GPU 后端标识
-  rendererStore.gpuBackend = detectGPUInfo()
+  // 设置 GPU 后端标识（优先使用 Core SDK 信息，否则显示 WebGL 检测结果）
+  if (!rendererStore.gpuBackend || rendererStore.gpuBackend === 'Three.js WebGL') {
+    rendererStore.gpuBackend = detectGPUInfo()
+  }
 }
 
 function detectGPUInfo(): string {

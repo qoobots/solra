@@ -92,12 +92,12 @@ typedef struct SolraDownload *SolraDownloadHandle;
  * @param config Streaming configuration (NULL = sensible defaults).
  * @return 0 on success, negative on failure.
  */
-int solra_streaming_init(const SolraStreamingConfig *config);
+SOLRA_API int solra_streaming_init(const SolraStreamingConfig *config);
 
 /**
  * Shutdown the streaming engine. Cancels all pending downloads.
  */
-void solra_streaming_shutdown(void);
+SOLRA_API void solra_streaming_shutdown(void);
 
 /* ============================================================
  * Asset Loading
@@ -114,7 +114,7 @@ void solra_streaming_shutdown(void);
  * @param priority Higher values = load sooner (0 = lowest).
  * @return Download handle for tracking progress, or NULL on error.
  */
-SolraDownloadHandle solra_streaming_load_async(
+SOLRA_API SolraDownloadHandle solra_streaming_load_async(
   const char *asset_id,
   const char *url,
   SolraAssetType type,
@@ -132,7 +132,7 @@ SolraDownloadHandle solra_streaming_load_async(
  * @param timeout_ms Timeout in milliseconds (0 = no timeout).
  * @return Asset handle, or NULL on failure.
  */
-SolraAssetHandle solra_streaming_load_sync(
+SOLRA_API SolraAssetHandle solra_streaming_load_sync(
   const char *asset_id,
   const char *url,
   SolraAssetType type,
@@ -146,19 +146,19 @@ SolraAssetHandle solra_streaming_load_sync(
  * @param info Non-null pointer to receive current info.
  * @return 0 on success.
  */
-int solra_streaming_get_status(SolraDownloadHandle download, SolraAssetInfo *info);
+SOLRA_API int solra_streaming_get_status(SolraDownloadHandle download, SolraAssetInfo *info);
 
 /**
  * Set priority of a queued/downloading asset.
  */
-void solra_streaming_set_priority(SolraDownloadHandle download, int priority);
+SOLRA_API void solra_streaming_set_priority(SolraDownloadHandle download, int priority);
 
 /**
  * Cancel a pending download.
  *
  * @param download Download handle to cancel.
  */
-void solra_streaming_cancel(SolraDownloadHandle download);
+SOLRA_API void solra_streaming_cancel(SolraDownloadHandle download);
 
 /* ============================================================
  * LOD Management
@@ -173,14 +173,14 @@ void solra_streaming_cancel(SolraDownloadHandle download);
  * @param asset_id Asset to adjust.
  * @param lod_level Target LOD level (0 = highest, higher = lower detail).
  */
-void solra_streaming_set_lod(const char *asset_id, int lod_level);
+SOLRA_API void solra_streaming_set_lod(const char *asset_id, int lod_level);
 
 /**
  * Set global LOD bias.
  *
  * @param bias -1.0 (always lowest) to +1.0 (always highest).
  */
-void solra_streaming_set_lod_bias(float bias);
+SOLRA_API void solra_streaming_set_lod_bias(float bias);
 
 /* ============================================================
  * Cache Management
@@ -192,21 +192,21 @@ void solra_streaming_set_lod_bias(float bias);
  * @param asset_id Asset to check.
  * @return 1 if cached, 0 if not.
  */
-int solra_streaming_is_cached(const char *asset_id);
+SOLRA_API int solra_streaming_is_cached(const char *asset_id);
 
 /**
  * Get the current cache size.
  *
  * @return Cache size in bytes.
  */
-size_t solra_streaming_get_cache_size(void);
+SOLRA_API size_t solra_streaming_get_cache_size(void);
 
 /**
  * Clear the local asset cache.
  *
  * @param keep_recent If non-zero, keep assets used in the last N minutes.
  */
-void solra_streaming_clear_cache(int keep_recent);
+SOLRA_API void solra_streaming_clear_cache(int keep_recent);
 
 /**
  * Prefetch a list of assets into cache (low priority, background).
@@ -215,7 +215,7 @@ void solra_streaming_clear_cache(int keep_recent);
  * @param count Number of assets to prefetch.
  * @param urls Parallel array of URLs (same length as asset_ids).
  */
-void solra_streaming_prefetch(const char **asset_ids, const char **urls, int count);
+SOLRA_API void solra_streaming_prefetch(const char **asset_ids, const char **urls, int count);
 
 /* ============================================================
  * Progress Callback
@@ -233,7 +233,7 @@ typedef void (*SolraStreamingProgressCallback)(
   const char *asset_id, float progress, SolraAssetStatus status, void *user_data
 );
 
-void solra_streaming_set_progress_callback(SolraStreamingProgressCallback callback, void *user_data);
+SOLRA_API void solra_streaming_set_progress_callback(SolraStreamingProgressCallback callback, void *user_data);
 
 #ifdef __cplusplus
 }

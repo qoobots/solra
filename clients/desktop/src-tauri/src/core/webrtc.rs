@@ -1,74 +1,19 @@
 // WebRTC 引擎 FFI 桥接
 // 对应 core/include/solra/solra_webrtc.h
+//
+// TODO: 当 C 侧 WebRTC API 实现后，取消注释并通过 ffi.rs 的全局单例调用
 
-use super::ffi::{CoreSdk, SolraRawHandle, SolraResult};
-use std::ffi::{c_char, CString};
-
-type SolraWebrtcConnectFn = unsafe extern "C" fn(SolraRawHandle, *const c_char, *const c_char) -> i32;
-type SolraWebrtcSendDataFn = unsafe extern "C" fn(SolraRawHandle, *const u8, usize) -> i32;
-type SolraWebrtcDisconnectFn = unsafe extern "C" fn(SolraRawHandle) -> i32;
-
-/// 连接到 WebRTC 房间
-pub fn connect(room_id: &str, token: &str) -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let room_c = CString::new(room_id).map_err(|e| format!("无效房间ID: {}", e))?;
-    let token_c = CString::new(token).map_err(|e| format!("无效token: {}", e))?;
-
-    let result = unsafe {
-        let func: SolraWebrtcConnectFn = std::mem::transmute(
-            sdk.get_symbol::<SolraWebrtcConnectFn>(b"solra_webrtc_connect")?
-        );
-        func(handle.as_ptr(), room_c.as_ptr(), token_c.as_ptr())
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("WebRTC连接失败: {}", result));
-    }
-
-    log::info!("WebRTC 已连接到房间: {}", room_id);
-    Ok(())
+/// 连接到 WebRTC 房间 (stub)
+pub fn connect(_room_id: &str, _token: &str) -> Result<(), String> {
+    Err("webrtc::connect 尚未实现".into())
 }
 
-/// 发送数据
-pub fn send_data(data: &[u8]) -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let result = unsafe {
-        let func: SolraWebrtcSendDataFn = std::mem::transmute(
-            sdk.get_symbol::<SolraWebrtcSendDataFn>(b"solra_webrtc_send_data")?
-        );
-        func(handle.as_ptr(), data.as_ptr(), data.len())
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("WebRTC发送数据失败: {}", result));
-    }
-
-    Ok(())
+/// 发送数据 (stub)
+pub fn send_data(_data: &[u8]) -> Result<(), String> {
+    Err("webrtc::send_data 尚未实现".into())
 }
 
-/// 断开 WebRTC 连接
+/// 断开 WebRTC 连接 (stub)
 pub fn disconnect() -> Result<(), String> {
-    let sdk = CoreSdk::get().ok_or("Core SDK 未加载")?;
-    let handle = sdk.handle.lock().unwrap();
-    let handle = handle.ok_or("Core SDK 未初始化")?;
-
-    let result = unsafe {
-        let func: SolraWebrtcDisconnectFn = std::mem::transmute(
-            sdk.get_symbol::<SolraWebrtcDisconnectFn>(b"solra_webrtc_disconnect")?
-        );
-        func(handle.as_ptr())
-    };
-
-    if result != SolraResult::Success as i32 {
-        return Err(format!("WebRTC断开失败: {}", result));
-    }
-
-    log::info!("WebRTC 已断开连接");
-    Ok(())
+    Err("webrtc::disconnect 尚未实现".into())
 }

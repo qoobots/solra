@@ -10,6 +10,7 @@ import { useSpaceStore } from '@/stores/useSpaceStore'
 import { useRendererStore } from '@/stores/useRendererStore'
 import { invoke } from '@tauri-apps/api/core'
 import RenderViewport from '@/components/renderer/RenderViewport.vue'
+import LeftPanel from '@/components/renderer/LeftPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -111,6 +112,9 @@ function goBack() {
         </div>
       </div>
 
+      <!-- 左侧面板 -->
+      <LeftPanel />
+
       <!-- 右侧面板 -->
       <div class="side-panel">
         <div class="panel-section">
@@ -211,6 +215,8 @@ function goBack() {
   align-items: center;
   gap: 16px;
   padding: 8px 16px;
+  padding-left: 296px;  // 为左侧面板留空 (280px + 16px)
+  padding-right: 336px; // 为右侧面板留空 (320px + 16px)
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
   z-index: 10;

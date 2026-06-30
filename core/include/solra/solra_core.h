@@ -69,7 +69,7 @@ typedef struct SolraCoreState {
  * @param config Non-null pointer to initialization config.
  * @return 0 on success, negative error code on failure.
  */
-int solra_core_init(const SolraCoreConfig *config);
+SOLRA_API int solra_core_init(const SolraCoreConfig *config);
 
 /**
  * Start the main engine loop.
@@ -79,24 +79,24 @@ int solra_core_init(const SolraCoreConfig *config);
  *
  * @return 0 on normal shutdown, negative error code on error.
  */
-int solra_core_run(void);
+SOLRA_API int solra_core_run(void);
 
 /**
  * Request the engine loop to stop.
  *
  * Thread-safe. Can be called from any thread.
  */
-void solra_core_stop(void);
+SOLRA_API void solra_core_stop(void);
 
 /**
  * Pause the engine (rendering and simulation halted).
  */
-void solra_core_pause(void);
+SOLRA_API void solra_core_pause(void);
 
 /**
  * Resume a paused engine.
  */
-void solra_core_resume(void);
+SOLRA_API void solra_core_resume(void);
 
 /**
  * Get the current engine state.
@@ -104,21 +104,21 @@ void solra_core_resume(void);
  * @param state Non-null pointer to receive current state.
  * @return 0 on success, negative error code on failure.
  */
-int solra_core_get_state(SolraCoreState *state);
+SOLRA_API int solra_core_get_state(SolraCoreState *state);
 
 /**
  * Shutdown and cleanup the Solra Core SDK.
  *
  * Must be called when done using the SDK. Frees all resources.
  */
-void solra_core_shutdown(void);
+SOLRA_API void solra_core_shutdown(void);
 
 /**
  * Get the SDK version string.
  *
  * @return Null-terminated version string (e.g. "0.1.0").
  */
-const char *solra_core_get_version(void);
+SOLRA_API const char *solra_core_get_version(void);
 
 #ifdef __cplusplus
 }

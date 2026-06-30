@@ -13,6 +13,21 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/* ============================================================
+ * Export / Import Macros
+ * ============================================================ */
+#if defined(_WIN32) || defined(_WIN64)
+  #ifdef SOLRA_BUILD_DLL
+    #define SOLRA_API __declspec(dllexport)
+  #else
+    #define SOLRA_API __declspec(dllimport)
+  #endif
+#elif defined(__GNUC__) && __GNUC__ >= 4
+  #define SOLRA_API __attribute__((visibility("default")))
+#else
+  #define SOLRA_API
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -125,7 +140,7 @@ typedef void (*SolraFreeFn)(void *ptr, void *user_data);
  * @param free_fn Deallocation function (NULL = use default free).
  * @param user_data Opaque pointer passed to alloc/free callbacks.
  */
-void solra_set_allocator(SolraAllocFn alloc_fn, SolraFreeFn free_fn, void *user_data);
+SOLRA_API void solra_set_allocator(SolraAllocFn alloc_fn, SolraFreeFn free_fn, void *user_data);
 
 #ifdef __cplusplus
 }

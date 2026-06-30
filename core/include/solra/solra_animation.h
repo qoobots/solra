@@ -45,7 +45,7 @@ typedef struct SolraLipSync *SolraLipSyncHandle;
  * @param viseme_count Number of viseme targets in the avatar mesh.
  * @return Lip-sync handle, or NULL on failure.
  */
-SolraLipSyncHandle solra_lipsync_create(int viseme_count);
+SOLRA_API SolraLipSyncHandle solra_lipsync_create(int viseme_count);
 
 /**
  * Process an audio phoneme and update viseme weights.
@@ -56,7 +56,7 @@ SolraLipSyncHandle solra_lipsync_create(int viseme_count);
  * @param weights Output array of viseme weights (size = viseme_count).
  * @return 0 on success.
  */
-int solra_lipsync_process_phoneme(
+SOLRA_API int solra_lipsync_process_phoneme(
   SolraLipSyncHandle lipsync,
   const char *phoneme,
   int duration_ms,
@@ -72,7 +72,7 @@ int solra_lipsync_process_phoneme(
  * @param weights Output array of viseme weights.
  * @return 0 on success.
  */
-int solra_lipsync_process_audio(
+SOLRA_API int solra_lipsync_process_audio(
   SolraLipSyncHandle lipsync,
   const int16_t *audio_samples,
   int sample_count,
@@ -82,7 +82,7 @@ int solra_lipsync_process_audio(
 /**
  * Destroy a lip-sync engine.
  */
-void solra_lipsync_destroy(SolraLipSyncHandle lipsync);
+SOLRA_API void solra_lipsync_destroy(SolraLipSyncHandle lipsync);
 
 /* ============================================================
  * Inverse Kinematics
@@ -97,7 +97,7 @@ typedef struct SolraIKSolver *SolraIKSolverHandle;
  * @param bone_count Number of bones in the chain.
  * @return IK solver handle, or NULL on failure.
  */
-SolraIKSolverHandle solra_ik_solver_create(int bone_count);
+SOLRA_API SolraIKSolverHandle solra_ik_solver_create(int bone_count);
 
 /**
  * Solve IK for a target position.
@@ -109,7 +109,7 @@ SolraIKSolverHandle solra_ik_solver_create(int bone_count);
  * @param root_world Root joint position in world space.
  * @return 0 if converged, positive = iterations used, negative = failed.
  */
-int solra_ik_solve_fabrik(
+SOLRA_API int solra_ik_solve_fabrik(
   SolraIKSolverHandle solver,
   const float *bone_lengths,
   SolraVec3 *bone_local_positions,
@@ -120,7 +120,7 @@ int solra_ik_solve_fabrik(
 /**
  * Destroy an IK solver.
  */
-void solra_ik_solver_destroy(SolraIKSolverHandle solver);
+SOLRA_API void solra_ik_solver_destroy(SolraIKSolverHandle solver);
 
 /* ============================================================
  * Animation Clip
@@ -135,7 +135,7 @@ typedef struct SolraAnimationClip *SolraAnimationClipHandle;
  * @param path File path (GLTF animation or custom format).
  * @return Animation clip handle, or NULL on failure.
  */
-SolraAnimationClipHandle solra_animation_clip_load(const char *path);
+SOLRA_API SolraAnimationClipHandle solra_animation_clip_load(const char *path);
 
 /**
  * Evaluate an animation clip at a given time.
@@ -146,7 +146,7 @@ SolraAnimationClipHandle solra_animation_clip_load(const char *path);
  * @param max_bones Maximum number of bones in output array.
  * @return Number of bones written, or negative on error.
  */
-int solra_animation_clip_evaluate(
+SOLRA_API int solra_animation_clip_evaluate(
   SolraAnimationClipHandle clip,
   float time_seconds,
   SolraMat4 *out_transforms,
@@ -156,12 +156,12 @@ int solra_animation_clip_evaluate(
 /**
  * Get the duration of an animation clip in seconds.
  */
-float solra_animation_clip_get_duration(SolraAnimationClipHandle clip);
+SOLRA_API float solra_animation_clip_get_duration(SolraAnimationClipHandle clip);
 
 /**
  * Destroy an animation clip.
  */
-void solra_animation_clip_destroy(SolraAnimationClipHandle clip);
+SOLRA_API void solra_animation_clip_destroy(SolraAnimationClipHandle clip);
 
 #ifdef __cplusplus
 }
