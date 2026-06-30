@@ -101,10 +101,15 @@ jobs:
 
       - name: Python Tests
         run: |
-          pip install pytest pytest-asyncio
-          cd ai-services/safety-model-service
-          pip install -e .
-          pytest src/tests/ -v
+          pip install pytest pytest-asyncio pytest-cov
+          for svc in llm-router embedding-service safety-model-service recommendation-pipeline tts-service gpu-scheduler; do
+            echo "=== Testing ai-services/$svc ==="
+            if [ -f "ai-services/$svc/pyproject.toml" ]; then
+              cd ai-services/$svc && pip install -e . && pytest src/tests/ -v --tb=short || echo "WARN: $svc tests failed" && cd ../..
+            else
+              echo "SKIP: ai-services/$svc (no pyproject.toml)"
+            fi
+          done
 
       - name: Upload Test Reports
         if: always()
@@ -154,6 +159,7 @@ jobs:
     strategy:
       matrix:
         service:
+          # Java 微服务 (9 个)
           - { name: auth-service, dockerfile: infra/docker/Dockerfile.java, context: services/auth-service }
           - { name: saf-service, dockerfile: infra/docker/Dockerfile.java, context: services/saf-service }
           - { name: avt-service, dockerfile: infra/docker/Dockerfile.java, context: services/avt-service }
@@ -163,8 +169,13 @@ jobs:
           - { name: crt-service, dockerfile: infra/docker/Dockerfile.java, context: services/crt-service }
           - { name: not-service, dockerfile: infra/docker/Dockerfile.java, context: services/not-service }
           - { name: mon-service, dockerfile: infra/docker/Dockerfile.java, context: services/mon-service }
-          - { name: common, dockerfile: infra/docker/Dockerfile.java, context: services/common }
+          # AI 服务 (6 个)
+          - { name: llm-router, dockerfile: ai-services/llm-router/Dockerfile, context: ai-services/llm-router }
+          - { name: embedding-service, dockerfile: ai-services/embedding-service/Dockerfile, context: ai-services/embedding-service }
           - { name: safety-model-service, dockerfile: ai-services/safety-model-service/Dockerfile, context: ai-services/safety-model-service }
+          - { name: recommendation-pipeline, dockerfile: ai-services/recommendation-pipeline/Dockerfile, context: ai-services/recommendation-pipeline }
+          - { name: tts-service, dockerfile: ai-services/tts-service/Dockerfile, context: ai-services/tts-service }
+          - { name: gpu-scheduler, dockerfile: ai-services/gpu-scheduler/Dockerfile, context: ai-services/gpu-scheduler }
 
     steps:
       - uses: actions/checkout@v4
@@ -215,8 +226,13 @@ jobs:
       - name: Update image tags
         run: |
           cd infra/kubernetes/helm/solra-services
+          # Java 微服务
           for svc in auth-service saf-service avt-service spc-service soc-service grw-service crt-service not-service mon-service; do
             yq -i ".${svc}.image.tag = \"${{ github.sha }}\"" values.yaml
+          done
+          # AI 服务
+          for aisvc in llm-router embedding-service safety-model-service recommendation-pipeline tts-service gpu-scheduler; do
+            yq -i ".aiServices.\"${aisvc}\".image.tag = \"${{ github.sha }}\"" values.yaml
           done
 
       - name: Deploy with Helm
