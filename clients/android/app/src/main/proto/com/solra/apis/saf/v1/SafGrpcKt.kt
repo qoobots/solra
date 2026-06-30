@@ -64,6 +64,29 @@ public object SafServiceGrpcKt {
     @JvmStatic
     get() = SafServiceGrpc.getFilterContentMethod()
 
+  public val submitReportMethod: MethodDescriptor<Saf.SubmitReportRequest, Saf.SubmitReportResponse>
+    @JvmStatic
+    get() = SafServiceGrpc.getSubmitReportMethod()
+
+  public val queryReportResultMethod:
+      MethodDescriptor<Saf.QueryReportResultRequest, Saf.QueryReportResultResponse>
+    @JvmStatic
+    get() = SafServiceGrpc.getQueryReportResultMethod()
+
+  public val getWorkQueueMethod: MethodDescriptor<Saf.GetWorkQueueRequest, Saf.GetWorkQueueResponse>
+    @JvmStatic
+    get() = SafServiceGrpc.getGetWorkQueueMethod()
+
+  public val claimReviewItemMethod:
+      MethodDescriptor<Saf.ClaimReviewItemRequest, Saf.ClaimReviewItemResponse>
+    @JvmStatic
+    get() = SafServiceGrpc.getClaimReviewItemMethod()
+
+  public val submitManualReviewMethod:
+      MethodDescriptor<Saf.SubmitManualReviewRequest, Saf.SubmitManualReviewResponse>
+    @JvmStatic
+    get() = SafServiceGrpc.getSubmitManualReviewMethod()
+
   /**
    * A stub for issuing RPCs to a(n) solra.saf.v1.SafService service as suspending coroutines.
    */
@@ -213,6 +236,106 @@ public object SafServiceGrpcKt {
       callOptions,
       headers
     )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun submitReport(request: Saf.SubmitReportRequest, headers: Metadata = Metadata()): Saf.SubmitReportResponse = unaryRpc(
+      channel,
+      SafServiceGrpc.getSubmitReportMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun queryReportResult(request: Saf.QueryReportResultRequest, headers: Metadata = Metadata()): Saf.QueryReportResultResponse = unaryRpc(
+      channel,
+      SafServiceGrpc.getQueryReportResultMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun getWorkQueue(request: Saf.GetWorkQueueRequest, headers: Metadata = Metadata()): Saf.GetWorkQueueResponse = unaryRpc(
+      channel,
+      SafServiceGrpc.getGetWorkQueueMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun claimReviewItem(request: Saf.ClaimReviewItemRequest, headers: Metadata = Metadata()): Saf.ClaimReviewItemResponse = unaryRpc(
+      channel,
+      SafServiceGrpc.getClaimReviewItemMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun submitManualReview(request: Saf.SubmitManualReviewRequest, headers: Metadata = Metadata()): Saf.SubmitManualReviewResponse = unaryRpc(
+      channel,
+      SafServiceGrpc.getSubmitManualReviewMethod(),
+      request,
+      callOptions,
+      headers
+    )
   }
 
   /**
@@ -305,6 +428,66 @@ public object SafServiceGrpcKt {
      */
     public open suspend fun filterContent(request: Saf.FilterContentRequest): Saf.FilterContentResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.saf.v1.SafService.FilterContent is unimplemented"))
 
+    /**
+     * Returns the response to an RPC for solra.saf.v1.SafService.SubmitReport.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun submitReport(request: Saf.SubmitReportRequest): Saf.SubmitReportResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.saf.v1.SafService.SubmitReport is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.saf.v1.SafService.QueryReportResult.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun queryReportResult(request: Saf.QueryReportResultRequest): Saf.QueryReportResultResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.saf.v1.SafService.QueryReportResult is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.saf.v1.SafService.GetWorkQueue.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun getWorkQueue(request: Saf.GetWorkQueueRequest): Saf.GetWorkQueueResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.saf.v1.SafService.GetWorkQueue is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.saf.v1.SafService.ClaimReviewItem.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun claimReviewItem(request: Saf.ClaimReviewItemRequest): Saf.ClaimReviewItemResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.saf.v1.SafService.ClaimReviewItem is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.saf.v1.SafService.SubmitManualReview.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun submitManualReview(request: Saf.SubmitManualReviewRequest): Saf.SubmitManualReviewResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.saf.v1.SafService.SubmitManualReview is unimplemented"))
+
     final override fun bindService(): ServerServiceDefinition = builder(getServiceDescriptor())
       .addMethod(unaryServerMethodDefinition(
       context = this.context,
@@ -340,6 +523,31 @@ public object SafServiceGrpcKt {
       context = this.context,
       descriptor = SafServiceGrpc.getFilterContentMethod(),
       implementation = ::filterContent
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = SafServiceGrpc.getSubmitReportMethod(),
+      implementation = ::submitReport
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = SafServiceGrpc.getQueryReportResultMethod(),
+      implementation = ::queryReportResult
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = SafServiceGrpc.getGetWorkQueueMethod(),
+      implementation = ::getWorkQueue
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = SafServiceGrpc.getClaimReviewItemMethod(),
+      implementation = ::claimReviewItem
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = SafServiceGrpc.getSubmitManualReviewMethod(),
+      implementation = ::submitManualReview
     )).build()
   }
 }

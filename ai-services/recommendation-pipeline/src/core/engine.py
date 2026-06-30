@@ -283,8 +283,9 @@ class RecommendationEngine:
             key=lambda x: x[1],
             reverse=True,
         )
+        max_pop = max(self._popularity.values()) if self._popularity else 1
         return [
-            (sid, min(score / max(self._popularity.values(), 1), 1.0))
+            (sid, min(score / max(max_pop, 1), 1.0))
             for sid, score in sorted_spaces
             if sid not in exclude
         ][:size]
@@ -340,7 +341,8 @@ class RecommendationEngine:
             age_days = (now - meta.get("created_at", now)) / 86400
             # Newer + popular = trending
             time_weight = np.exp(-age_days / 7)  # 7-day half-life
-            trending_score = (pop_score / max(self._popularity.values(), 1)) * time_weight
+            max_pop = max(self._popularity.values()) if self._popularity else 1
+            trending_score = (pop_score / max(max_pop, 1)) * time_weight
             scores.append((space_id, float(trending_score)))
 
         scores.sort(key=lambda x: x[1], reverse=True)
@@ -361,11 +363,12 @@ class RecommendationEngine:
         all_spaces = set(popular) | set(personalized) | set(newest) | set(trending)
         hybrid_scores = {}
         for sid in all_spaces:
-            hybrid_scores[sid] = (
+            hybrid_scores[sid] = min(
                 0.20 * popular.get(sid, 0.0)
                 + 0.40 * personalized.get(sid, 0.0)
                 + 0.15 * newest.get(sid, 0.0)
-                + 0.25 * trending.get(sid, 0.0)
+                + 0.25 * trending.get(sid, 0.0),
+                1.0,
             )
 
         sorted_results = sorted(hybrid_scores.items(), key=lambda x: x[1], reverse=True)
@@ -440,7 +443,7 @@ class RecommendationEngine:
                 "score": {
                     "relevance": round(overall_score * 0.8, 4),
                     "popularity": round(
-                        self._popularity.get(space_id, 0) / max(self._popularity.values(), 1), 4
+                        self._popularity.get(space_id, 0) / max(max(self._popularity.values()), 1) if self._popularity else 0, 4
                     ),
                     "freshness": round(1.0 / (rank + 1), 4),
                     "overall": round(overall_score, 4),

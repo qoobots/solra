@@ -62,6 +62,51 @@ public object AvtServiceGrpcKt {
     @JvmStatic
     get() = AvtServiceGrpc.getQueryMemoryMethod()
 
+  public val getLongTermMemoryMethod:
+      MethodDescriptor<Avt.GetLongTermMemoryRequest, Avt.GetLongTermMemoryResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getGetLongTermMemoryMethod()
+
+  public val addMemorySnapshotMethod:
+      MethodDescriptor<Avt.AddMemorySnapshotRequest, Avt.AddMemorySnapshotResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getAddMemorySnapshotMethod()
+
+  public val retrieveMemoriesMethod:
+      MethodDescriptor<Avt.RetrieveMemoriesRequest, Avt.RetrieveMemoriesResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getRetrieveMemoriesMethod()
+
+  public val getEmotionStateMethod:
+      MethodDescriptor<Avt.GetEmotionStateRequest, Avt.GetEmotionStateResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getGetEmotionStateMethod()
+
+  public val applyEmotionEventMethod:
+      MethodDescriptor<Avt.ApplyEmotionEventRequest, Avt.ApplyEmotionEventResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getApplyEmotionEventMethod()
+
+  public val decayEmotionsMethod:
+      MethodDescriptor<Avt.DecayEmotionsRequest, Avt.DecayEmotionsResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getDecayEmotionsMethod()
+
+  public val getAvatarExpressionMethod:
+      MethodDescriptor<Avt.GetAvatarExpressionRequest, Avt.GetAvatarExpressionResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getGetAvatarExpressionMethod()
+
+  public val evaluateSurpriseMethod:
+      MethodDescriptor<Avt.EvaluateSurpriseRequest, Avt.EvaluateSurpriseResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getEvaluateSurpriseMethod()
+
+  public val getSurpriseStatsMethod:
+      MethodDescriptor<Avt.GetSurpriseStatsRequest, Avt.GetSurpriseStatsResponse>
+    @JvmStatic
+    get() = AvtServiceGrpc.getGetSurpriseStatsMethod()
+
   /**
    * A stub for issuing RPCs to a(n) solra.avt.v1.AvtService service as suspending coroutines.
    */
@@ -192,6 +237,186 @@ public object AvtServiceGrpcKt {
       callOptions,
       headers
     )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun getLongTermMemory(request: Avt.GetLongTermMemoryRequest, headers: Metadata = Metadata()): Avt.GetLongTermMemoryResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getGetLongTermMemoryMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun addMemorySnapshot(request: Avt.AddMemorySnapshotRequest, headers: Metadata = Metadata()): Avt.AddMemorySnapshotResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getAddMemorySnapshotMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun retrieveMemories(request: Avt.RetrieveMemoriesRequest, headers: Metadata = Metadata()): Avt.RetrieveMemoriesResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getRetrieveMemoriesMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun getEmotionState(request: Avt.GetEmotionStateRequest, headers: Metadata = Metadata()): Avt.GetEmotionStateResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getGetEmotionStateMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun applyEmotionEvent(request: Avt.ApplyEmotionEventRequest, headers: Metadata = Metadata()): Avt.ApplyEmotionEventResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getApplyEmotionEventMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun decayEmotions(request: Avt.DecayEmotionsRequest, headers: Metadata = Metadata()): Avt.DecayEmotionsResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getDecayEmotionsMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun getAvatarExpression(request: Avt.GetAvatarExpressionRequest, headers: Metadata = Metadata()): Avt.GetAvatarExpressionResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getGetAvatarExpressionMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun evaluateSurprise(request: Avt.EvaluateSurpriseRequest, headers: Metadata = Metadata()): Avt.EvaluateSurpriseResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getEvaluateSurpriseMethod(),
+      request,
+      callOptions,
+      headers
+    )
+
+    /**
+     * Executes this RPC and returns the response message, suspending until the RPC completes
+     * with [`Status.OK`][io.grpc.Status].  If the RPC completes with another status, a corresponding
+     * [StatusException] is thrown.  If this coroutine is cancelled, the RPC is also cancelled
+     * with the corresponding exception as a cause.
+     *
+     * @param request The request message to send to the server.
+     *
+     * @param headers Metadata to attach to the request.  Most users will not need this.
+     *
+     * @return The single response from the server.
+     */
+    public suspend fun getSurpriseStats(request: Avt.GetSurpriseStatsRequest, headers: Metadata = Metadata()): Avt.GetSurpriseStatsResponse = unaryRpc(
+      channel,
+      AvtServiceGrpc.getGetSurpriseStatsMethod(),
+      request,
+      callOptions,
+      headers
+    )
   }
 
   /**
@@ -273,6 +498,114 @@ public object AvtServiceGrpcKt {
      */
     public open suspend fun queryMemory(request: Avt.QueryMemoryRequest): Avt.QueryMemoryResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.QueryMemory is unimplemented"))
 
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.GetLongTermMemory.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun getLongTermMemory(request: Avt.GetLongTermMemoryRequest): Avt.GetLongTermMemoryResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.GetLongTermMemory is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.AddMemorySnapshot.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun addMemorySnapshot(request: Avt.AddMemorySnapshotRequest): Avt.AddMemorySnapshotResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.AddMemorySnapshot is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.RetrieveMemories.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun retrieveMemories(request: Avt.RetrieveMemoriesRequest): Avt.RetrieveMemoriesResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.RetrieveMemories is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.GetEmotionState.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun getEmotionState(request: Avt.GetEmotionStateRequest): Avt.GetEmotionStateResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.GetEmotionState is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.ApplyEmotionEvent.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun applyEmotionEvent(request: Avt.ApplyEmotionEventRequest): Avt.ApplyEmotionEventResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.ApplyEmotionEvent is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.DecayEmotions.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun decayEmotions(request: Avt.DecayEmotionsRequest): Avt.DecayEmotionsResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.DecayEmotions is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.GetAvatarExpression.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun getAvatarExpression(request: Avt.GetAvatarExpressionRequest): Avt.GetAvatarExpressionResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.GetAvatarExpression is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.EvaluateSurprise.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun evaluateSurprise(request: Avt.EvaluateSurpriseRequest): Avt.EvaluateSurpriseResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.EvaluateSurprise is unimplemented"))
+
+    /**
+     * Returns the response to an RPC for solra.avt.v1.AvtService.GetSurpriseStats.
+     *
+     * If this method fails with a [StatusException], the RPC will fail with the corresponding
+     * [io.grpc.Status].  If this method fails with a [java.util.concurrent.CancellationException], the RPC will fail
+     * with status `Status.CANCELLED`.  If this method fails for any other reason, the RPC will
+     * fail with `Status.UNKNOWN` with the exception as a cause.
+     *
+     * @param request The request from the client.
+     */
+    public open suspend fun getSurpriseStats(request: Avt.GetSurpriseStatsRequest): Avt.GetSurpriseStatsResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.avt.v1.AvtService.GetSurpriseStats is unimplemented"))
+
     final override fun bindService(): ServerServiceDefinition = builder(getServiceDescriptor())
       .addMethod(unaryServerMethodDefinition(
       context = this.context,
@@ -303,6 +636,51 @@ public object AvtServiceGrpcKt {
       context = this.context,
       descriptor = AvtServiceGrpc.getQueryMemoryMethod(),
       implementation = ::queryMemory
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getGetLongTermMemoryMethod(),
+      implementation = ::getLongTermMemory
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getAddMemorySnapshotMethod(),
+      implementation = ::addMemorySnapshot
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getRetrieveMemoriesMethod(),
+      implementation = ::retrieveMemories
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getGetEmotionStateMethod(),
+      implementation = ::getEmotionState
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getApplyEmotionEventMethod(),
+      implementation = ::applyEmotionEvent
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getDecayEmotionsMethod(),
+      implementation = ::decayEmotions
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getGetAvatarExpressionMethod(),
+      implementation = ::getAvatarExpression
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getEvaluateSurpriseMethod(),
+      implementation = ::evaluateSurprise
+    ))
+      .addMethod(unaryServerMethodDefinition(
+      context = this.context,
+      descriptor = AvtServiceGrpc.getGetSurpriseStatsMethod(),
+      implementation = ::getSurpriseStats
     )).build()
   }
 }

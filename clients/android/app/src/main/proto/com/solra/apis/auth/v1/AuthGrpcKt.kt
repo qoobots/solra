@@ -49,7 +49,7 @@ public object AuthServiceGrpcKt {
     @JvmStatic
     get() = AuthServiceGrpc.getLogoutMethod()
 
-  public val oAuthLoginMethod: MethodDescriptor<Auth.OAuthLoginRequest, Auth.LoginResponse>
+  public val oAuthLoginMethod: MethodDescriptor<Auth.OAuthLoginRequest, Auth.OAuthLoginResponse>
     @JvmStatic
     get() = AuthServiceGrpc.getOAuthLoginMethod()
 
@@ -182,7 +182,7 @@ public object AuthServiceGrpcKt {
      *
      * @return The single response from the server.
      */
-    public suspend fun oAuthLogin(request: Auth.OAuthLoginRequest, headers: Metadata = Metadata()): Auth.LoginResponse = unaryRpc(
+    public suspend fun oAuthLogin(request: Auth.OAuthLoginRequest, headers: Metadata = Metadata()): Auth.OAuthLoginResponse = unaryRpc(
       channel,
       AuthServiceGrpc.getOAuthLoginMethod(),
       request,
@@ -375,7 +375,7 @@ public object AuthServiceGrpcKt {
      *
      * @param request The request from the client.
      */
-    public open suspend fun oAuthLogin(request: Auth.OAuthLoginRequest): Auth.LoginResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.auth.v1.AuthService.OAuthLogin is unimplemented"))
+    public open suspend fun oAuthLogin(request: Auth.OAuthLoginRequest): Auth.OAuthLoginResponse = throw StatusException(UNIMPLEMENTED.withDescription("Method solra.auth.v1.AuthService.OAuthLogin is unimplemented"))
 
     /**
      * Returns the response to an RPC for solra.auth.v1.AuthService.BindOAuth.

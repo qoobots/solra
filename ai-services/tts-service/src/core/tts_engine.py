@@ -286,6 +286,9 @@ class TTSEngine:
         # Generate audio samples
         t = np.arange(num_samples) / self.sample_rate
 
+        # Use text hash to create variation between different texts
+        text_seed = hash(text + emotion) % 1000 / 1000.0
+
         # Multi-harmonic synthesis for more natural sound
         audio = np.zeros(num_samples, dtype=np.float32)
         harmonics = [1.0, 2.0, 3.0, 0.5, 1.5]
@@ -293,8 +296,8 @@ class TTSEngine:
 
         for h, amp in zip(harmonics, amplitudes):
             freq = base_freq * h * formant_shift * effective_pitch
-            # Add slight frequency modulation for naturalness
-            mod = 1.0 + 0.02 * np.sin(2 * np.pi * 5.0 * t + timbre_seed)
+            # Add slight frequency modulation for naturalness, with text-dependent variation
+            mod = 1.0 + (0.02 + text_seed * 0.01) * np.sin(2 * np.pi * (5.0 + text_seed * 3.0) * t + timbre_seed + text_seed * np.pi)
             audio += amp * np.sin(2 * np.pi * freq * t * mod)
 
         # Apply envelope (fade in/out)

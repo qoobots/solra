@@ -23,7 +23,7 @@ class CostManagementServiceTest {
     @Test
     void shouldRecordCost() {
         CostEntry entry = service.recordCost("e1", CostResourceType.COMPUTE,
-                "i-123", 10000,
+                "i-123", 10000.0,
                 Map.of(CostDimension.FUNCTION, "avt-service",
                         CostDimension.USER, "user-1"),
                 "GPU instance");
@@ -58,10 +58,10 @@ class CostManagementServiceTest {
         Instant twoHoursAgo = now.minusSeconds(7200);
 
         // 这条在范围内
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 1000,
+        recordCost("e1", CostResourceType.COMPUTE, "i-1", 1000,
                 Map.of(), "", oneHourAgo);
         // 这条不在范围内
-        service.recordCost("e2", CostResourceType.API, "llm", 500,
+        recordCost("e2", CostResourceType.API, "llm", 500,
                 Map.of(), "", twoHoursAgo);
 
         List<CostEntry> result = service.queryCosts(oneHourAgo.minusSeconds(1), now);
@@ -72,11 +72,11 @@ class CostManagementServiceTest {
     @Test
     void shouldGetCostByDimension() {
         Instant now = Instant.now();
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 10000,
+        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 10000.0,
                 Map.of(CostDimension.FUNCTION, "avt-service"), "");
-        service.recordCost("e2", CostResourceType.API, "llm", 5000,
+        service.recordCost("e2", CostResourceType.API, "llm", 5000.0,
                 Map.of(CostDimension.FUNCTION, "avt-service"), "");
-        service.recordCost("e3", CostResourceType.STORAGE, "s3", 3000,
+        service.recordCost("e3", CostResourceType.STORAGE, "s3", 3000.0,
                 Map.of(CostDimension.FUNCTION, "spc-service"), "");
 
         Map<String, Double> result = service.getCostByDimension(
@@ -91,9 +91,9 @@ class CostManagementServiceTest {
     @Test
     void shouldGetCostByResourceType() {
         Instant now = Instant.now();
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 20000, Map.of(), "");
-        service.recordCost("e2", CostResourceType.API, "llm", 8000, Map.of(), "");
-        service.recordCost("e3", CostResourceType.COMPUTE, "i-2", 10000, Map.of(), "");
+        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 20000.0, Map.of(), "");
+        service.recordCost("e2", CostResourceType.API, "llm", 8000.0, Map.of(), "");
+        service.recordCost("e3", CostResourceType.COMPUTE, "i-2", 10000.0, Map.of(), "");
 
         Map<CostResourceType, Double> result = service.getCostByResourceType(
                 now.minusSeconds(1), now.plusSeconds(1));
@@ -106,8 +106,8 @@ class CostManagementServiceTest {
     @Test
     void shouldGetTotalCost() {
         Instant now = Instant.now();
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 10000, Map.of(), "");
-        service.recordCost("e2", CostResourceType.API, "llm", 5000, Map.of(), "");
+        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 10000.0, Map.of(), "");
+        service.recordCost("e2", CostResourceType.API, "llm", 5000.0, Map.of(), "");
 
         double total = service.getTotalCost(now.minusSeconds(1), now.plusSeconds(1));
         assertEquals(15000.0, total);
@@ -142,7 +142,7 @@ class CostManagementServiceTest {
     void shouldCheckBudgetAlertsWhenUnderBudget() {
         Instant now = Instant.now();
         // 仅记录少量成本，不应触发告警
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 50000, Map.of(), ""); // ¥500
+        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 50000.0, Map.of(), ""); // ¥500
 
         List<BudgetAlert> alerts = service.checkBudgetAlerts(
                 now.minusSeconds(1), now.plusSeconds(1));
@@ -155,7 +155,7 @@ class CostManagementServiceTest {
     void shouldCheckBudgetAlertsWhenOverThreshold() {
         Instant now = Instant.now();
         // 记录超过月预算50%的成本
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 1200000, Map.of(), ""); // ¥12,000 → 60%
+        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 1200000.0, Map.of(), ""); // ¥12,000 → 60%
 
         List<BudgetAlert> alerts = service.checkBudgetAlerts(
                 now.minusSeconds(1), now.plusSeconds(1));
@@ -172,9 +172,9 @@ class CostManagementServiceTest {
         Instant now = Instant.now();
         Instant dayStart = now.minusSeconds(3600); // 1小时前作为日初
 
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 100000,
+        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 100000.0,
                 Map.of(CostDimension.FUNCTION, "avt-service"), "");
-        service.recordCost("e2", CostResourceType.API, "llm", 50000,
+        service.recordCost("e2", CostResourceType.API, "llm", 50000.0,
                 Map.of(CostDimension.FUNCTION, "avt-service"), "");
 
         CostReport report = service.generateReport(CostReport.ReportPeriod.DAILY, dayStart);
@@ -190,7 +190,7 @@ class CostManagementServiceTest {
         Instant monthStart = now.minusSeconds(3600);
 
         // 模拟高计算成本（触发Spot实例建议）
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 4000000, // ¥40,000 (>60%)
+        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 4000000.0, // ¥40,000 (>60%)
                 Map.of(CostDimension.FUNCTION, "avt-service"), "");
 
         CostReport report = service.generateReport(CostReport.ReportPeriod.MONTHLY, monthStart);
@@ -223,8 +223,8 @@ class CostManagementServiceTest {
         Instant oneDayAgo = now.minusSeconds(86400);
         Instant twoDaysAgo = now.minusSeconds(172800);
 
-        service.recordCost("e1", CostResourceType.COMPUTE, "i-1", 1000, Map.of(), "", oneDayAgo);
-        service.recordCost("e2", CostResourceType.API, "llm", 500, Map.of(), "", twoDaysAgo);
+        recordCost("e1", CostResourceType.COMPUTE, "i-1", 1000.0, Map.of(), "", oneDayAgo);
+        recordCost("e2", CostResourceType.API, "llm", 500.0, Map.of(), "", twoDaysAgo);
 
         assertEquals(2, service.getCostEntryCount());
 

@@ -21,6 +21,7 @@ def engine():
         )
     eng.record_interaction("user-1", "space-0", "like")
     eng.record_interaction("user-1", "space-1", "view")
+    eng.record_interaction("user-1", "space-2", "share")
     eng.train()
     return eng
 

@@ -98,6 +98,9 @@ public class JwtTokenProvider {
      * Check if a token has expired.
      */
     public boolean isTokenExpired(String token) {
+        if (token == null || token.isBlank()) {
+            return true;
+        }
         try {
             Date expiration = Jwts.parser()
                     .verifyWith(signingKey)
@@ -106,7 +109,7 @@ public class JwtTokenProvider {
                     .getPayload()
                     .getExpiration();
             return expiration.before(new Date());
-        } catch (JwtException e) {
+        } catch (JwtException | IllegalArgumentException e) {
             return true;
         }
     }

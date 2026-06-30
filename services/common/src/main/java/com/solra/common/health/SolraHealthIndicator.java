@@ -32,35 +32,36 @@ public class SolraHealthIndicator implements HealthIndicator {
     public Health health() {
         Health.Builder builder = Health.up()
                 .withDetail("service", "solra-common")
-                .withDetail("version", getClass().getPackage().getImplementationVersion());
+                .withDetail("version", getClass().getPackage().getImplementationVersion() != null
+                        ? getClass().getPackage().getImplementationVersion() : "0.1.0-SNAPSHOT");
 
-        // Kafka 连通性检查
-        try {
-            checkKafkaConnection(builder);
-        } catch (Exception e) {
-            log.warn("Kafka health check failed: {}", e.getMessage());
-            builder.withDetail("kafka", "unavailable")
-                    .withDetail("kafka_error", e.getMessage());
-        }
+        // Kafka 连通性检查（异常已内聚到 checkKafkaConnection 内部处理）
+        checkKafkaConnection(builder);
 
         return builder.build();
     }
 
-    private void checkKafkaConnection(Health.Builder builder) throws Exception {
-        Properties props = new Properties();
-        props.put("bootstrap.servers", bootstrapServers);
-        props.put("request.timeout.ms", 3000);
+    private void checkKafkaConnection(Health.Builder builder) {
+        try {
+            Properties props = new Properties();
+            props.put("bootstrap.servers", bootstrapServers);
+            props.put("request.timeout.ms", 2000);
 
-        try (AdminClient adminClient = AdminClient.create(props)) {
-            DescribeClusterResult result = adminClient.describeCluster(
-                    new DescribeClusterOptions().timeoutMs(3000));
-            String clusterId = result.clusterId().get(3, TimeUnit.SECONDS);
-            int nodeCount = result.nodes().get(3, TimeUnit.SECONDS).size();
+            try (AdminClient adminClient = AdminClient.create(props)) {
+                DescribeClusterResult result = adminClient.describeCluster(
+                        new DescribeClusterOptions().timeoutMs(2000));
+                String clusterId = result.clusterId().get(2, TimeUnit.SECONDS);
+                int nodeCount = result.nodes().get(2, TimeUnit.SECONDS).size();
 
-            builder.withDetail("kafka", "available")
-                    .withDetail("kafka_brokers", bootstrapServers)
-                    .withDetail("kafka_cluster_id", clusterId)
-                    .withDetail("kafka_node_count", nodeCount);
+                builder.withDetail("kafka", "available")
+                        .withDetail("kafka_brokers", bootstrapServers)
+                        .withDetail("kafka_cluster_id", clusterId)
+                        .withDetail("kafka_node_count", nodeCount);
+            }
+        } catch (Exception e) {
+            log.warn("Kafka health check failed: {}", e.getMessage());
+            builder.withDetail("kafka", "unavailable")
+                    .withDetail("kafka_error", e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 }

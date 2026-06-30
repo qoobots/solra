@@ -375,8 +375,8 @@ public class CostManagementService {
                     "right_sizing"));
         }
 
-        // 6. 总成本 > ¥40,000 时建议全面审查
-        if (totalYuan > 40000) {
+        // 6. 总成本 >= ¥40,000 时建议全面审查
+        if (totalYuan >= 40000) {
             report.addRecommendation(new CostReport.FinOpsRecommendation(
                     "FIN-006", "月度成本接近预算上限",
                     String.format("当前月成本 ¥%.2f 接近 ¥50,000 总预算，建议全面审查所有资源使用情况", totalYuan),

@@ -2,12 +2,13 @@
 import logging
 import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from api.routes import router as rec_router
 from api.dependencies import get_engine
+from core.engine import RecommendationEngine
 from config import config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -49,8 +50,7 @@ app.include_router(rec_router)
 
 
 @app.get("/health")
-async def health():
-    engine = get_engine()
+async def health(engine: RecommendationEngine = Depends(get_engine)):
     status = engine.get_status()
     return {
         "status": "ok",

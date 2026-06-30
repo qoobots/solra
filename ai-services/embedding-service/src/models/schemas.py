@@ -58,7 +58,7 @@ class MultimodalEmbeddingResponse(BaseModel):
 class SimilarityRequest(BaseModel):
     """Request for similarity computation between texts."""
     query: str = Field(..., min_length=1, description="Query text")
-    candidates: List[str] = Field(..., min_length=1, max_length=1000, description="Candidate texts")
+    candidates: List[str] = Field(..., max_length=1000, description="Candidate texts")
     top_k: int = Field(10, ge=1, le=100, description="Number of top results to return")
 
 

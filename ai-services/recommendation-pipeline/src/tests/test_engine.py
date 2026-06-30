@@ -83,6 +83,10 @@ class TestRecommendationEngine:
         assert mode == "trending"
 
     def test_recommend_hybrid_mode(self, engine):
+        # Add more interactions so user-1 is not cold-start
+        engine.record_interaction("user-1", "space-5", "view")
+        engine.record_interaction("user-1", "space-6", "enter")
+        engine.train()
         items, mode, total = engine.recommend(
             user_id="user-1",
             mode="hybrid",
