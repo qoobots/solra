@@ -36,6 +36,19 @@ const isInSpace = ref(false)
 const conversationId = ref<string | null>(null)
 const isStreaming = ref(false)
 const isWebrtcConnected = ref(false)
+const isPlayingAnimation = ref(false)
+const currentExpression = ref('neutral')
+
+// 预置表情列表
+const expressions = [
+  { value: 'neutral', label: '😐 中性' },
+  { value: 'happy', label: '😊 开心' },
+  { value: 'sad', label: '😢 悲伤' },
+  { value: 'angry', label: '😠 生气' },
+  { value: 'surprised', label: '😲 惊讶' },
+  { value: 'thinking', label: '🤔 思考' },
+  { value: 'excited', label: '🤩 兴奋' },
+]
 
 onMounted(async () => {
   await spaceStore.enterSpace(spaceId)
@@ -146,6 +159,49 @@ async function sendChatMessage() {
   }
 }
 
+// ========== 虚拟人动画控制 ==========
+async function playAvatarAnimation(animName: string) {
+  try {
+    await invoke('play_animation', {
+      conversationId: conversationId.value || spaceId,
+      clipName: animName,
+      crossfadeDuration: 0.3,
+      speed: 1.0,
+      loop: true,
+    })
+    isPlayingAnimation.value = true
+  } catch (e) {
+    console.error('动画播放失败:', e)
+  }
+}
+
+async function setAvatarExpression(expression: string) {
+  try {
+    await invoke('set_avatar_expression', {
+      conversationId: conversationId.value || spaceId,
+      expression,
+    })
+    currentExpression.value = expression
+  } catch (e) {
+    console.error('设置表情失败:', e)
+  }
+}
+
+async function stopAnimation() {
+  try {
+    await invoke('play_animation', {
+      conversationId: conversationId.value || spaceId,
+      clipName: '',
+      crossfadeDuration: 0.3,
+      speed: 0.0,
+      loop: false,
+    })
+    isPlayingAnimation.value = false
+  } catch (e) {
+    console.error('停止动画失败:', e)
+  }
+}
+
 function goBack() {
   router.push('/')
 }
@@ -208,6 +264,42 @@ function goBack() {
           </div>
           <div v-else-if="spaceStore.loading" class="info-loading">加载中...</div>
           <div v-else class="info-loading">空间信息不可用</div>
+        </div>
+
+        <!-- 虚拟人动画控制 -->
+        <div class="panel-section">
+          <h3>🎭 虚拟人动画</h3>
+          <div class="animation-controls">
+            <div class="anim-buttons">
+              <button
+                class="anim-btn"
+                :class="{ active: isPlayingAnimation }"
+                @click="playAvatarAnimation('idle')"
+                :disabled="isPlayingAnimation"
+              >待机</button>
+              <button
+                class="anim-btn"
+                @click="playAvatarAnimation('wave')"
+              >挥手</button>
+              <button
+                class="anim-btn"
+                @click="playAvatarAnimation('talk')"
+              >说话</button>
+              <button
+                class="anim-btn stop-btn"
+                @click="stopAnimation"
+                :disabled="!isPlayingAnimation"
+              >停止</button>
+            </div>
+            <div class="expression-selector">
+              <label>表情</label>
+              <select v-model="currentExpression" @change="setAvatarExpression(currentExpression)">
+                <option v-for="exp in expressions" :key="exp.value" :value="exp.value">
+                  {{ exp.label }}
+                </option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="panel-section chat-section">
@@ -349,6 +441,51 @@ function goBack() {
     }
   }
   .info-loading { color: #484f58; font-size: 13px; text-align: center; padding: 20px 0; }
+}
+
+.animation-controls {
+  .anim-buttons {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+
+    .anim-btn {
+      padding: 5px 10px;
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      border-radius: 6px;
+      color: #58a6ff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover { background: rgba(88, 166, 255, 0.2); }
+      &:disabled { opacity: 0.4; cursor: not-allowed; }
+      &.active { background: rgba(63, 185, 80, 0.2); border-color: rgba(63, 185, 80, 0.4); color: #3fb950; }
+      &.stop-btn { border-color: rgba(248, 81, 73, 0.3); color: #f85149; background: rgba(248, 81, 73, 0.1); }
+    }
+  }
+
+  .expression-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    label { font-size: 12px; color: #8b949e; white-space: nowrap; }
+    select {
+      flex: 1;
+      padding: 5px 8px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #c9d1d9;
+      font-size: 12px;
+      cursor: pointer;
+      outline: none;
+      &:focus { border-color: #58a6ff; }
+    }
+  }
 }
 
 .chat-section {

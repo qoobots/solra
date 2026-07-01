@@ -172,7 +172,7 @@ public:
     void begin() override;
     void end() override;
     void bindPipeline(std::shared_ptr<GpuPipeline> pipeline) override;
-    void bindVertexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset = 0) override;
+    void bindVertexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset = 0, bool skinned = false) override;
     void bindIndexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset = 0) override;
     void draw(uint32_t vertexCount, uint32_t instanceCount = 1,
               uint32_t firstVertex = 0, uint32_t firstInstance = 0) override;
@@ -190,14 +190,19 @@ public:
     void setUniformVec3(int location, const float* data);
     void setUniformFloat(int location, float value);
     int getUniformLocation(const std::string& name);
+    int getUniformBlockIndex(const std::string& name);
+    void bindUniformBlock(int blockIndex, int bindingPoint);
+    void uploadSkinningMatrices(const float* matrices, int matrixCount);
 
 private:
     OpenGLDevice* device_;
     std::shared_ptr<OpenGLPipeline> current_pipeline_;
     uint32_t current_vao_ = 0;
+    uint32_t skinning_ubo_ = 0;
     bool recording_ = false;
 
     uint32_t createVAO();
+    void ensureSkinningUBO();
 };
 
 // Factory (matches the extern declaration in gpu_abstraction.cpp)

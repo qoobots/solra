@@ -6,6 +6,7 @@ set(SOLRA_RENDER_SOURCES
   scene_graph.cpp
   gpu_abstraction.cpp
   opengl_device.cpp
+  vulkan_device.cpp
   shader_compiler.cpp
   pbr_material.cpp
   render_benchmark.cpp

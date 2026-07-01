@@ -266,6 +266,43 @@ SOLRA_API SolraMeshHandle solra_mesh_create(
 );
 
 /**
+ * Create a skinned mesh from vertex and index data.
+ *
+ * Skinned vertex layout: pos3 + normal3 + uv2 + boneWeights4 + boneIndices4 = 48 bytes.
+ *
+ * @param vertices Pointer to vertex data (interleaved: pos3+normal3+uv2+boneWeights4+boneIndices4).
+ * @param vertex_count Number of vertices.
+ * @param indices Pointer to index data (uint16 or uint32).
+ * @param index_count Number of indices.
+ * @param index_type 16 or 32 bit indices.
+ * @return Mesh handle, or NULL on failure.
+ */
+SOLRA_API SolraMeshHandle solra_mesh_create_skinned(
+  const void *vertices,
+  int vertex_count,
+  const void *indices,
+  int index_count,
+  int index_type
+);
+
+/**
+ * Set the bone matrix palette for a skinned mesh.
+ *
+ * Bone matrices should be pre-computed as: boneMatrix = globalTransform * inverseBindMatrix.
+ * Each matrix is 16 floats (column-major for GLSL, row-major stored).
+ *
+ * @param mesh Target mesh (must be created with solra_mesh_create_skinned).
+ * @param bone_matrices Array of 4x4 bone matrices (16 floats per bone).
+ * @param bone_count Number of bones in the palette (max 128).
+ * @return 0 on success, negative on error.
+ */
+SOLRA_API int solra_mesh_set_bone_matrices(
+  SolraMeshHandle mesh,
+  const float *bone_matrices,
+  int bone_count
+);
+
+/**
  * Destroy a mesh.
  */
 SOLRA_API void solra_mesh_destroy(SolraMeshHandle mesh);

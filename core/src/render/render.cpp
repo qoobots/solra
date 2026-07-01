@@ -13,6 +13,7 @@
 #include "builtin_shaders.hpp"
 #include "scene_graph.hpp"
 #include "pbr_material.hpp"
+#include "../animation/skeletal_animation.hpp"
 #include <spdlog/spdlog.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -26,19 +27,27 @@
 #include <unordered_map>
 #include <mutex>
 
+#define SOLRA_MAX_BONES 128
+
 /* ============================================================
  * Internal Render State
  * ============================================================ */
 
 struct ActiveMesh {
-  std::vector<float> vertices;       // interleaved: pos3 + normal3 + uv2
+  std::vector<float> vertices;       // interleaved: pos3 + normal3 + uv2 (+ boneWeights4 + boneIndices4 if skinned)
   std::vector<uint32_t> indices;
-  int vertex_stride = 32;            // 8 floats * 4 bytes
+  int vertex_stride = 32;            // 8 floats * 4 bytes (or 12 floats * 4 = 48 for skinned)
+  bool is_skinned = false;           // whether this mesh uses GPU skinning
 
   // GPU resources
   std::shared_ptr<solra::render::GpuBuffer> gpuVertices;
   std::shared_ptr<solra::render::GpuBuffer> gpuIndices;
   bool uploaded = false;
+
+  // Bone matrix palette for skinning (pre-computed, uploaded each frame)
+  std::vector<float> bone_matrices;  // MAX_BONES * 16 floats, row-major mat4
+  int bone_count = 0;
+  bool has_bone_matrices = false;
 
   // Bounding box (AABB) for frustum culling
   solra::render::Vec3 bboxMin{};
@@ -65,6 +74,29 @@ struct RenderState {
   std::shared_ptr<solra::render::GpuShader> pbrVertexShader;
   std::shared_ptr<solra::render::GpuShader> pbrFragmentShader;
   std::shared_ptr<solra::render::GpuPipeline> pbrPipeline;
+
+  // PBR skinned pipeline (with bone weights/indices + skinning matrix UBO)
+  std::shared_ptr<solra::render::GpuShader> pbrSkinnedVertexShader;
+  std::shared_ptr<solra::render::GpuPipeline> pbrSkinnedPipeline;
+
+  // Deferred rendering pipelines
+  std::shared_ptr<solra::render::GpuShader> deferredGeomVertexShader;
+  std::shared_ptr<solra::render::GpuShader> deferredGeomFragmentShader;
+  std::shared_ptr<solra::render::GpuPipeline> deferredGeomPipeline;
+  std::shared_ptr<solra::render::GpuShader> deferredLightVertexShader;
+  std::shared_ptr<solra::render::GpuShader> deferredLightFragmentShader;
+  std::shared_ptr<solra::render::GpuPipeline> deferredLightPipeline;
+
+  // G-Buffer OpenGL resources
+  uint32_t gbuffer_fbo = 0;
+  uint32_t gbuffer_albedo = 0;
+  uint32_t gbuffer_normal = 0;
+  uint32_t gbuffer_metalrough = 0;
+  uint32_t gbuffer_emission = 0;
+  uint32_t gbuffer_depth = 0;
+  uint32_t fullscreen_quad_vao = 0;
+  uint32_t fullscreen_quad_vbo = 0;
+  bool deferred_available = false;
 
   // Fallback unlit pipeline
   std::shared_ptr<solra::render::GpuShader> unlitVertexShader;
@@ -208,6 +240,83 @@ static bool init_gpu_pipelines() {
     spdlog::warn("PBR shader compilation failed, using unlit fallback");
   }
 
+  // Compile skinned PBR vertex shader
+  auto svs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Vertex,
+      solra::render::PBR_SKINNED_VERTEX_GLSL,
+      glDevice);
+
+  if (svs && fs) {
+    g_render.pbrSkinnedVertexShader = svs;
+
+    solra::render::PipelineDesc skinnedDesc;
+    skinnedDesc.vertexShader = svs;
+    skinnedDesc.fragmentShader = fs;
+    skinnedDesc.primitive = solra::render::PrimitiveType::Triangles;
+    skinnedDesc.depthTest = true;
+    skinnedDesc.depthWrite = true;
+    skinnedDesc.depthCompare = solra::render::CompareOp::LessEqual;
+    skinnedDesc.blending = false;
+
+    g_render.pbrSkinnedPipeline = g_render.gpuDevice->createPipeline(skinnedDesc);
+    if (g_render.pbrSkinnedPipeline) {
+      spdlog::info("PBR skinned shader pipeline compiled successfully (up to 128 bones)");
+    }
+  } else {
+    spdlog::warn("PBR skinned shader compilation failed, skinned meshes will use un-skinned pipeline");
+  }
+
+  // Compile deferred rendering pipelines
+  auto dgvs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Vertex,
+      solra::render::DEFERRED_GEOMETRY_VERTEX_GLSL,
+      glDevice);
+  auto dgfs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Fragment,
+      solra::render::DEFERRED_GEOMETRY_FRAGMENT_GLSL,
+      glDevice);
+  auto dlvs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Vertex,
+      solra::render::DEFERRED_LIGHTING_VERTEX_GLSL,
+      glDevice);
+  auto dlfs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Fragment,
+      solra::render::DEFERRED_LIGHTING_FRAGMENT_GLSL,
+      glDevice);
+
+  if (dgvs && dgfs && dlvs && dlfs) {
+    g_render.deferredGeomVertexShader = dgvs;
+    g_render.deferredGeomFragmentShader = dgfs;
+    g_render.deferredLightVertexShader = dlvs;
+    g_render.deferredLightFragmentShader = dlfs;
+
+    solra::render::PipelineDesc geomDesc;
+    geomDesc.vertexShader = dgvs;
+    geomDesc.fragmentShader = dgfs;
+    geomDesc.primitive = solra::render::PrimitiveType::Triangles;
+    geomDesc.depthTest = true;
+    geomDesc.depthWrite = true;
+    geomDesc.depthCompare = solra::render::CompareOp::LessEqual;
+    geomDesc.blending = false;
+    g_render.deferredGeomPipeline = g_render.gpuDevice->createPipeline(geomDesc);
+
+    solra::render::PipelineDesc lightDesc;
+    lightDesc.vertexShader = dlvs;
+    lightDesc.fragmentShader = dlfs;
+    lightDesc.primitive = solra::render::PrimitiveType::Triangles;
+    lightDesc.depthTest = false;
+    lightDesc.depthWrite = false;
+    lightDesc.blending = false;
+    g_render.deferredLightPipeline = g_render.gpuDevice->createPipeline(lightDesc);
+
+    if (g_render.deferredGeomPipeline && g_render.deferredLightPipeline) {
+      g_render.deferred_available = true;
+      spdlog::info("Deferred rendering pipelines compiled (G-Buffer MRT + PBR lighting pass)");
+    }
+  } else {
+    spdlog::warn("Deferred shader compilation failed, using forward rendering");
+  }
+
   // Compile unlit fallback
   auto uvs = solra::render::OpenGLShader::compileFromSource(
       solra::render::ShaderStage::Vertex,
@@ -233,6 +342,122 @@ static bool init_gpu_pipelines() {
   }
 
   return g_render.pbrPipeline || g_render.unlitPipeline;
+}
+
+// ============================================================
+// G-Buffer management (deferred rendering)
+// ============================================================
+
+static bool init_gbuffer() {
+  if (!g_render.hasGpu || !g_render.deferred_available) return false;
+
+  int w = g_render.config.width > 0 ? g_render.config.width : 1920;
+  int h = g_render.config.height > 0 ? g_render.config.height : 1080;
+
+  // Create framebuffer
+  glGenFramebuffers(1, &g_render.gbuffer_fbo);
+  glBindFramebuffer(0x8D40, g_render.gbuffer_fbo); // GL_FRAMEBUFFER
+
+  // Albedo (RGBA8)
+  glGenTextures(1, &g_render.gbuffer_albedo);
+  glBindTexture(0x0DE1, g_render.gbuffer_albedo); // GL_TEXTURE_2D
+  glTexImage2D(0x0DE1, 0, 0x8058, w, h, 0, 0x1908, 0x1401, nullptr); // GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE
+  glTexParameteri(0x0DE1, 0x2800, 0x2601); // GL_LINEAR
+  glTexParameteri(0x0DE1, 0x2801, 0x2601);
+  glTexParameteri(0x0DE1, 0x2802, 0x812F); // GL_CLAMP_TO_EDGE
+  glTexParameteri(0x0DE1, 0x2803, 0x812F);
+  glFramebufferTexture2D(0x8D40, 0x8CE0, 0x0DE1, g_render.gbuffer_albedo, 0); // GL_COLOR_ATTACHMENT0
+
+  // Normal (RGBA16F for precision)
+  glGenTextures(1, &g_render.gbuffer_normal);
+  glBindTexture(0x0DE1, g_render.gbuffer_normal);
+  glTexImage2D(0x0DE1, 0, 0x881A, w, h, 0, 0x1908, 0x1406, nullptr); // GL_RGBA16F, GL_FLOAT
+  glTexParameteri(0x0DE1, 0x2800, 0x2601);
+  glTexParameteri(0x0DE1, 0x2801, 0x2601);
+  glTexParameteri(0x0DE1, 0x2802, 0x812F);
+  glTexParameteri(0x0DE1, 0x2803, 0x812F);
+  glFramebufferTexture2D(0x8D40, 0x8CE1, 0x0DE1, g_render.gbuffer_normal, 0); // GL_COLOR_ATTACHMENT1
+
+  // MetalRough (RGBA8)
+  glGenTextures(1, &g_render.gbuffer_metalrough);
+  glBindTexture(0x0DE1, g_render.gbuffer_metalrough);
+  glTexImage2D(0x0DE1, 0, 0x8058, w, h, 0, 0x1908, 0x1401, nullptr);
+  glTexParameteri(0x0DE1, 0x2800, 0x2601);
+  glTexParameteri(0x0DE1, 0x2801, 0x2601);
+  glTexParameteri(0x0DE1, 0x2802, 0x812F);
+  glTexParameteri(0x0DE1, 0x2803, 0x812F);
+  glFramebufferTexture2D(0x8D40, 0x8CE2, 0x0DE1, g_render.gbuffer_metalrough, 0); // GL_COLOR_ATTACHMENT2
+
+  // Emission (RGBA16F)
+  glGenTextures(1, &g_render.gbuffer_emission);
+  glBindTexture(0x0DE1, g_render.gbuffer_emission);
+  glTexImage2D(0x0DE1, 0, 0x881A, w, h, 0, 0x1908, 0x1406, nullptr);
+  glTexParameteri(0x0DE1, 0x2800, 0x2601);
+  glTexParameteri(0x0DE1, 0x2801, 0x2601);
+  glTexParameteri(0x0DE1, 0x2802, 0x812F);
+  glTexParameteri(0x0DE1, 0x2803, 0x812F);
+  glFramebufferTexture2D(0x8D40, 0x8CE3, 0x0DE1, g_render.gbuffer_emission, 0); // GL_COLOR_ATTACHMENT3
+
+  // Depth (Depth24Stencil8)
+  glGenTextures(1, &g_render.gbuffer_depth);
+  glBindTexture(0x0DE1, g_render.gbuffer_depth);
+  glTexImage2D(0x0DE1, 0, 0x88F0, w, h, 0, 0x84F9, 0x84FA, nullptr); // GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8
+  glTexParameteri(0x0DE1, 0x2800, 0x2601);
+  glTexParameteri(0x0DE1, 0x2801, 0x2601);
+  glTexParameteri(0x0DE1, 0x2802, 0x812F);
+  glTexParameteri(0x0DE1, 0x2803, 0x812F);
+  glFramebufferTexture2D(0x8D40, 0x8D00, 0x0DE1, g_render.gbuffer_depth, 0); // GL_DEPTH_ATTACHMENT
+
+  // Set draw buffers for MRT
+  uint32_t attachments[4] = { 0x8CE0, 0x8CE1, 0x8CE2, 0x8CE3 };
+  glDrawBuffers(4, attachments);
+
+  // Check completeness
+  uint32_t status = glCheckFramebufferStatus(0x8D40);
+  if (status != 0x8CD5) { // GL_FRAMEBUFFER_COMPLETE
+    spdlog::error("G-Buffer framebuffer incomplete: 0x{:X}", status);
+    glBindFramebuffer(0x8D40, 0);
+    return false;
+  }
+
+  // Create fullscreen quad for lighting pass
+  float quadVertices[] = {
+    // pos (NDC)       // uv
+    -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,
+     1.0f, -1.0f, 0.0f,  1.0f, 0.0f,
+     1.0f,  1.0f, 0.0f,  1.0f, 1.0f,
+    -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,
+     1.0f,  1.0f, 0.0f,  1.0f, 1.0f,
+    -1.0f,  1.0f, 0.0f,  0.0f, 1.0f,
+  };
+
+  glGenVertexArrays(1, &g_render.fullscreen_quad_vao);
+  glGenBuffers(1, &g_render.fullscreen_quad_vbo);
+  glBindVertexArray(g_render.fullscreen_quad_vao);
+  glBindBuffer(0x8892, g_render.fullscreen_quad_vbo); // GL_ARRAY_BUFFER
+  glBufferData(0x8892, sizeof(quadVertices), quadVertices, 0x88E4); // GL_STATIC_DRAW
+  glVertexAttribPointer(0, 3, 0x1406, 0x1702, 5 * sizeof(float), (void*)0); // pos
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(1, 2, 0x1406, 0x1702, 5 * sizeof(float), (void*)(3 * sizeof(float))); // uv
+  glEnableVertexAttribArray(1);
+  glBindVertexArray(0);
+
+  glBindFramebuffer(0x8D40, 0);
+  spdlog::info("G-Buffer initialized: {}x{} (Albedo/Normal/MetalRough/Emission/Depth)", w, h);
+  return true;
+}
+
+static void destroy_gbuffer() {
+  if (g_render.gbuffer_fbo)      glDeleteFramebuffers(1, &g_render.gbuffer_fbo);
+  if (g_render.gbuffer_albedo)   glDeleteTextures(1, &g_render.gbuffer_albedo);
+  if (g_render.gbuffer_normal)   glDeleteTextures(1, &g_render.gbuffer_normal);
+  if (g_render.gbuffer_metalrough) glDeleteTextures(1, &g_render.gbuffer_metalrough);
+  if (g_render.gbuffer_emission) glDeleteTextures(1, &g_render.gbuffer_emission);
+  if (g_render.gbuffer_depth)    glDeleteTextures(1, &g_render.gbuffer_depth);
+  if (g_render.fullscreen_quad_vao) glDeleteVertexArrays(1, &g_render.fullscreen_quad_vao);
+  if (g_render.fullscreen_quad_vbo) glDeleteBuffers(1, &g_render.fullscreen_quad_vbo);
+  g_render.gbuffer_fbo = 0;
+  g_render.deferred_available = false;
 }
 
 // ============================================================
@@ -300,8 +525,11 @@ static void submit_draw(
     if (!active.mesh->gpuVertices) return;
   }
 
+  bool isSkinned = active.mesh->is_skinned && g_render.pbrSkinnedPipeline;
   // Choose pipeline
-  auto pipeline = g_render.pbrPipeline ? g_render.pbrPipeline : g_render.unlitPipeline;
+  auto pipeline = isSkinned
+    ? g_render.pbrSkinnedPipeline
+    : (g_render.pbrPipeline ? g_render.pbrPipeline : g_render.unlitPipeline);
   if (!pipeline) return;
   cmd->bindPipeline(pipeline);
 
@@ -321,10 +549,21 @@ static void submit_draw(
   int vpLoc = glCmd->getUniformLocation("uViewProj");
   if (vpLoc >= 0) glCmd->setUniformMat4(vpLoc, glm::value_ptr(viewProj));
 
+  // Upload skinning matrices for skinned meshes
+  if (isSkinned && active.mesh->has_bone_matrices) {
+    int skinLoc = glCmd->getUniformBlockIndex("SkinningBlock");
+    if (skinLoc >= 0) {
+      glCmd->bindUniformBlock(skinLoc, 0);
+      // Upload bone matrix palette via glBufferSubData on a dedicated UBO
+      glCmd->uploadSkinningMatrices(
+        active.mesh->bone_matrices.data(),
+        static_cast<int>(active.mesh->bone_matrices.size()));
+    }
+  }
+
   // Set material uniforms (if using PBR pipeline)
-  if (g_render.pbrPipeline && active.material) {
+  if ((g_render.pbrPipeline || g_render.pbrSkinnedPipeline) && active.material) {
     auto uniforms = active.material->buildUniforms();
-    // Upload as uniform block data via glUniform* calls
     int bcLoc = glCmd->getUniformLocation("uMaterial.baseColorFactor");
     if (bcLoc >= 0) glCmd->setUniformVec4(bcLoc, uniforms.baseColorFactor);
     int mrLoc = glCmd->getUniformLocation("uMaterial.metallicRoughnessOcclusion");
@@ -332,7 +571,6 @@ static void submit_draw(
     int emLoc = glCmd->getUniformLocation("uMaterial.emissiveFactor");
     if (emLoc >= 0) glCmd->setUniformVec4(emLoc, uniforms.emissiveFactor);
   } else {
-    // Fallback: use simple color for unlit
     float color[4] = {active.color.x, active.color.y, active.color.z, 1.0f};
     int bcLoc = glCmd->getUniformLocation("uMaterial.baseColorFactor");
     if (bcLoc >= 0) glCmd->setUniformVec4(bcLoc, color);
@@ -362,8 +600,8 @@ static void submit_draw(
     glCmd->setUniformVec3(camLoc, camPos);
   }
 
-  // Bind vertex buffer and draw
-  cmd->bindVertexBuffer(active.mesh->gpuVertices);
+  // Bind vertex buffer and draw (with or without skinning attributes)
+  cmd->bindVertexBuffer(active.mesh->gpuVertices, 0, isSkinned);
 
   if (active.mesh->gpuIndices && !active.mesh->indices.empty()) {
     cmd->bindIndexBuffer(active.mesh->gpuIndices);
@@ -381,6 +619,22 @@ static void submit_draw(
 
 static void render_gpu_frame() {
   if (!g_render.hasGpu) return;
+
+  // Use deferred rendering if available (MRT G-Buffer + lighting pass)
+  if (g_render.deferred_available) {
+    // The view-projection is already cached in begin_frame
+    // Compute it inline since we need it before the deferred call
+    glm::mat4 view = glm::lookAt(
+      g_render.camera_pos, g_render.camera_target, g_render.camera_up);
+    float aspect = g_render.config.width > 0 && g_render.config.height > 0
+      ? (float)g_render.config.width / (float)g_render.config.height : 16.0f / 9.0f;
+    glm::mat4 proj = glm::perspective(
+      glm::radians(g_render.camera_fov), aspect,
+      g_render.camera_near, g_render.camera_far);
+    glm::mat4 viewProj = proj * view;
+    render_deferred_frame(viewProj);
+    return;
+  }
 
   auto cmd = g_render.gpuDevice->createCommandBuffer();
   auto* glCmd = dynamic_cast<solra::render::OpenGLCommandBuffer*>(cmd.get());
@@ -431,6 +685,148 @@ static void render_gpu_frame() {
   g_render.gpuDevice->submit(cmd);
 }
 
+// ============================================================
+// Deferred rendering frame path
+// ============================================================
+
+static void render_deferred_frame(const glm::mat4& viewProj) {
+  if (!g_render.hasGpu || !g_render.deferred_available) {
+    render_gpu_frame();
+    return;
+  }
+
+  int w = g_render.config.width > 0 ? g_render.config.width : 1920;
+  int h = g_render.config.height > 0 ? g_render.config.height : 1080;
+
+  // === Geometry pass: write to G-Buffer ===
+  glBindFramebuffer(0x8D40, g_render.gbuffer_fbo);
+  glViewport(0, 0, w, h);
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  glClear(0x4000 | 0x0100); // GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT
+
+  auto geomCmd = g_render.gpuDevice->createCommandBuffer();
+  geomCmd->begin();
+
+  // Compute visibility
+  solra::render::Mat4 vpMat;
+  const float* vpPtr = glm::value_ptr(viewProj);
+  for (int i = 0; i < 16; ++i) vpMat[i] = vpPtr[i];
+  auto visibleNodes = g_render.scene_graph->frustumCull(vpMat);
+  std::unordered_set<solra::render::SceneNode*> visibleSet(
+    visibleNodes.begin(), visibleNodes.end());
+
+  // Draw each visible node using deferred geometry pipeline
+  for (auto& active : g_render.active_nodes) {
+    if (!active.node || !active.mesh || !active.mesh->uploaded) continue;
+    if (!visibleSet.count(active.node)) continue;
+
+    // Upload mesh to GPU if needed
+    if (!active.mesh->gpuVertices) {
+      upload_mesh_to_gpu(active.mesh);
+      if (!active.mesh->gpuVertices) continue;
+    }
+
+    auto* glCmd = dynamic_cast<solra::render::OpenGLCommandBuffer*>(geomCmd.get());
+    if (!glCmd) continue;
+
+    geomCmd->bindPipeline(g_render.deferredGeomPipeline);
+
+    // Model matrix
+    const solra::render::Mat4& worldMat = active.node->worldMatrix();
+    float modelData[16] = {
+      worldMat[0], worldMat[1], worldMat[2], worldMat[3],
+      worldMat[4], worldMat[5], worldMat[6], worldMat[7],
+      worldMat[8], worldMat[9], worldMat[10], worldMat[11],
+      worldMat[12], worldMat[13], worldMat[14], worldMat[15]
+    };
+
+    int modelLoc = glCmd->getUniformLocation("uModel");
+    if (modelLoc >= 0) glCmd->setUniformMat4(modelLoc, modelData);
+    int vpLoc = glCmd->getUniformLocation("uViewProj");
+    if (vpLoc >= 0) glCmd->setUniformMat4(vpLoc, glm::value_ptr(viewProj));
+
+    // Material uniforms
+    if (active.material) {
+      auto uniforms = active.material->buildUniforms();
+      int bcLoc = glCmd->getUniformLocation("uMaterial.baseColorFactor");
+      if (bcLoc >= 0) glCmd->setUniformVec4(bcLoc, uniforms.baseColorFactor);
+      int mrLoc = glCmd->getUniformLocation("uMaterial.metallicRoughnessOcclusion");
+      if (mrLoc >= 0) glCmd->setUniformVec4(mrLoc, uniforms.metallicRoughnessOcclusion);
+      int emLoc = glCmd->getUniformLocation("uMaterial.emissiveFactor");
+      if (emLoc >= 0) glCmd->setUniformVec4(emLoc, uniforms.emissiveFactor);
+    }
+
+    geomCmd->bindVertexBuffer(active.mesh->gpuVertices, 0, false);
+    if (active.mesh->gpuIndices && !active.mesh->indices.empty()) {
+      geomCmd->bindIndexBuffer(active.mesh->gpuIndices);
+      geomCmd->drawIndexed(static_cast<uint32_t>(active.mesh->indices.size()));
+    } else {
+      int strideFloats = active.mesh->vertex_stride / sizeof(float);
+      uint32_t vc = static_cast<uint32_t>(active.mesh->vertices.size()) / strideFloats;
+      geomCmd->draw(vc);
+    }
+  }
+  geomCmd->end();
+  g_render.gpuDevice->submit(geomCmd);
+
+  // === Lighting pass: fullscreen quad reading G-Buffer ===
+  glBindFramebuffer(0x8D40, 0); // Back to default framebuffer
+  glClearColor(
+    g_render.config.clear_color[0],
+    g_render.config.clear_color[1],
+    g_render.config.clear_color[2],
+    g_render.config.clear_color[3]);
+  glClear(0x4000); // GL_COLOR_BUFFER_BIT
+
+  auto lightCmd = g_render.gpuDevice->createCommandBuffer();
+  auto* lglCmd = dynamic_cast<solra::render::OpenGLCommandBuffer*>(lightCmd.get());
+  if (lglCmd) {
+    lightCmd->begin();
+    lightCmd->bindPipeline(g_render.deferredLightPipeline);
+
+    // Bind G-Buffer textures
+    glActiveTexture(0x84C0); // GL_TEXTURE0
+    glBindTexture(0x0DE1, g_render.gbuffer_albedo);
+    glActiveTexture(0x84C1); // GL_TEXTURE1
+    glBindTexture(0x0DE1, g_render.gbuffer_normal);
+    glActiveTexture(0x84C2); // GL_TEXTURE2
+    glBindTexture(0x0DE1, g_render.gbuffer_metalrough);
+    glActiveTexture(0x84C3); // GL_TEXTURE3
+    glBindTexture(0x0DE1, g_render.gbuffer_emission);
+    glActiveTexture(0x84C4); // GL_TEXTURE4
+    glBindTexture(0x0DE1, g_render.gbuffer_depth);
+
+    // Set lighting uniforms
+    float lightDir[3] = {0.5f, -1.0f, 0.3f};
+    int ldLoc = lglCmd->getUniformLocation("uLightDirection");
+    if (ldLoc >= 0) lglCmd->setUniformVec3(ldLoc, lightDir);
+    float lightColor[3] = {1.0f, 0.95f, 0.85f};
+    int lcLoc = lglCmd->getUniformLocation("uLightColor");
+    if (lcLoc >= 0) lglCmd->setUniformVec3(lcLoc, lightColor);
+    int liLoc = lglCmd->getUniformLocation("uLightIntensity");
+    if (liLoc >= 0) lglCmd->setUniformFloat(liLoc, 8.0f);
+    float ambColor[3] = {0.08f, 0.08f, 0.12f};
+    int ambLoc = lglCmd->getUniformLocation("uAmbientColor");
+    if (ambLoc >= 0) lglCmd->setUniformVec3(ambLoc, ambColor);
+    float camPos[3] = {g_render.camera_pos.x, g_render.camera_pos.y, g_render.camera_pos.z};
+    int camLoc = lglCmd->getUniformLocation("uCameraPosition");
+    if (camLoc >= 0) lglCmd->setUniformVec3(camLoc, camPos);
+
+    // Inverse view-projection for world position reconstruction
+    glm::mat4 invViewProj = glm::inverse(viewProj);
+    int ivpLoc = lglCmd->getUniformLocation("uInverseViewProj");
+    if (ivpLoc >= 0) lglCmd->setUniformMat4(ivpLoc, glm::value_ptr(invViewProj));
+
+    // Draw fullscreen quad
+    glBindVertexArray(g_render.fullscreen_quad_vao);
+    glDrawArrays(0x0004, 0, 6); // GL_TRIANGLES, 6 vertices
+    glBindVertexArray(0);
+
+    lightCmd->end();
+    g_render.gpuDevice->submit(lightCmd);
+  }
+}
+
 /* ============================================================
  * Renderer Lifecycle
  * ============================================================ */
@@ -478,6 +874,9 @@ int solra_render_init(const SolraRenderConfig *config) {
       spdlog::warn("GPU pipeline initialization failed, falling back to CPU-only");
       g_render.gpuDevice.reset();
       g_render.hasGpu = false;
+    } else {
+      // Initialize G-Buffer for deferred rendering (if available)
+      init_gbuffer();
     }
   }
 
@@ -597,10 +996,21 @@ void solra_render_resize(int width, int height) {
 }
 
 void solra_render_shutdown(void) {
+  // Release G-Buffer resources
+  destroy_gbuffer();
+
   // Release GPU resources
   g_render.pbrPipeline.reset();
+  g_render.pbrSkinnedPipeline.reset();
   g_render.pbrVertexShader.reset();
+  g_render.pbrSkinnedVertexShader.reset();
   g_render.pbrFragmentShader.reset();
+  g_render.deferredGeomPipeline.reset();
+  g_render.deferredLightPipeline.reset();
+  g_render.deferredGeomVertexShader.reset();
+  g_render.deferredGeomFragmentShader.reset();
+  g_render.deferredLightVertexShader.reset();
+  g_render.deferredLightFragmentShader.reset();
   g_render.unlitPipeline.reset();
   g_render.unlitVertexShader.reset();
   g_render.unlitFragmentShader.reset();
@@ -803,6 +1213,69 @@ SolraMeshHandle solra_mesh_create(
 
   spdlog::debug("Mesh created: {} vertices, {} indices", vertex_count, index_count);
   return reinterpret_cast<SolraMeshHandle>(mesh);
+}
+
+SolraMeshHandle solra_mesh_create_skinned(
+  const void *vertices, int vertex_count,
+  const void *indices, int index_count, int index_type
+) {
+  auto* mesh = new ActiveMesh();
+  mesh->is_skinned = true;
+  mesh->vertex_stride = 48; // pos3+normal3+uv2+boneWeights4+boneIndices4 = 12 floats * 4 bytes
+
+  // Copy vertex data
+  size_t vertex_data_size = static_cast<size_t>(vertex_count) * mesh->vertex_stride;
+  mesh->vertices.resize(vertex_data_size / sizeof(float));
+  std::memcpy(mesh->vertices.data(), vertices, vertex_data_size);
+
+  // Copy index data
+  if (indices && index_count > 0) {
+    size_t index_size = (index_type == 32) ? sizeof(uint32_t) : sizeof(uint16_t);
+    size_t index_data_size = static_cast<size_t>(index_count) * index_size;
+    mesh->indices.resize(index_count);
+
+    if (index_type == 32) {
+      std::memcpy(mesh->indices.data(), indices, index_data_size);
+    } else {
+      const uint16_t* src = static_cast<const uint16_t*>(indices);
+      for (int i = 0; i < index_count; ++i) {
+        mesh->indices[i] = static_cast<uint32_t>(src[i]);
+      }
+    }
+  }
+
+  // Pre-allocate bone matrix palette (128 bones * 16 floats)
+  mesh->bone_matrices.resize(SOLRA_MAX_BONES * 16, 0.0f);
+  // Initialize first bone to identity
+  for (int b = 0; b < SOLRA_MAX_BONES; ++b) {
+    int base = b * 16;
+    mesh->bone_matrices[base + 0] = 1.0f;
+    mesh->bone_matrices[base + 5] = 1.0f;
+    mesh->bone_matrices[base + 10] = 1.0f;
+    mesh->bone_matrices[base + 15] = 1.0f;
+  }
+
+  spdlog::debug("Skinned mesh created: {} vertices, {} indices (48-byte stride)", vertex_count, index_count);
+  return reinterpret_cast<SolraMeshHandle>(mesh);
+}
+
+int solra_mesh_set_bone_matrices(SolraMeshHandle mesh, const float *bone_matrices, int bone_count) {
+  if (!mesh || !bone_matrices || bone_count <= 0 || bone_count > SOLRA_MAX_BONES) {
+    spdlog::warn("solra_mesh_set_bone_matrices: invalid arguments");
+    return SOLRA_ERROR_INVALID_ARGUMENT;
+  }
+
+  auto* m = reinterpret_cast<ActiveMesh*>(mesh);
+  if (!m->is_skinned) {
+    spdlog::warn("solra_mesh_set_bone_matrices: mesh is not skinned");
+    return SOLRA_ERROR_INVALID_ARGUMENT;
+  }
+
+  m->bone_count = bone_count;
+  std::memcpy(m->bone_matrices.data(), bone_matrices, bone_count * 16 * sizeof(float));
+  m->has_bone_matrices = true;
+
+  return SOLRA_OK;
 }
 
 void solra_mesh_destroy(SolraMeshHandle mesh) {

@@ -576,6 +576,7 @@ OpenGLCommandBuffer::OpenGLCommandBuffer(OpenGLDevice* device)
 
 OpenGLCommandBuffer::~OpenGLCommandBuffer() {
     if (current_vao_) glDeleteVertexArrays(1, &current_vao_);
+    if (skinning_ubo_) glDeleteBuffers(1, &skinning_ubo_);
 }
 
 uint32_t OpenGLCommandBuffer::createVAO() {
@@ -602,18 +603,36 @@ void OpenGLCommandBuffer::bindPipeline(std::shared_ptr<GpuPipeline> pipeline) {
     }
 }
 
-void OpenGLCommandBuffer::bindVertexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset) {
+void OpenGLCommandBuffer::bindVertexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset, bool skinned) {
     auto glBuf = std::dynamic_pointer_cast<OpenGLBuffer>(buffer);
-    if (glBuf) {
-        glBindBuffer(glBuf->target(), glBuf->handle());
-        // For simplicity, assume interleaved: pos3 + normal3 + uv2 = 8 floats = 32 bytes stride
-        // Production code would use actual vertex layout descriptors
-        glVertexAttribPointer(0, 3, 0x1406, 0x1702, 32, (void*)(uintptr_t)offset);     // position
+    if (!glBuf) return;
+    glBindBuffer(glBuf->target(), glBuf->handle());
+
+    if (skinned) {
+        // Skinned vertex layout: pos3 + normal3 + uv2 + boneWeights4 + boneIndices4 = 12 floats = 48 bytes
+        const int stride = 48;
+        glVertexAttribPointer(0, 3, 0x1406, 0x1702, stride, (void*)(uintptr_t)offset);      // position
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 3, 0x1406, 0x1702, 32, (void*)(uintptr_t)(offset + 12)); // normal
+        glVertexAttribPointer(1, 3, 0x1406, 0x1702, stride, (void*)(uintptr_t)(offset + 12)); // normal
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 2, 0x1406, 0x1702, 32, (void*)(uintptr_t)(offset + 24)); // uv
+        glVertexAttribPointer(2, 2, 0x1406, 0x1702, stride, (void*)(uintptr_t)(offset + 24)); // uv
         glEnableVertexAttribArray(2);
+        glVertexAttribPointer(3, 4, 0x1406, 0x1702, stride, (void*)(uintptr_t)(offset + 32)); // boneWeights
+        glEnableVertexAttribArray(3);
+        glVertexAttribIPointer(4, 4, 0x1405, stride, (void*)(uintptr_t)(offset + 48));         // boneIndices (uint)
+        glEnableVertexAttribArray(4);
+    } else {
+        // Standard interleaved: pos3 + normal3 + uv2 = 8 floats = 32 bytes stride
+        const int stride = 32;
+        glVertexAttribPointer(0, 3, 0x1406, 0x1702, stride, (void*)(uintptr_t)offset);      // position
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, 0x1406, 0x1702, stride, (void*)(uintptr_t)(offset + 12)); // normal
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, 0x1406, 0x1702, stride, (void*)(uintptr_t)(offset + 24)); // uv
+        glEnableVertexAttribArray(2);
+        // Disable skinning attributes
+        glDisableVertexAttribArray(3);
+        glDisableVertexAttribArray(4);
     }
 }
 
@@ -684,6 +703,36 @@ void OpenGLCommandBuffer::setUniformFloat(int location, float value) {
 int OpenGLCommandBuffer::getUniformLocation(const std::string& name) {
     if (!current_pipeline_) return -1;
     return glGetUniformLocation(current_pipeline_->handle(), name.c_str());
+}
+
+int OpenGLCommandBuffer::getUniformBlockIndex(const std::string& name) {
+    if (!current_pipeline_) return -1;
+    return glGetUniformBlockIndex(current_pipeline_->handle(), name.c_str());
+}
+
+void OpenGLCommandBuffer::bindUniformBlock(int blockIndex, int bindingPoint) {
+    if (blockIndex < 0) return;
+    glUniformBlockBinding(current_pipeline_->handle(), blockIndex, bindingPoint);
+}
+
+void OpenGLCommandBuffer::ensureSkinningUBO() {
+    if (skinning_ubo_ == 0) {
+        glGenBuffers(1, &skinning_ubo_);
+        glBindBuffer(0x8A11, skinning_ubo_); // GL_UNIFORM_BUFFER
+        // Allocate for 128 bones * 16 floats * 4 bytes = 8192 bytes
+        glBufferData(0x8A11, 128 * 16 * sizeof(float), nullptr, 0x88E4); // GL_DYNAMIC_DRAW
+        glBindBuffer(0x8A11, 0);
+    }
+}
+
+void OpenGLCommandBuffer::uploadSkinningMatrices(const float* matrices, int matrixCount) {
+    ensureSkinningUBO();
+    // Bind UBO to binding point 0 (matches the shader's SkinningBlock)
+    glBindBufferBase(0x8A11, 0, skinning_ubo_);
+    glBindBuffer(0x8A11, skinning_ubo_);
+    int uploadCount = matrixCount < 128 ? matrixCount : 128;
+    glBufferSubData(0x8A11, 0, uploadCount * 16 * sizeof(float), matrices);
+    glBindBuffer(0x8A11, 0);
 }
 
 // ============================================================

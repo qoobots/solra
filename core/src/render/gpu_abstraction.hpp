@@ -85,7 +85,7 @@ public:
     virtual void begin() = 0;
     virtual void end() = 0;
     virtual void bindPipeline(std::shared_ptr<GpuPipeline> pipeline) = 0;
-    virtual void bindVertexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset = 0) = 0;
+    virtual void bindVertexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset = 0, bool skinned = false) = 0;
     virtual void bindIndexBuffer(std::shared_ptr<GpuBuffer> buffer, uint64_t offset = 0) = 0;
     virtual void draw(uint32_t vertexCount, uint32_t instanceCount = 1,
                       uint32_t firstVertex = 0, uint32_t firstInstance = 0) = 0;
