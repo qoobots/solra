@@ -11,6 +11,7 @@
 #include "gpu_abstraction.hpp"
 #include "opengl_device.hpp"
 #include "builtin_shaders.hpp"
+#include "shadow_ssao.hpp"
 #include "scene_graph.hpp"
 #include "pbr_material.hpp"
 #include "../animation/skeletal_animation.hpp"
@@ -132,6 +133,53 @@ struct RenderState {
 
   // PBR material library
   std::shared_ptr<solra::render::MaterialLibrary> materialLib;
+
+  // ============================================================
+  // CSM Shadow Mapping resources
+  // ============================================================
+  struct CSMResources {
+    uint32_t shadowFbo = 0;
+    uint32_t shadowMapArray = 0;    // 2D array texture (4 cascades)
+    uint32_t shadowMapSize = 2048;
+    uint32_t cascadeCount = 4;
+    float cascadeSplits[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    bool enabled = false;
+
+    // Light-space matrices per cascade
+    glm::mat4 lightViewProj[4];
+    // Cascade split distances (far plane normalized)
+    float splitDepths[4];
+
+    // Shadow pipeline
+    std::shared_ptr<solra::render::GpuShader> shadowDepthVertex;
+    std::shared_ptr<solra::render::GpuShader> shadowDepthFragment;
+    std::shared_ptr<solra::render::GpuPipeline> shadowDepthPipeline;
+  } csm;
+
+  // ============================================================
+  // SSAO resources
+  // ============================================================
+  struct SSAOResources {
+    uint32_t ssaoFbo = 0;
+    uint32_t ssaoTexture = 0;       // raw SSAO output
+    uint32_t ssaoBlurFbo = 0;
+    uint32_t ssaoBlurTexture = 0;   // blurred SSAO
+    float radius = 0.5f;
+    float bias = 0.025f;
+    float intensity = 1.0f;
+    bool enabled = false;
+
+    // SSAO pipelines
+    std::shared_ptr<solra::render::GpuShader> ssaoVertex;
+    std::shared_ptr<solra::render::GpuShader> ssaoFragment;
+    std::shared_ptr<solra::render::GpuPipeline> ssaoPipeline;
+    std::shared_ptr<solra::render::GpuShader> ssaoBlurVertex;
+    std::shared_ptr<solra::render::GpuShader> ssaoBlurFragment;
+    std::shared_ptr<solra::render::GpuPipeline> ssaoBlurPipeline;
+  } ssao;
+
+  // HDR tonemapping (ACES filmic)
+  bool hdr_enabled = false;
 };
 
 static RenderState g_render;
@@ -461,6 +509,381 @@ static void destroy_gbuffer() {
 }
 
 // ============================================================
+// CSM Shadow Map management
+// ============================================================
+
+static bool init_csm_shadows() {
+  if (!g_render.hasGpu) return false;
+
+  auto* glDevice = dynamic_cast<solra::render::OpenGLDevice*>(g_render.gpuDevice.get());
+  if (!glDevice) return false;
+
+  uint32_t size = g_render.csm.shadowMapSize;
+  uint32_t count = g_render.csm.cascadeCount;
+
+  spdlog::info("CSM Shadows: initializing {} cascades @ {}x{}", count, size, size);
+
+  // Create shadow map array (depth-only, 2D array)
+  glGenTextures(1, &g_render.csm.shadowMapArray);
+  glBindTexture(0x0DE1, g_render.csm.shadowMapArray); // GL_TEXTURE_2D
+  glTexImage3D(0x8066, 0, 0x81A6, size, size, count, 0, 0x1902, 0x1406, nullptr); // GL_TEXTURE_2D_ARRAY, GL_DEPTH_COMPONENT32F
+  glTexParameteri(0x8066, 0x2800, 0x2601); // GL_TEXTURE_MIN_FILTER=GL_LINEAR
+  glTexParameteri(0x8066, 0x2801, 0x2601); // GL_TEXTURE_MAG_FILTER=GL_LINEAR
+  glTexParameteri(0x8066, 0x2802, 0x812F); // GL_TEXTURE_WRAP_S=GL_CLAMP_TO_EDGE
+  glTexParameteri(0x8066, 0x2803, 0x812F); // GL_TEXTURE_WRAP_T=GL_CLAMP_TO_EDGE
+  // Depth comparison mode
+  glTexParameteri(0x8066, 0x884C, 0x8E00); // GL_TEXTURE_COMPARE_MODE=GL_COMPARE_REF_TO_TEXTURE
+  glTexParameteri(0x8066, 0x884D, 0x8E01); // GL_TEXTURE_COMPARE_FUNC=GL_LEQUAL
+
+  // Create FBO for shadow rendering
+  glGenFramebuffers(1, &g_render.csm.shadowFbo);
+  glBindFramebuffer(0x8D40, g_render.csm.shadowFbo);
+  glFramebufferTexture(0x8D40, 0x8D00, g_render.csm.shadowMapArray, 0);
+  glDrawBuffer(0x0000); // GL_NONE — no color buffer
+  glReadBuffer(0x0000);
+
+  uint32_t status = glCheckFramebufferStatus(0x8D40);
+  if (status != 0x8CD5) {
+    spdlog::error("CSM shadow framebuffer incomplete: 0x{:X}", status);
+    glBindFramebuffer(0x8D40, 0);
+    return false;
+  }
+
+  // Compile shadow depth shaders
+  auto vs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Vertex,
+      solra::render::CSM_DEPTH_VERTEX_GLSL, glDevice);
+  auto fs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Fragment,
+      solra::render::CSM_DEPTH_FRAGMENT_GLSL, glDevice);
+
+  if (vs && fs) {
+    g_render.csm.shadowDepthVertex = vs;
+    g_render.csm.shadowDepthFragment = fs;
+    solra::render::PipelineDesc pipeDesc;
+    pipeDesc.vertexShader = vs;
+    pipeDesc.fragmentShader = fs;
+    pipeDesc.depthTest = true;
+    pipeDesc.depthWrite = true;
+    pipeDesc.cullMode = solra::render::CullMode::Back;
+    g_render.csm.shadowDepthPipeline = g_render.gpuDevice->createPipeline(pipeDesc);
+  }
+
+  glBindFramebuffer(0x8D40, 0);
+  g_render.csm.enabled = (g_render.csm.shadowDepthPipeline != nullptr);
+  spdlog::info("CSM Shadows: {}", g_render.csm.enabled ? "enabled" : "disabled (pipeline failed)");
+  return g_render.csm.enabled;
+}
+
+static void destroy_csm_shadows() {
+  if (g_render.csm.shadowFbo)       glDeleteFramebuffers(1, &g_render.csm.shadowFbo);
+  if (g_render.csm.shadowMapArray)  glDeleteTextures(1, &g_render.csm.shadowMapArray);
+  g_render.csm.shadowFbo = 0;
+  g_render.csm.shadowMapArray = 0;
+  g_render.csm.enabled = false;
+}
+
+// Calculate cascade split depths using logarithmic/exponential mix
+static void compute_cascade_splits(float nearPlane, float farPlane, float lambda) {
+  for (uint32_t i = 0; i < g_render.csm.cascadeCount; ++i) {
+    float p = static_cast<float>(i + 1) / static_cast<float>(g_render.csm.cascadeCount);
+    float logSplit = nearPlane * std::pow(farPlane / nearPlane, p);
+    float uniSplit = nearPlane + (farPlane - nearPlane) * p;
+    g_render.csm.splitDepths[i] = lambda * logSplit + (1.0f - lambda) * uniSplit;
+    g_render.csm.cascadeSplits[i] = g_render.csm.splitDepths[i];
+  }
+}
+
+// Render shadow maps for all cascades
+static void render_shadow_maps(const glm::vec3& lightDir) {
+  if (!g_render.csm.enabled) return;
+
+  compute_cascade_splits(g_render.camera_near, g_render.camera_far, 0.75f);
+
+  uint32_t size = g_render.csm.shadowMapSize;
+
+  // Compute light view-proj for each cascade
+  glm::mat4 cameraView = glm::lookAt(
+      g_render.camera_pos, g_render.camera_target, g_render.camera_up);
+  float aspect = g_render.config.width > 0 && g_render.config.height > 0
+      ? (float)g_render.config.width / (float)g_render.config.height : 16.0f / 9.0f;
+  glm::mat4 cameraProj = glm::perspective(
+      glm::radians(g_render.camera_fov), aspect,
+      g_render.camera_near, g_render.camera_far);
+
+  glm::mat4 invCamVP = glm::inverse(cameraProj * cameraView);
+
+  // Light view matrix (looking from sun direction)
+  glm::vec3 lightPos = g_render.camera_target - lightDir * 50.0f;
+  glm::mat4 lightView = glm::lookAt(lightPos, g_render.camera_target,
+      glm::vec3(0.0f, 1.0f, 0.0f));
+
+  glBindFramebuffer(0x8D40, g_render.csm.shadowFbo);
+  glViewport(0, 0, size, size);
+
+  for (uint32_t cascade = 0; cascade < g_render.csm.cascadeCount; ++cascade) {
+    // Frustum corners for this cascade
+    float nearDist = (cascade == 0) ? g_render.camera_near
+                                     : g_render.csm.splitDepths[cascade - 1];
+    float farDist = g_render.csm.splitDepths[cascade];
+
+    // Compute 8 frustum corners in world space
+    std::vector<glm::vec4> corners(8);
+    int idx = 0;
+    for (int z = 0; z < 2; ++z) {
+      for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 2; ++x) {
+          glm::vec4 ndc(
+              x * 2.0f - 1.0f, y * 2.0f - 1.0f,
+              (z == 0) ? nearDist / g_render.camera_far : farDist / g_render.camera_far,
+              1.0f);
+          corners[idx++] = invCamVP * ndc;
+        }
+      }
+    }
+    for (auto& c : corners) c /= c.w;
+
+    // Compute bounding sphere
+    glm::vec3 center(0.0f);
+    for (auto& c : corners) center += glm::vec3(c);
+    center /= 8.0f;
+    float radius = 0.0f;
+    for (auto& c : corners) {
+      radius = std::max(radius, glm::length(glm::vec3(c) - center));
+    }
+
+    // Snap to texel grid to reduce shimmering
+    float texelSize = (radius * 2.0f) / size;
+    center.x = std::floor(center.x / texelSize) * texelSize;
+    center.y = std::floor(center.y / texelSize) * texelSize;
+
+    // Light orthographic projection
+    glm::mat4 lightProj = glm::ortho(-radius, radius, -radius, radius,
+                                     0.0f, radius * 4.0f);
+
+    // Light view: look at cascade center from light direction
+    glm::vec3 lightEye = center - lightDir * radius * 2.0f;
+    lightView = glm::lookAt(lightEye, center, glm::vec3(0.0f, 1.0f, 0.0f));
+
+    g_render.csm.lightViewProj[cascade] = lightProj * lightView;
+
+    // Attach cascade layer to FBO
+    glFramebufferTextureLayer(0x8D40, 0x8D00, g_render.csm.shadowMapArray, 0, cascade);
+
+    // Clear and render
+    glClear(0x0100); // GL_DEPTH_BUFFER_BIT
+
+    auto cmd = g_render.gpuDevice->createCommandBuffer();
+    auto* glCmd = dynamic_cast<solra::render::OpenGLCommandBuffer*>(cmd.get());
+    if (!glCmd) continue;
+
+    cmd->begin();
+    cmd->bindPipeline(g_render.csm.shadowDepthPipeline);
+
+    // Render each mesh from light's perspective
+    for (auto& active : g_render.active_nodes) {
+      if (!active.node || !active.mesh || !active.mesh->uploaded) continue;
+      if (!active.mesh->gpuVertices) {
+        upload_mesh_to_gpu(active.mesh);
+        if (!active.mesh->gpuVertices) continue;
+      }
+
+      const solra::render::Mat4& worldMat = active.node->worldMatrix();
+      float modelData[16];
+      for (int m = 0; m < 16; ++m) modelData[m] = worldMat[m];
+
+      int modelLoc = glCmd->getUniformLocation("uModel");
+      if (modelLoc >= 0) glCmd->setUniformMat4(modelLoc, modelData);
+
+      int lvpLoc = glCmd->getUniformLocation("uLightViewProj");
+      if (lvpLoc >= 0) glCmd->setUniformMat4(lvpLoc, glm::value_ptr(g_render.csm.lightViewProj[cascade]));
+
+      cmd->bindVertexBuffer(active.mesh->gpuVertices, 0, false);
+      if (active.mesh->gpuIndices && !active.mesh->indices.empty()) {
+        cmd->bindIndexBuffer(active.mesh->gpuIndices);
+        cmd->drawIndexed(static_cast<uint32_t>(active.mesh->indices.size()));
+      } else {
+        int strideFloats = active.mesh->vertex_stride / sizeof(float);
+        uint32_t vc = static_cast<uint32_t>(active.mesh->vertices.size()) / strideFloats;
+        cmd->draw(vc);
+      }
+    }
+
+    cmd->end();
+    g_render.gpuDevice->submit(cmd);
+  }
+
+  glBindFramebuffer(0x8D40, 0);
+}
+
+// ============================================================
+// SSAO management
+// ============================================================
+
+static bool init_ssao() {
+  if (!g_render.hasGpu) return false;
+
+  auto* glDevice = dynamic_cast<solra::render::OpenGLDevice*>(g_render.gpuDevice.get());
+  if (!glDevice) return false;
+
+  int w = g_render.config.width > 0 ? g_render.config.width : 1920;
+  int h = g_render.config.height > 0 ? g_render.config.height : 1080;
+
+  spdlog::info("SSAO: initializing {}x{} half-res buffer", w/2, h/2);
+
+  // Half-resolution SSAO texture
+  int hw = w / 2;
+  int hh = h / 2;
+
+  // Raw SSAO
+  glGenTextures(1, &g_render.ssao.ssaoTexture);
+  glBindTexture(0x0DE1, g_render.ssao.ssaoTexture);
+  glTexImage2D(0x0DE1, 0, 0x822D, hw, hh, 0, 0x1903, 0x1406, nullptr); // GL_R16F, GL_RED, GL_FLOAT
+  glTexParameteri(0x0DE1, 0x2800, 0x2601); // GL_LINEAR
+  glTexParameteri(0x0DE1, 0x2801, 0x2601);
+  glTexParameteri(0x0DE1, 0x2802, 0x812F);
+  glTexParameteri(0x0DE1, 0x2803, 0x812F);
+
+  glGenFramebuffers(1, &g_render.ssao.ssaoFbo);
+  glBindFramebuffer(0x8D40, g_render.ssao.ssaoFbo);
+  glFramebufferTexture2D(0x8D40, 0x8CE0, 0x0DE1, g_render.ssao.ssaoTexture, 0);
+
+  // Blurred SSAO
+  glGenTextures(1, &g_render.ssao.ssaoBlurTexture);
+  glBindTexture(0x0DE1, g_render.ssao.ssaoBlurTexture);
+  glTexImage2D(0x0DE1, 0, 0x822D, hw, hh, 0, 0x1903, 0x1406, nullptr);
+  glTexParameteri(0x0DE1, 0x2800, 0x2601);
+  glTexParameteri(0x0DE1, 0x2801, 0x2601);
+  glTexParameteri(0x0DE1, 0x2802, 0x812F);
+  glTexParameteri(0x0DE1, 0x2803, 0x812F);
+
+  glGenFramebuffers(1, &g_render.ssao.ssaoBlurFbo);
+  glBindFramebuffer(0x8D40, g_render.ssao.ssaoBlurFbo);
+  glFramebufferTexture2D(0x8D40, 0x8CE0, 0x0DE1, g_render.ssao.ssaoBlurTexture, 0);
+
+  // Compile SSAO shaders
+  auto vs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Vertex,
+      solra::render::SSAO_VERTEX_GLSL, glDevice);
+  auto fs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Fragment,
+      solra::render::SSAO_FRAGMENT_GLSL, glDevice);
+
+  if (vs && fs) {
+    g_render.ssao.ssaoVertex = vs;
+    g_render.ssao.ssaoFragment = fs;
+    solra::render::PipelineDesc pipeDesc;
+    pipeDesc.vertexShader = vs;
+    pipeDesc.fragmentShader = fs;
+    pipeDesc.depthTest = false;
+    pipeDesc.depthWrite = false;
+    g_render.ssao.ssaoPipeline = g_render.gpuDevice->createPipeline(pipeDesc);
+  }
+
+  // Compile SSAO blur shaders
+  auto bvs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Vertex,
+      solra::render::SSAO_BLUR_VERTEX_GLSL, glDevice);
+  auto bfs = solra::render::OpenGLShader::compileFromSource(
+      solra::render::ShaderStage::Fragment,
+      solra::render::SSAO_BLUR_FRAGMENT_GLSL, glDevice);
+
+  if (bvs && bfs) {
+    g_render.ssao.ssaoBlurVertex = bvs;
+    g_render.ssao.ssaoBlurFragment = bfs;
+    solra::render::PipelineDesc pipeDesc;
+    pipeDesc.vertexShader = bvs;
+    pipeDesc.fragmentShader = bfs;
+    pipeDesc.depthTest = false;
+    pipeDesc.depthWrite = false;
+    g_render.ssao.ssaoBlurPipeline = g_render.gpuDevice->createPipeline(pipeDesc);
+  }
+
+  glBindFramebuffer(0x8D40, 0);
+  g_render.ssao.enabled = (g_render.ssao.ssaoPipeline && g_render.ssao.ssaoBlurPipeline);
+  spdlog::info("SSAO: {}", g_render.ssao.enabled ? "enabled (HBAO)" : "disabled");
+  return g_render.ssao.enabled;
+}
+
+static void destroy_ssao() {
+  if (g_render.ssao.ssaoFbo)       glDeleteFramebuffers(1, &g_render.ssao.ssaoFbo);
+  if (g_render.ssao.ssaoTexture)   glDeleteTextures(1, &g_render.ssao.ssaoTexture);
+  if (g_render.ssao.ssaoBlurFbo)   glDeleteFramebuffers(1, &g_render.ssao.ssaoBlurFbo);
+  if (g_render.ssao.ssaoBlurTexture) glDeleteTextures(1, &g_render.ssao.ssaoBlurTexture);
+  g_render.ssao.ssaoFbo = 0;
+  g_render.ssao.enabled = false;
+}
+
+static void render_ssao_pass(const glm::mat4& viewProj) {
+  if (!g_render.ssao.enabled || !g_render.deferred_available) return;
+
+  int hw = g_render.config.width / 2;
+  int hh = g_render.config.height / 2;
+
+  // Pass 1: SSAO computation (half-res)
+  glBindFramebuffer(0x8D40, g_render.ssao.ssaoFbo);
+  glViewport(0, 0, hw, hh);
+
+  auto cmd = g_render.gpuDevice->createCommandBuffer();
+  auto* glCmd = dynamic_cast<solra::render::OpenGLCommandBuffer*>(cmd.get());
+  if (glCmd) {
+    cmd->begin();
+    cmd->bindPipeline(g_render.ssao.ssaoPipeline);
+
+    // Bind G-Buffer normal and depth
+    glActiveTexture(0x84C1); glBindTexture(0x0DE1, g_render.gbuffer_normal);
+    glActiveTexture(0x84C4); glBindTexture(0x0DE1, g_render.gbuffer_depth);
+
+    // Set SSAO parameters
+    int rLoc = glCmd->getUniformLocation("uSSAORadius");
+    if (rLoc >= 0) glCmd->setUniformFloat(rLoc, g_render.ssao.radius);
+    int bLoc = glCmd->getUniformLocation("uSSAOBias");
+    if (bLoc >= 0) glCmd->setUniformFloat(bLoc, g_render.ssao.bias);
+    int iLoc = glCmd->getUniformLocation("uSSAOIntensity");
+    if (iLoc >= 0) glCmd->setUniformFloat(iLoc, g_render.ssao.intensity);
+
+    float screenSize[2] = {static_cast<float>(hw), static_cast<float>(hh)};
+    int ssLoc = glCmd->getUniformLocation("uScreenSize");
+    if (ssLoc >= 0) glCmd->setUniformVec2(ssLoc, screenSize);
+
+    glm::mat4 invViewProj = glm::inverse(viewProj);
+    int ivpLoc = glCmd->getUniformLocation("uInverseViewProj");
+    if (ivpLoc >= 0) glCmd->setUniformMat4(ivpLoc, glm::value_ptr(invViewProj));
+
+    // Draw fullscreen quad
+    glBindVertexArray(g_render.fullscreen_quad_vao);
+    glDrawArrays(0x0004, 0, 6);
+
+    cmd->end();
+    g_render.gpuDevice->submit(cmd);
+  }
+
+  // Pass 2: Bilateral blur
+  glBindFramebuffer(0x8D40, g_render.ssao.ssaoBlurFbo);
+  auto blurCmd = g_render.gpuDevice->createCommandBuffer();
+  auto* bglCmd = dynamic_cast<solra::render::OpenGLCommandBuffer*>(blurCmd.get());
+  if (bglCmd) {
+    blurCmd->begin();
+    blurCmd->bindPipeline(g_render.ssao.ssaoBlurPipeline);
+
+    glActiveTexture(0x84C5); glBindTexture(0x0DE1, g_render.ssao.ssaoTexture); // uSSAOInput
+    glActiveTexture(0x84C4); glBindTexture(0x0DE1, g_render.gbuffer_depth);
+
+    float screenSize[2] = {static_cast<float>(hw), static_cast<float>(hh)};
+    int ssLoc = bglCmd->getUniformLocation("uScreenSize");
+    if (ssLoc >= 0) bglCmd->setUniformVec2(ssLoc, screenSize);
+
+    glBindVertexArray(g_render.fullscreen_quad_vao);
+    glDrawArrays(0x0004, 0, 6);
+
+    blurCmd->end();
+    g_render.gpuDevice->submit(blurCmd);
+  }
+
+  glBindFramebuffer(0x8D40, 0);
+}
+
+// ============================================================
 // Upload mesh data to GPU
 // ============================================================
 
@@ -620,18 +1043,26 @@ static void submit_draw(
 static void render_gpu_frame() {
   if (!g_render.hasGpu) return;
 
+  // Compute camera matrices
+  glm::mat4 view = glm::lookAt(
+    g_render.camera_pos, g_render.camera_target, g_render.camera_up);
+  float aspect = g_render.config.width > 0 && g_render.config.height > 0
+    ? (float)g_render.config.width / (float)g_render.config.height : 16.0f / 9.0f;
+  glm::mat4 proj = glm::perspective(
+    glm::radians(g_render.camera_fov), aspect,
+    g_render.camera_near, g_render.camera_far);
+  glm::mat4 viewProj = proj * view;
+  g_render.cachedViewProj = viewProj;
+
+  // === Pre-pass: Render CSM shadow maps ===
+  glm::vec3 lightDir = glm::normalize(glm::vec3(0.5f, -1.0f, 0.3f));
+  render_shadow_maps(lightDir);
+
+  // === SSAO pre-pass (before deferred lighting) ===
+  render_ssao_pass(viewProj);
+
   // Use deferred rendering if available (MRT G-Buffer + lighting pass)
   if (g_render.deferred_available) {
-    // The view-projection is already cached in begin_frame
-    // Compute it inline since we need it before the deferred call
-    glm::mat4 view = glm::lookAt(
-      g_render.camera_pos, g_render.camera_target, g_render.camera_up);
-    float aspect = g_render.config.width > 0 && g_render.config.height > 0
-      ? (float)g_render.config.width / (float)g_render.config.height : 16.0f / 9.0f;
-    glm::mat4 proj = glm::perspective(
-      glm::radians(g_render.camera_fov), aspect,
-      g_render.camera_near, g_render.camera_far);
-    glm::mat4 viewProj = proj * view;
     render_deferred_frame(viewProj);
     return;
   }
@@ -653,16 +1084,8 @@ static void render_gpu_frame() {
     g_render.config.clear_color[3]);
   glCmd->clear(true, true, false);
 
-  // Compute view-projection
-  glm::mat4 view = glm::lookAt(
-    g_render.camera_pos, g_render.camera_target, g_render.camera_up);
-  float aspect = g_render.config.width > 0 && g_render.config.height > 0
-    ? (float)g_render.config.width / (float)g_render.config.height : 16.0f / 9.0f;
-  glm::mat4 proj = glm::perspective(
-    glm::radians(g_render.camera_fov), aspect,
-    g_render.camera_near, g_render.camera_far);
-  glm::mat4 viewProj = proj * view;
-  g_render.cachedViewProj = viewProj;
+  // Use cached view-projection (already computed in render_gpu_frame)
+  glm::mat4 viewProj = g_render.cachedViewProj;
 
   // Frustum culling: only draw visible nodes
   solra::render::Mat4 vpMat;
@@ -877,6 +1300,12 @@ int solra_render_init(const SolraRenderConfig *config) {
     } else {
       // Initialize G-Buffer for deferred rendering (if available)
       init_gbuffer();
+      // Initialize CSM shadow mapping
+      init_csm_shadows();
+      // Initialize SSAO
+      init_ssao();
+      // HDR enabled if requested
+      g_render.hdr_enabled = (g_render.config.enable_hdr != 0);
     }
   }
 
@@ -998,6 +1427,10 @@ void solra_render_resize(int width, int height) {
 void solra_render_shutdown(void) {
   // Release G-Buffer resources
   destroy_gbuffer();
+  // Release CSM shadow map resources
+  destroy_csm_shadows();
+  // Release SSAO resources
+  destroy_ssao();
 
   // Release GPU resources
   g_render.pbrPipeline.reset();

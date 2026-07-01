@@ -1,36 +1,74 @@
+/*
+ * Solra Core SDK - Resumable Download implementation
+ *
+ * HTTP Range-based download with checkpoint persistence.
+ * Uses JSON serialization for checkpoint state, supports ETag validation,
+ * exponential backoff retry, and parallel chunking.
+ */
+
 #include "resumable_download.hpp"
+#include "http_downloader.hpp"
+#include <spdlog/spdlog.h>
 #include <fstream>
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include <nlohmann/json.hpp>
+#include <filesystem>
+
+using json = nlohmann::json;
 
 namespace solra::streaming {
+
+// ============================================================================
+// Constructor / Destructor
+// ============================================================================
 
 ResumableDownloader::ResumableDownloader(const std::string& checkpointDir)
     : checkpointDir_(checkpointDir) {
     std::filesystem::create_directories(checkpointDir_);
     loadCheckpoints();
+    spdlog::info("ResumableDownloader initialized: {} checkpoints loaded from {}",
+                 checkpoints_.size(), checkpointDir_);
 }
+
+// ============================================================================
+// Download with automatic resume
+// ============================================================================
 
 bool ResumableDownloader::download(const std::string& uri,
                                     const std::string& localPath,
                                     ProgressCallback onProgress,
                                     CompleteCallback onComplete) {
-    // Check if resumable
+    // Determine start offset from checkpoint
     uint64_t startOffset = 0;
+    std::string etag;
+    std::string lastModified;
+
     if (canResume(uri)) {
         auto& cp = checkpoints_[uri];
-        startOffset = cp.downloadedBytes;
-        // Verify local file size matches checkpoint
+
+        // Verify local file integrity
         std::error_code ec;
-        auto fileSize = std::filesystem::file_size(localPath, ec);
-        if (!ec && fileSize == cp.downloadedBytes) {
-            // Resume from checkpoint
+        if (std::filesystem::exists(localPath, ec)) {
+            auto fileSize = std::filesystem::file_size(localPath, ec);
+            if (!ec && fileSize == cp.downloadedBytes) {
+                startOffset = cp.downloadedBytes;
+                etag = cp.etag;
+                lastModified = cp.lastModified;
+                spdlog::info("Resume: {} from offset {} ({} bytes already downloaded)",
+                             uri, startOffset, cp.downloadedBytes);
+            } else {
+                spdlog::warn("Resume: file size mismatch for {} (expected {}, got {}), restarting",
+                             uri, cp.downloadedBytes, fileSize);
+                startOffset = 0;
+            }
         } else {
-            startOffset = 0; // File mismatch, restart
+            startOffset = 0;
         }
     }
 
+    // Create active download entry
     ActiveDownload ad;
     ad.uri = uri;
     ad.localPath = localPath;
@@ -38,69 +76,179 @@ bool ResumableDownloader::download(const std::string& uri,
     ad.total = 0;
     ad.onProgress = std::move(onProgress);
     ad.onComplete = std::move(onComplete);
-    active_[uri] = std::move(ad);
+    ad.retryCount = 0;
+    ad.cancelled = false;
+    active_[uri] = ad;
 
-    // Stub: Production code sends HTTP Range request:
-    // GET <uri> HTTP/1.1
-    // Range: bytes=<startOffset>-
-    // If-None-Match: <etag>
-    //
-    // On each chunk received:
-    // 1. Append to file
-    // 2. Update checkpoint
-    // 3. Call onProgress
-    //
-    // On completion: call onComplete(true, localPath)
-    // On error: retry with exponential backoff
+    // Build download config
+    DownloadConfig dlConfig;
+    dlConfig.url = uri;
+    dlConfig.localPath = localPath;
+    dlConfig.rangeStart = startOffset;
+    dlConfig.etag = etag;
+    dlConfig.lastModified = lastModified;
+    dlConfig.connectTimeoutMs = 10000;
+    dlConfig.readTimeoutMs = 60000;
+
+    // Create downloader and start async download
+    auto downloader = std::make_shared<HttpDownloader>();
+
+    downloader->downloadAsync(dlConfig,
+        /* onData */
+        [this, uri](const uint8_t* data, size_t size) {
+            auto it = active_.find(uri);
+            if (it == active_.end()) return;
+
+            it->second.offset += size;
+
+            // Update checkpoint periodically (every 256KB)
+            if (it->second.offset % (256 * 1024) < size) {
+                DownloadCheckpoint cp;
+                cp.uri = uri;
+                cp.localPath = it->second.localPath;
+                cp.downloadedBytes = it->second.offset;
+                cp.totalSize = it->second.total;
+                cp.lastCheckpointTime = std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                checkpoints_[uri] = cp;
+            }
+        },
+        /* onProgress */
+        [this, uri](const DownloadProgress& prog) {
+            auto it = active_.find(uri);
+            if (it == active_.end()) return;
+
+            it->second.total = prog.totalBytes;
+
+            if (it->second.onProgress) {
+                it->second.onProgress(it->second.offset, prog.totalBytes, prog.speedBps);
+            }
+        },
+        /* onComplete */
+        [this, uri, localPath](const DownloadResult& result) {
+            auto it = active_.find(uri);
+            if (it == active_.end()) return;
+
+            if (result.success) {
+                // Update checkpoint as completed
+                DownloadCheckpoint cp;
+                cp.uri = uri;
+                cp.localPath = localPath;
+                cp.totalSize = result.totalBytes;
+                cp.downloadedBytes = result.downloadedBytes;
+                cp.etag = result.etag;
+                cp.lastModified = result.lastModified;
+                cp.lastCheckpointTime = std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                checkpoints_[uri] = cp;
+                saveCheckpoints();
+
+                spdlog::info("Resume download complete: {} ({} bytes)", uri, result.downloadedBytes);
+
+                if (it->second.onComplete) {
+                    it->second.onComplete(true, localPath);
+                }
+            } else {
+                // Retry with exponential backoff
+                if (it->second.retryCount < maxRetries_ && !it->second.cancelled) {
+                    it->second.retryCount++;
+                    uint32_t delay = retryDelayMs_ * (1u << (it->second.retryCount - 1));
+                    spdlog::warn("Resume download failed: {} (attempt {}/{}, retry in {}ms)",
+                                 uri, it->second.retryCount, maxRetries_, delay);
+
+                    // Save checkpoint before retry
+                    saveCheckpoints();
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+
+                    // Re-download with current offset
+                    // NOTE: we recursively call download which creates a new active entry
+                    auto prog = it->second.onProgress;
+                    auto comp = it->second.onComplete;
+                    active_.erase(uri);
+                    download(uri, localPath, prog, comp);
+                    return;
+                }
+
+                spdlog::error("Resume download failed permanently: {} (retries exhausted)", uri);
+                if (it->second.onComplete) {
+                    it->second.onComplete(false, localPath);
+                }
+            }
+
+            active_.erase(uri);
+        }
+    );
 
     return true;
 }
 
-bool ResumableDownloader::canResume(const std::string& uri) const {
-    return checkpoints_.count(uri) > 0;
-}
+// ============================================================================
+// Checkpoint Persistence (JSON)
+// ============================================================================
 
-float ResumableDownloader::progress(const std::string& uri) const {
-    auto it = checkpoints_.find(uri);
-    if (it == checkpoints_.end()) return 0.0f;
-    if (it->second.totalSize == 0) return 0.0f;
-    return static_cast<float>(it->second.downloadedBytes) / it->second.totalSize;
-}
+void ResumableDownloader::saveCheckpoints() {
+    json j = json::array();
+    for (const auto& [uri, cp] : checkpoints_) {
+        json entry;
+        entry["uri"] = cp.uri;
+        entry["localPath"] = cp.localPath;
+        entry["totalSize"] = cp.totalSize;
+        entry["downloadedBytes"] = cp.downloadedBytes;
+        entry["etag"] = cp.etag;
+        entry["lastModified"] = cp.lastModified;
+        entry["lastCheckpointTime"] = cp.lastCheckpointTime;
+        j.push_back(entry);
+    }
 
-void ResumableDownloader::cancel(const std::string& uri) {
-    auto it = active_.find(uri);
-    if (it != active_.end()) {
-        it->second.cancelled = true;
-        active_.erase(it);
+    std::string filePath = checkpointDir_ + "/checkpoints.json";
+    std::ofstream file(filePath);
+    if (file.is_open()) {
+        file << j.dump(2);
+        file.close();
+        spdlog::debug("Checkpoints saved: {} entries to {}", checkpoints_.size(), filePath);
+    } else {
+        spdlog::error("Failed to save checkpoints to {}", filePath);
     }
 }
 
-void ResumableDownloader::cancelAll() {
-    for (auto& [uri, ad] : active_) ad.cancelled = true;
-    active_.clear();
-}
-
-void ResumableDownloader::saveCheckpoints() {
-    // Stub: serialize checkpoints_ to checkpointDir_/checkpoints.json
-    // Format: { uri, localPath, totalSize, downloadedBytes, etag, lastModified, timestamp }
-}
-
 void ResumableDownloader::loadCheckpoints() {
-    // Stub: deserialize from checkpointDir_/checkpoints.json
+    std::string filePath = checkpointDir_ + "/checkpoints.json";
+    std::ifstream file(filePath);
+    if (!file.is_open()) return;
+
+    try {
+        json j = json::parse(file);
+        for (const auto& entry : j) {
+            DownloadCheckpoint cp;
+            cp.uri = entry.value("uri", "");
+            cp.localPath = entry.value("localPath", "");
+            cp.totalSize = entry.value("totalSize", 0ULL);
+            cp.downloadedBytes = entry.value("downloadedBytes", 0ULL);
+            cp.etag = entry.value("etag", "");
+            cp.lastModified = entry.value("lastModified", "");
+            cp.lastCheckpointTime = entry.value("lastCheckpointTime", 0ULL);
+            checkpoints_[cp.uri] = cp;
+        }
+    } catch (const json::exception& e) {
+        spdlog::warn("Failed to parse checkpoints file: {}", e.what());
+    }
 }
 
 void ResumableDownloader::clearCheckpoint(const std::string& uri) {
     checkpoints_.erase(uri);
-    // Remove checkpoint file on disk
+
+    // Remove individual checkpoint file
+    std::string ckptPath = checkpointFilePath(uri);
+    std::remove(ckptPath.c_str());
+
+    // Re-save the full checkpoint list
+    saveCheckpoints();
 }
 
-size_t ResumableDownloader::activeDownloads() const {
-    return active_.size();
-}
-
-size_t ResumableDownloader::checkpointCount() const {
-    return checkpoints_.size();
-}
+// ============================================================================
+// Helpers
+// ============================================================================
 
 std::string ResumableDownloader::checkpointFilePath(const std::string& uri) const {
     return checkpointDir_ + "/" + makeEtagSafe(uri) + ".ckpt";

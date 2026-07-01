@@ -8,7 +8,9 @@
 #include <solra/solra_webrtc.h>
 #include <solra/solra_types.h>
 #include "p2p_data_channel.hpp"
+#include "webrtc_session.hpp"
 #include "spatial_audio.hpp"
+#include "turn_stun_signaling.hpp"
 #include <spdlog/spdlog.h>
 #include <string>
 #include <unordered_map>
@@ -31,6 +33,10 @@ struct PeerConnectionState {
 
   std::unordered_map<SolraDataChannelHandle, std::shared_ptr<DataChannel>> channels;
   std::mutex channel_mutex;
+
+  // ICE candidate queue (for trickle ICE)
+  std::vector<IceCandidate> pending_candidates;
+  std::mutex ice_mutex;
 };
 
 struct DataChannelState {
@@ -66,6 +72,28 @@ int solra_webrtc_init(const SolraWebRTCConfig *config) {
   if (!config) return SOLRA_ERROR_INVALID_ARGUMENT;
 
   g_webrtc.config = *config;
+
+  // Configure ICE servers from config
+  IceConfig iceCfg;
+  if (config->stun_server && config->stun_server[0]) {
+    iceCfg.iceServers.push_back({config->stun_server, "", "", IceServer::Type::STUN});
+  }
+  if (config->turn_server && config->turn_server[0]) {
+    iceCfg.iceServers.push_back({
+      config->turn_server,
+      config->turn_username ? config->turn_username : "",
+      config->turn_credential ? config->turn_credential : "",
+      IceServer::Type::TURN
+    });
+  }
+
+  // Initialize WebRTC factory (libwebrtc global init)
+  auto& factory = WebRTCFactory::instance();
+  if (!factory.initialize(iceCfg)) {
+    spdlog::error("WebRTC: factory initialization failed");
+    return SOLRA_ERROR_UNKNOWN;
+  }
+
   g_webrtc.initialized = 1;
 
   spdlog::info("WebRTC engine initialized");
@@ -89,6 +117,8 @@ void solra_webrtc_shutdown(void) {
 
   g_webrtc.peers.clear();
   g_webrtc.channels.clear();
+
+  WebRTCFactory::instance().shutdown();
   g_webrtc.initialized = 0;
 
   spdlog::info("WebRTC engine shutdown");
@@ -105,7 +135,7 @@ SolraPeerConnectionHandle solra_webrtc_peer_create(void) {
   peer->session = createP2PSession();
 
   if (!peer->session) {
-    spdlog::error("WebRTC: failed to create P2P session");
+    spdlog::error("WebRTC: failed to create P2P session (libwebrtc not linked?)");
     return nullptr;
   }
 
@@ -148,6 +178,15 @@ SolraPeerConnectionHandle solra_webrtc_peer_create(void) {
     }
   });
 
+  // Set up ICE candidate forwarding if we have a WebRTCSession
+  if (auto* session = dynamic_cast<WebRTCSession*>(peer->session.get())) {
+    session->setIceCandidateCallback([peer](const IceCandidate& ic) {
+      std::lock_guard<std::mutex> lock(peer->ice_mutex);
+      peer->pending_candidates.push_back(ic);
+      spdlog::debug("WebRTC: local ICE candidate: {} {}", ic.sdpMid, ic.candidate.substr(0, 60));
+    });
+  }
+
   uintptr_t handle = g_webrtc.next_peer_handle.fetch_add(1);
   SolraPeerConnectionHandle peer_handle = reinterpret_cast<SolraPeerConnectionHandle>(handle);
 
@@ -177,8 +216,27 @@ void solra_webrtc_peer_set_state_callback(
 int solra_webrtc_peer_create_offer(SolraPeerConnectionHandle peer, char *sdp, size_t sdp_size) {
   if (!peer || !sdp || sdp_size == 0) return SOLRA_ERROR_INVALID_ARGUMENT;
 
-  // In a real implementation, this would generate an SDP offer via libwebrtc
-  // For now, return a placeholder SDP
+  std::shared_ptr<PeerConnectionState> peer_state;
+  {
+    std::lock_guard<std::mutex> lock(g_webrtc.peer_mutex);
+    auto it = g_webrtc.peers.find(peer);
+    if (it == g_webrtc.peers.end()) return SOLRA_ERROR_UNKNOWN;
+    peer_state = it->second;
+  }
+
+  // Try real WebRTC session
+  if (auto* session = dynamic_cast<WebRTCSession*>(peer_state->session.get())) {
+    std::string offer = session->createOffer();
+    if (!offer.empty()) {
+      size_t len = std::min(offer.size(), sdp_size - 1);
+      std::memcpy(sdp, offer.c_str(), len);
+      sdp[len] = '\0';
+      spdlog::debug("WebRTC: real offer created ({} bytes)", len);
+      return static_cast<int>(len);
+    }
+  }
+
+  // Fallback: return a well-formed placeholder SDP
   const char* placeholder_sdp =
     "v=0\r\n"
     "o=- 0 2 IN IP4 127.0.0.1\r\n"
@@ -198,13 +256,26 @@ int solra_webrtc_peer_create_offer(SolraPeerConnectionHandle peer, char *sdp, si
   std::memcpy(sdp, placeholder_sdp, len);
   sdp[len] = '\0';
 
-  spdlog::debug("WebRTC: offer created ({} bytes)", len);
+  spdlog::debug("WebRTC: placeholder offer created ({} bytes)", len);
   return static_cast<int>(len);
 }
 
 int solra_webrtc_peer_set_local_description(SolraPeerConnectionHandle peer,
     const char *sdp, const char *type) {
   if (!peer) return SOLRA_ERROR_INVALID_ARGUMENT;
+
+  std::shared_ptr<PeerConnectionState> peer_state;
+  {
+    std::lock_guard<std::mutex> lock(g_webrtc.peer_mutex);
+    auto it = g_webrtc.peers.find(peer);
+    if (it == g_webrtc.peers.end()) return SOLRA_ERROR_UNKNOWN;
+    peer_state = it->second;
+  }
+
+  if (auto* session = dynamic_cast<WebRTCSession*>(peer_state->session.get())) {
+    session->setLocalDescription(sdp ? sdp : "", type ? type : "");
+  }
+
   spdlog::debug("WebRTC: set local description (type={})", type ? type : "null");
   return SOLRA_OK;
 }
@@ -212,6 +283,19 @@ int solra_webrtc_peer_set_local_description(SolraPeerConnectionHandle peer,
 int solra_webrtc_peer_set_remote_description(SolraPeerConnectionHandle peer,
     const char *sdp, const char *type) {
   if (!peer) return SOLRA_ERROR_INVALID_ARGUMENT;
+
+  std::shared_ptr<PeerConnectionState> peer_state;
+  {
+    std::lock_guard<std::mutex> lock(g_webrtc.peer_mutex);
+    auto it = g_webrtc.peers.find(peer);
+    if (it == g_webrtc.peers.end()) return SOLRA_ERROR_UNKNOWN;
+    peer_state = it->second;
+  }
+
+  if (auto* session = dynamic_cast<WebRTCSession*>(peer_state->session.get())) {
+    session->setRemoteDescription(sdp ? sdp : "", type ? type : "");
+  }
+
   spdlog::debug("WebRTC: set remote description (type={})", type ? type : "null");
   return SOLRA_OK;
 }
@@ -222,6 +306,21 @@ void solra_webrtc_peer_add_ice_candidate(
     const char *sdp_mid,
     int sdp_mline_index) {
   if (!peer) return;
+
+  std::shared_ptr<PeerConnectionState> peer_state;
+  {
+    std::lock_guard<std::mutex> lock(g_webrtc.peer_mutex);
+    auto it = g_webrtc.peers.find(peer);
+    if (it == g_webrtc.peers.end()) return;
+    peer_state = it->second;
+  }
+
+  if (auto* session = dynamic_cast<WebRTCSession*>(peer_state->session.get())) {
+    session->addIceCandidate(candidate ? candidate : "",
+                             sdp_mid ? sdp_mid : "",
+                             sdp_mline_index);
+  }
+
   spdlog::debug("WebRTC: ICE candidate added (mid={}, line={})",
                 sdp_mid ? sdp_mid : "null", sdp_mline_index);
 }
