@@ -3,8 +3,12 @@
 set(SOLRA_INFERENCE_SOURCES
   inference.cpp
   inference_pipeline.cpp
+  inference_benchmark.cpp
   llama_integration.cpp
   model_ota.cpp
+  npc_dialogue.cpp
+  npc_api.cpp
+  behavior_tree.cpp
   npu_backend.cpp
   onnx_backend.cpp
 )

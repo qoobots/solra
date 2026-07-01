@@ -14,6 +14,7 @@
 #include "shadow_ssao.hpp"
 #include "scene_graph.hpp"
 #include "pbr_material.hpp"
+#include "camera_system.hpp"
 #include "../animation/skeletal_animation.hpp"
 #include <spdlog/spdlog.h>
 #include <glm/glm.hpp>
@@ -119,13 +120,17 @@ struct RenderState {
   std::chrono::high_resolution_clock::time_point last_fps_update;
   uint64_t fps_frame_count = 0;
 
-  // Camera (orbit)
+  // Camera (orbit) — legacy direct fields, kept for existing code
   glm::vec3 camera_pos = glm::vec3(8.0f, 5.0f, 12.0f);
   glm::vec3 camera_target = glm::vec3(0.0f, 1.5f, 0.0f);
   glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
   float camera_fov = 55.0f;
   float camera_near = 0.5f;
   float camera_far = 200.0f;
+
+  // Camera system (new)
+  std::unique_ptr<solra::render::Camera> camera;
+  bool use_new_camera = false; // flag to switch between legacy and new camera
 
   // Cached view-projection (computed each frame)
   glm::mat4 cachedViewProj{1.0f};
@@ -1469,12 +1474,181 @@ SOLRA_API float solra_render_get_fps(void) {
 
 SOLRA_API void solra_render_get_camera(float* pos_x, float* pos_y, float* pos_z,
                                         float* target_x, float* target_y, float* target_z) {
-  *pos_x = g_render.camera_pos.x;
-  *pos_y = g_render.camera_pos.y;
-  *pos_z = g_render.camera_pos.z;
-  *target_x = g_render.camera_target.x;
-  *target_y = g_render.camera_target.y;
-  *target_z = g_render.camera_target.z;
+  if (g_render.use_new_camera && g_render.camera) {
+    auto pos = g_render.camera->GetPosition();
+    auto tgt = g_render.camera->GetTarget();
+    *pos_x = pos.x; *pos_y = pos.y; *pos_z = pos.z;
+    *target_x = tgt.x; *target_y = tgt.y; *target_z = tgt.z;
+  } else {
+    *pos_x = g_render.camera_pos.x;
+    *pos_y = g_render.camera_pos.y;
+    *pos_z = g_render.camera_pos.z;
+    *target_x = g_render.camera_target.x;
+    *target_y = g_render.camera_target.y;
+    *target_z = g_render.camera_target.z;
+  }
+}
+
+/* ============================================================
+ * Camera Control API Implementation
+ * ============================================================ */
+
+SOLRA_API void solra_camera_set_mode(SolraCameraMode mode) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  g_render.camera->SetMode(static_cast<solra::render::CameraMode>(mode));
+}
+
+SOLRA_API SolraCameraMode solra_camera_get_mode(void) {
+  if (!g_render.use_new_camera || !g_render.camera)
+    return SOLRA_CAMERA_MODE_FREE_FLY;
+  return static_cast<SolraCameraMode>(
+      static_cast<int>(g_render.camera->GetMode()));
+}
+
+SOLRA_API void solra_camera_set_position(float x, float y, float z) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  g_render.camera->SetPosition({x, y, z});
+}
+
+SOLRA_API void solra_camera_set_target(float x, float y, float z) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  g_render.camera->SetTarget({x, y, z});
+}
+
+SOLRA_API void solra_camera_set_fov(float fov_degrees) {
+  if (g_render.use_new_camera && g_render.camera) {
+    g_render.camera->SetFov(fov_degrees);
+  } else {
+    g_render.camera_fov = fov_degrees;
+  }
+}
+
+SOLRA_API void solra_camera_set_clip_planes(float near_plane, float far_plane) {
+  if (g_render.use_new_camera && g_render.camera) {
+    g_render.camera->SetClipPlanes(near_plane, far_plane);
+  } else {
+    g_render.camera_near = near_plane;
+    g_render.camera_far = far_plane;
+  }
+}
+
+SOLRA_API void solra_camera_set_yaw_pitch(float yaw_degrees, float pitch_degrees) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  g_render.camera->SetYaw(yaw_degrees);
+  g_render.camera->SetPitch(pitch_degrees);
+}
+
+SOLRA_API void solra_camera_get_yaw_pitch(float *yaw_degrees, float *pitch_degrees) {
+  if (g_render.use_new_camera && g_render.camera) {
+    *yaw_degrees = g_render.camera->GetYaw();
+    *pitch_degrees = g_render.camera->GetPitch();
+  } else {
+    *yaw_degrees = 0.0f;
+    *pitch_degrees = 0.0f;
+  }
+}
+
+SOLRA_API void solra_camera_on_mouse_move(float delta_x, float delta_y) {
+  if (g_render.use_new_camera && g_render.camera) {
+    g_render.camera->OnMouseMove(delta_x, delta_y);
+  }
+}
+
+SOLRA_API void solra_camera_on_mouse_scroll(float delta) {
+  if (g_render.use_new_camera && g_render.camera) {
+    g_render.camera->OnMouseScroll(delta);
+  }
+}
+
+SOLRA_API void solra_camera_on_keyboard_move(int forward, int backward,
+                                              int left, int right,
+                                              int up, int down,
+                                              int sprint, float delta_time) {
+  if (g_render.use_new_camera && g_render.camera) {
+    g_render.camera->OnKeyboardMove(
+        forward != 0, backward != 0, left != 0, right != 0,
+        up != 0, down != 0, sprint != 0, delta_time);
+  }
+}
+
+SOLRA_API void solra_camera_set_follow_target(float x, float y, float z,
+                                                float height_offset) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  g_render.camera->SetFollowTarget({x, y, z}, height_offset);
+  g_render.camera->SetMode(solra::render::CameraMode::kThirdPerson);
+}
+
+SOLRA_API void solra_camera_transition_to(
+    float pos_x, float pos_y, float pos_z,
+    float target_x, float target_y, float target_z,
+    float duration_seconds) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  g_render.camera->TransitionTo({pos_x, pos_y, pos_z},
+                                  {target_x, target_y, target_z},
+                                  duration_seconds);
+}
+
+SOLRA_API int solra_camera_is_transitioning(void) {
+  if (g_render.use_new_camera && g_render.camera) {
+    return g_render.camera->IsTransitioning() ? 1 : 0;
+  }
+  return 0;
+}
+
+SOLRA_API void solra_camera_cancel_transition(void) {
+  if (g_render.use_new_camera && g_render.camera) {
+    g_render.camera->CancelTransition();
+  }
+}
+
+SOLRA_API void solra_camera_shake(float intensity, float duration_seconds) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  g_render.camera->Shake(intensity, duration_seconds);
+}
+
+SOLRA_API void solra_camera_set_smoothing(float position_smooth, float rotation_smooth) {
+  if (!g_render.camera) {
+    g_render.camera = std::make_unique<solra::render::Camera>();
+    g_render.use_new_camera = true;
+  }
+  auto& params = g_render.camera->GetParams();
+  params.position_smooth = position_smooth;
+  params.rotation_smooth = rotation_smooth;
+}
+
+SOLRA_API void solra_camera_update(float delta_time) {
+  if (g_render.use_new_camera && g_render.camera) {
+    g_render.camera->Update(delta_time);
+    // Sync legacy fields
+    auto pos = g_render.camera->GetPosition();
+    auto tgt = g_render.camera->GetTarget();
+    g_render.camera_pos = pos;
+    g_render.camera_target = tgt;
+    g_render.camera_fov = g_render.camera->GetParams().fov_y_degrees;
+    g_render.camera_near = g_render.camera->GetParams().near_plane;
+    g_render.camera_far = g_render.camera->GetParams().far_plane;
+  }
 }
 
 SOLRA_API uint64_t solra_render_get_frame_count(void) {

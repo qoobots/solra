@@ -317,6 +317,96 @@ void solra_inference_set_update_callback(SolraModelUpdateCallback callback, void
 }
 
 /* ============================================================
+ * Tokenization API
+ * ============================================================ */
+
+int solra_inference_tokenize(const char *text, int *tokens_out, int max_tokens) {
+  if (!g_inference.initialized) return SOLRA_ERROR_NOT_INITIALIZED;
+  if (!text || !tokens_out || max_tokens <= 0) return SOLRA_ERROR_INVALID_ARGUMENT;
+
+  std::lock_guard<std::mutex> lock(g_inference.engine_mutex);
+
+  if (!g_inference.engine || !g_inference.engine->IsLoaded()) {
+    // Stub mode: return simple character-based token IDs
+    spdlog::debug("Inference: tokenize in stub mode");
+    int count = 0;
+    const char *p = text;
+    while (*p && count < max_tokens) {
+      tokens_out[count++] = static_cast<int>(static_cast<unsigned char>(*p));
+      ++p;
+    }
+    return count;
+  }
+
+  auto tokens = g_inference.engine->Tokenize(text);
+  int count = static_cast<int>(std::min(tokens.size(), static_cast<size_t>(max_tokens)));
+  for (int i = 0; i < count; ++i) {
+    tokens_out[i] = static_cast<int>(tokens[i]);
+  }
+
+  spdlog::debug("Inference: tokenized {} chars → {} tokens", strlen(text), count);
+  return count;
+}
+
+int solra_inference_detokenize(const int *tokens, int token_count,
+                                char *text_out, size_t text_size) {
+  if (!g_inference.initialized) return SOLRA_ERROR_NOT_INITIALIZED;
+  if (!tokens || token_count <= 0 || !text_out || text_size == 0)
+    return SOLRA_ERROR_INVALID_ARGUMENT;
+
+  std::lock_guard<std::mutex> lock(g_inference.engine_mutex);
+
+  if (!g_inference.engine || !g_inference.engine->IsLoaded()) {
+    // Stub mode: cast token IDs back to characters
+    spdlog::debug("Inference: detokenize in stub mode");
+    size_t count = static_cast<size_t>(std::min(token_count, static_cast<int>(text_size - 1)));
+    for (size_t i = 0; i < count; ++i) {
+      text_out[i] = static_cast<char>(tokens[i] & 0xFF);
+    }
+    text_out[count] = '\0';
+    return static_cast<int>(count);
+  }
+
+  std::vector<uint32_t> tks;
+  tks.reserve(static_cast<size_t>(token_count));
+  for (int i = 0; i < token_count; ++i) {
+    tks.push_back(static_cast<uint32_t>(tokens[i]));
+  }
+
+  auto result = g_inference.engine->Detokenize(tks);
+  size_t len = std::min(result.size(), text_size - 1);
+  std::memcpy(text_out, result.c_str(), len);
+  text_out[len] = '\0';
+
+  return static_cast<int>(len);
+}
+
+int solra_inference_get_vocab_size(void) {
+  if (!g_inference.initialized) return 0;
+  if (g_inference.engine && g_inference.engine->IsLoaded()) {
+    return static_cast<int>(g_inference.engine->GetContextSize());
+  }
+  return 0;
+}
+
+/* ============================================================
+ * Performance Statistics
+ * ============================================================ */
+
+int solra_inference_get_stats(SolraInferenceStats *stats) {
+  if (!stats) return SOLRA_ERROR_INVALID_ARGUMENT;
+  if (!g_inference.initialized) return SOLRA_ERROR_NOT_INITIALIZED;
+
+  std::memset(stats, 0, sizeof(SolraInferenceStats));
+
+  if (g_inference.engine) {
+    stats->current_memory_bytes = g_inference.engine->GetMemoryUsage();
+  }
+
+  return SOLRA_OK;
+}
+
+/* ============================================================
  * Shutdown
  * ============================================================ */
 

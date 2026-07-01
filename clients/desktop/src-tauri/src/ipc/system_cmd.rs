@@ -5,6 +5,7 @@ use tauri::State;
 
 use crate::services::api_client::ApiClient;
 use crate::services::auth_service::{AuthService, UserProfile};
+use crate::services::auto_updater::{AutoUpdater, UpdateStatus};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemInfo {
@@ -348,6 +349,56 @@ fn detect_gpu_name() -> String {
         }
     }
     "Unknown GPU".to_string()
+}
+
+// ---- 自动更新 ----
+
+/// 检查更新
+#[tauri::command]
+pub async fn check_update(
+    updater: State<'_, AutoUpdater>,
+) -> Result<UpdateStatus, String> {
+    let mut updater = updater.inner().clone(); // 临时绕过不可变引用
+    // 由于 AutoUpdater 尚未实现 Clone，这里直接返回 status
+    // 实际生产环境应使用 Mutex<AutoUpdater>
+    log::info!("检查更新请求");
+    Ok(UpdateStatus::UpToDate) // stub: 总是返回最新
+}
+
+/// 获取更新状态
+#[tauri::command]
+pub async fn get_update_status(
+    updater: State<'_, AutoUpdater>,
+) -> Result<UpdateStatus, String> {
+    Ok(updater.status().clone())
+}
+
+/// 安装已下载的更新
+#[tauri::command]
+pub async fn install_update(
+    updater: State<'_, AutoUpdater>,
+) -> Result<String, String> {
+    let path = updater.installer_path()
+        .ok_or("没有待安装的更新")?;
+    log::info!("安装更新: {}", path.display());
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "/WAIT", &path.to_string_lossy(), "/S"])
+            .spawn()
+            .map_err(|e| format!("启动安装程序失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("启动安装程序失败: {}", e))?;
+    }
+
+    Ok("安装程序已启动".to_string())
 }
 
 fn get_mock_store_items() -> Vec<StoreItem> {

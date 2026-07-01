@@ -210,6 +210,72 @@ typedef void (*SolraModelUpdateCallback)(const char *new_version, const char *ch
 SOLRA_API void solra_inference_set_update_callback(SolraModelUpdateCallback callback, void *user_data);
 
 /* ============================================================
+ * Tokenization API
+ * ============================================================ */
+
+/**
+ * Tokenize a text string into token IDs.
+ *
+ * @param text Input text (null-terminated UTF-8).
+ * @param tokens_out Output buffer for token IDs (caller-allocated).
+ * @param max_tokens Maximum number of tokens to write.
+ * @return Number of tokens written, or negative error code.
+ */
+SOLRA_API int solra_inference_tokenize(const char *text, int *tokens_out, int max_tokens);
+
+/**
+ * Detokenize token IDs back into text.
+ *
+ * @param tokens Array of token IDs.
+ * @param token_count Number of tokens.
+ * @param text_out Output text buffer (caller-allocated).
+ * @param text_size Size of text_out buffer in bytes.
+ * @return Number of bytes written (excluding null), or negative error code.
+ */
+SOLRA_API int solra_inference_detokenize(const int *tokens, int token_count,
+                                          char *text_out, size_t text_size);
+
+/**
+ * Get the vocabulary size of the loaded model.
+ *
+ * @return Vocab size, or 0 if no model loaded.
+ */
+SOLRA_API int solra_inference_get_vocab_size(void);
+
+/* ============================================================
+ * Performance Statistics
+ * ============================================================ */
+
+typedef struct SolraInferenceStats {
+  /** Total number of inference requests processed */
+  uint64_t total_requests;
+  /** Total tokens generated across all requests */
+  uint64_t total_tokens_generated;
+  /** Average tokens per second */
+  double avg_tokens_per_second;
+  /** Time to first token (TTFT) in milliseconds */
+  double avg_time_to_first_token_ms;
+  /** Time per output token (TPOT) in milliseconds */
+  double avg_time_per_output_token_ms;
+  /** Peak memory usage in bytes */
+  size_t peak_memory_bytes;
+  /** Current memory usage in bytes */
+  size_t current_memory_bytes;
+  /** Number of OOM (out of memory) events */
+  uint32_t oom_count;
+  /** Context window utilization (0.0-1.0) */
+  double context_utilization;
+} SolraInferenceStats;
+
+/**
+ * Get current inference performance statistics.
+ *
+ * @param stats Non-null pointer to receive statistics.
+ * @return 0 on success, negative on error.
+ */
+SOLRA_API int solra_inference_get_stats(SolraInferenceStats *stats);
+
+/* ============================================================
  * Shutdown
  * ============================================================ */
 

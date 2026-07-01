@@ -9,7 +9,7 @@ use tauri::Manager;
 
 /// 应用启动时的初始化逻辑
 /// - 初始化日志
-/// - 初始化服务（ApiClient、AuthService、CacheService）
+/// - 初始化服务（ApiClient、AuthService、CacheService、AutoUpdater）
 /// - 尝试加载 Core SDK (libsolracore.dll)
 /// - 注册 IPC 命令
 pub fn run() {
@@ -38,6 +38,12 @@ pub fn run() {
                 .unwrap_or_else(|_| std::path::PathBuf::from("./cache"));
             let cache_service = services::cache_service::CacheService::new(cache_dir, 2048);
             app.manage(cache_service);
+
+            // 初始化自动更新服务
+            let auto_updater = services::auto_updater::AutoUpdater::new(
+                option_env!("CARGO_PKG_VERSION").unwrap_or("0.1.0")
+            );
+            app.manage(auto_updater);
 
             // 尝试加载 Core SDK
             match core::ffi::load_core_sdk() {
@@ -74,6 +80,9 @@ pub fn run() {
             ipc::system_cmd::get_profile,
             ipc::system_cmd::get_store_items,
             ipc::system_cmd::get_messages,
+            ipc::system_cmd::check_update,
+            ipc::system_cmd::get_update_status,
+            ipc::system_cmd::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Solra Desktop 失败");

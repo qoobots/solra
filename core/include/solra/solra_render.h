@@ -144,6 +144,134 @@ SOLRA_API float solra_render_get_fps(void);
 SOLRA_API void solra_render_get_camera(float *pos_x, float *pos_y, float *pos_z,
                                         float *target_x, float *target_y, float *target_z);
 
+/* ============================================================
+ * Camera Control API
+ * ============================================================ */
+
+/** Camera mode */
+typedef enum SolraCameraMode {
+  SOLRA_CAMERA_MODE_FIRST_PERSON = 0,
+  SOLRA_CAMERA_MODE_THIRD_PERSON = 1,
+  SOLRA_CAMERA_MODE_ORBIT        = 2,
+  SOLRA_CAMERA_MODE_FREE_FLY     = 3,
+  SOLRA_CAMERA_MODE_CINEMATIC    = 4,
+} SolraCameraMode;
+
+/**
+ * Set camera mode.
+ */
+SOLRA_API void solra_camera_set_mode(SolraCameraMode mode);
+
+/**
+ * Get current camera mode.
+ */
+SOLRA_API SolraCameraMode solra_camera_get_mode(void);
+
+/**
+ * Set camera position (free fly / first person).
+ */
+SOLRA_API void solra_camera_set_position(float x, float y, float z);
+
+/**
+ * Set camera look-at target.
+ */
+SOLRA_API void solra_camera_set_target(float x, float y, float z);
+
+/**
+ * Set camera FOV (degrees).
+ */
+SOLRA_API void solra_camera_set_fov(float fov_degrees);
+
+/**
+ * Set camera clip planes.
+ */
+SOLRA_API void solra_camera_set_clip_planes(float near_plane, float far_plane);
+
+/**
+ * Set first-person yaw/pitch (degrees).
+ */
+SOLRA_API void solra_camera_set_yaw_pitch(float yaw_degrees, float pitch_degrees);
+
+/**
+ * Get first-person yaw/pitch (degrees).
+ */
+SOLRA_API void solra_camera_get_yaw_pitch(float *yaw_degrees, float *pitch_degrees);
+
+/**
+ * Process mouse movement input (delta in pixels).
+ */
+SOLRA_API void solra_camera_on_mouse_move(float delta_x, float delta_y);
+
+/**
+ * Process mouse scroll input.
+ */
+SOLRA_API void solra_camera_on_mouse_scroll(float delta);
+
+/**
+ * Process keyboard movement (WASD-style).
+ *
+ * @param forward,backward,left,right,up,down Movement flags.
+ * @param sprint Sprint modifier.
+ * @param delta_time Frame delta time in seconds.
+ */
+SOLRA_API void solra_camera_on_keyboard_move(int forward, int backward,
+                                              int left, int right,
+                                              int up, int down,
+                                              int sprint, float delta_time);
+
+/**
+ * Set third-person follow target.
+ */
+SOLRA_API void solra_camera_set_follow_target(float x, float y, float z,
+                                                float height_offset);
+
+/**
+ * Smoothly transition camera to a new position/target.
+ *
+ * @param pos_x,pos_y,pos_z Target camera position.
+ * @param target_x,target_y,target_z Target look-at point.
+ * @param duration_seconds Transition duration in seconds.
+ */
+SOLRA_API void solra_camera_transition_to(
+    float pos_x, float pos_y, float pos_z,
+    float target_x, float target_y, float target_z,
+    float duration_seconds);
+
+/**
+ * Check if camera is currently transitioning.
+ *
+ * @return 1 if transitioning, 0 if idle.
+ */
+SOLRA_API int solra_camera_is_transitioning(void);
+
+/**
+ * Cancel current camera transition.
+ */
+SOLRA_API void solra_camera_cancel_transition(void);
+
+/**
+ * Apply camera shake effect.
+ *
+ * @param intensity Shake intensity (world units).
+ * @param duration_seconds Duration in seconds.
+ */
+SOLRA_API void solra_camera_shake(float intensity, float duration_seconds);
+
+/**
+ * Set camera smoothing parameters.
+ *
+ * @param position_smooth 0=instant, 1=max smooth.
+ * @param rotation_smooth 0=instant, 1=max smooth.
+ */
+SOLRA_API void solra_camera_set_smoothing(float position_smooth, float rotation_smooth);
+
+/**
+ * Update camera (call once per frame).
+ *
+ * @param delta_time Frame delta time in seconds.
+ */
+SOLRA_API void solra_camera_update(float delta_time);
+
 /**
  * Get total rendered frame count.
  */

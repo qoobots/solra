@@ -5,3 +5,6 @@ pub mod space_cmd;
 pub mod avatar_cmd;
 pub mod render_cmd;
 pub mod system_cmd;
+
+#[cfg(test)]
+mod ipc_tests;

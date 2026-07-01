@@ -9,7 +9,10 @@ set(SOLRA_RENDER_SOURCES
   vulkan_device.cpp
   shader_compiler.cpp
   pbr_material.cpp
+  camera_system.cpp
+  post_processing.cpp
   render_benchmark.cpp
+  render_jank_monitor.cpp
 )
 
 # Platform-specific backend sources
