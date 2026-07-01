@@ -52,6 +52,68 @@ static bool load_wgl_extensions() {
 #endif
 
 // GL function loading (simplified - production code would use glad/glad2)
+// OpenGL 1.5+ extension function pointers (not exported by opengl32.dll on Windows)
+#if defined(_WIN32) || !defined(__APPLE__)
+#define SOLRA_GL_FUNC(ret, name, ...) static ret (APIENTRY* name)(__VA_ARGS__) = nullptr
+SOLRA_GL_FUNC(void, glGenBuffers, GLsizei, GLuint*);
+SOLRA_GL_FUNC(void, glDeleteBuffers, GLsizei, const GLuint*);
+SOLRA_GL_FUNC(void, glBindBuffer, GLenum, GLuint);
+SOLRA_GL_FUNC(void, glBufferData, GLenum, GLsizeiptr, const void*, GLenum);
+SOLRA_GL_FUNC(void, glBufferSubData, GLenum, GLintptr, GLsizeiptr, const void*);
+SOLRA_GL_FUNC(void*, glMapBuffer, GLenum, GLenum);
+SOLRA_GL_FUNC(GLboolean, glUnmapBuffer, GLenum);
+SOLRA_GL_FUNC(void, glBindBufferBase, GLenum, GLuint, GLuint);
+SOLRA_GL_FUNC(void, glUniformBlockBinding, GLuint, GLuint, GLuint);
+SOLRA_GL_FUNC(GLuint, glGetUniformBlockIndex, GLuint, const GLchar*);
+SOLRA_GL_FUNC(void, glGenVertexArrays, GLsizei, GLuint*);
+SOLRA_GL_FUNC(void, glDeleteVertexArrays, GLsizei, const GLuint*);
+SOLRA_GL_FUNC(void, glBindVertexArray, GLuint);
+SOLRA_GL_FUNC(void, glEnableVertexAttribArray, GLuint);
+SOLRA_GL_FUNC(void, glVertexAttribPointer, GLuint, GLint, GLenum, GLboolean, GLsizei, const void*);
+SOLRA_GL_FUNC(void, glDrawArraysInstanced, GLenum, GLint, GLsizei, GLsizei);
+SOLRA_GL_FUNC(void, glDrawElementsInstanced, GLenum, GLsizei, GLenum, const void*, GLsizei);
+SOLRA_GL_FUNC(void, glDispatchCompute, GLuint, GLuint, GLuint);
+SOLRA_GL_FUNC(void, glUniformMatrix4fv, GLint, GLsizei, GLboolean, const GLfloat*);
+SOLRA_GL_FUNC(void, glUniform4fv, GLint, GLsizei, const GLfloat*);
+SOLRA_GL_FUNC(void, glUniform3fv, GLint, GLsizei, const GLfloat*);
+SOLRA_GL_FUNC(void, glUniform1f, GLint, GLfloat);
+SOLRA_GL_FUNC(GLint, glGetUniformLocation, GLuint, const GLchar*);
+SOLRA_GL_FUNC(void, glUseProgram, GLuint);
+SOLRA_GL_FUNC(void, glUniform1i, GLint, GLint);
+SOLRA_GL_FUNC(void, glActiveTexture, GLenum);
+SOLRA_GL_FUNC(void, glGenerateMipmap, GLenum);
+SOLRA_GL_FUNC(void, glCompressedTexImage2D, GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const void*);
+SOLRA_GL_FUNC(void, glCompressedTexSubImage2D, GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLsizei, const void*);
+SOLRA_GL_FUNC(void, glTexImage3D, GLenum, GLint, GLint, GLsizei, GLsizei, GLsizei, GLint, GLenum, GLenum, const void*);
+SOLRA_GL_FUNC(void, glTexSubImage3D, GLenum, GLint, GLint, GLint, GLint, GLsizei, GLsizei, GLsizei, GLenum, GLenum, const void*);
+SOLRA_GL_FUNC(void, glBlitFramebuffer, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
+SOLRA_GL_FUNC(void, glGenFramebuffers, GLsizei, GLuint*);
+SOLRA_GL_FUNC(GLuint, glCreateShader, GLenum);
+SOLRA_GL_FUNC(void, glDeleteShader, GLuint);
+SOLRA_GL_FUNC(void, glShaderBinary, GLsizei, const GLuint*, GLenum, const void*, GLsizei);
+SOLRA_GL_FUNC(void, glSpecializeShader, GLuint, const GLchar*, GLuint, const GLuint*, const GLuint*);
+SOLRA_GL_FUNC(void, glShaderSource, GLuint, GLsizei, const GLchar* const*, const GLint*);
+SOLRA_GL_FUNC(void, glCompileShader, GLuint);
+SOLRA_GL_FUNC(void, glGetShaderiv, GLuint, GLenum, GLint*);
+SOLRA_GL_FUNC(void, glGetShaderInfoLog, GLuint, GLsizei, GLsizei*, GLchar*);
+SOLRA_GL_FUNC(GLuint, glCreateProgram);
+SOLRA_GL_FUNC(void, glDeleteProgram, GLuint);
+SOLRA_GL_FUNC(void, glAttachShader, GLuint, GLuint);
+SOLRA_GL_FUNC(void, glLinkProgram, GLuint);
+SOLRA_GL_FUNC(void, glGetProgramiv, GLuint, GLenum, GLint*);
+SOLRA_GL_FUNC(void, glGetProgramInfoLog, GLuint, GLsizei, GLsizei*, GLchar*);
+SOLRA_GL_FUNC(void, glDeleteFramebuffers, GLsizei, const GLuint*);
+SOLRA_GL_FUNC(void, glBindFramebuffer, GLenum, GLuint);
+SOLRA_GL_FUNC(void, glFramebufferTexture2D, GLenum, GLenum, GLenum, GLuint, GLint);
+SOLRA_GL_FUNC(GLenum, glCheckFramebufferStatus, GLenum);
+SOLRA_GL_FUNC(void, glGenRenderbuffers, GLsizei, GLuint*);
+SOLRA_GL_FUNC(void, glDeleteRenderbuffers, GLsizei, const GLuint*);
+SOLRA_GL_FUNC(void, glBindRenderbuffer, GLenum, GLuint);
+SOLRA_GL_FUNC(void, glRenderbufferStorage, GLenum, GLenum, GLsizei, GLsizei);
+SOLRA_GL_FUNC(void, glFramebufferRenderbuffer, GLenum, GLenum, GLenum, GLuint);
+#undef SOLRA_GL_FUNC
+#endif
+
 #ifndef __APPLE__
 static void* gl_get_proc(const char* name) {
 #if defined(_WIN32)
@@ -218,6 +280,68 @@ bool OpenGLDevice::initialize() {
     spdlog::info("  Vendor:   {}", vendor_name_);
     spdlog::info("  Renderer: {}", renderer_name_);
     spdlog::info("  Version:  {}", gl_version_);
+
+    // Load OpenGL 1.5+ extension functions
+#if defined(_WIN32) || !defined(__APPLE__)
+    #define SOLRA_GL_LOAD(name) name = (decltype(name))gl_get_proc(#name); if (!name) spdlog::warn("OpenGL: Failed to load {}", #name)
+    SOLRA_GL_LOAD(glGenBuffers);
+    SOLRA_GL_LOAD(glDeleteBuffers);
+    SOLRA_GL_LOAD(glBindBuffer);
+    SOLRA_GL_LOAD(glBufferData);
+    SOLRA_GL_LOAD(glBufferSubData);
+    SOLRA_GL_LOAD(glMapBuffer);
+    SOLRA_GL_LOAD(glUnmapBuffer);
+    SOLRA_GL_LOAD(glBindBufferBase);
+    SOLRA_GL_LOAD(glUniformBlockBinding);
+    SOLRA_GL_LOAD(glGetUniformBlockIndex);
+    SOLRA_GL_LOAD(glGenVertexArrays);
+    SOLRA_GL_LOAD(glDeleteVertexArrays);
+    SOLRA_GL_LOAD(glBindVertexArray);
+    SOLRA_GL_LOAD(glEnableVertexAttribArray);
+    SOLRA_GL_LOAD(glVertexAttribPointer);
+    SOLRA_GL_LOAD(glDrawArraysInstanced);
+    SOLRA_GL_LOAD(glDrawElementsInstanced);
+    SOLRA_GL_LOAD(glDispatchCompute);
+    SOLRA_GL_LOAD(glUniformMatrix4fv);
+    SOLRA_GL_LOAD(glUniform4fv);
+    SOLRA_GL_LOAD(glUniform3fv);
+    SOLRA_GL_LOAD(glUniform1f);
+    SOLRA_GL_LOAD(glGetUniformLocation);
+    SOLRA_GL_LOAD(glUseProgram);
+    SOLRA_GL_LOAD(glUniform1i);
+    SOLRA_GL_LOAD(glActiveTexture);
+    SOLRA_GL_LOAD(glGenerateMipmap);
+    SOLRA_GL_LOAD(glCompressedTexImage2D);
+    SOLRA_GL_LOAD(glCompressedTexSubImage2D);
+    SOLRA_GL_LOAD(glTexImage3D);
+    SOLRA_GL_LOAD(glTexSubImage3D);
+    SOLRA_GL_LOAD(glBlitFramebuffer);
+    SOLRA_GL_LOAD(glGenFramebuffers);
+    SOLRA_GL_LOAD(glDeleteFramebuffers);
+    SOLRA_GL_LOAD(glBindFramebuffer);
+    SOLRA_GL_LOAD(glFramebufferTexture2D);
+    SOLRA_GL_LOAD(glCheckFramebufferStatus);
+    SOLRA_GL_LOAD(glGenRenderbuffers);
+    SOLRA_GL_LOAD(glDeleteRenderbuffers);
+    SOLRA_GL_LOAD(glBindRenderbuffer);
+    SOLRA_GL_LOAD(glRenderbufferStorage);
+    SOLRA_GL_LOAD(glFramebufferRenderbuffer);
+    SOLRA_GL_LOAD(glCreateShader);
+    SOLRA_GL_LOAD(glDeleteShader);
+    SOLRA_GL_LOAD(glShaderBinary);
+    SOLRA_GL_LOAD(glSpecializeShader);
+    SOLRA_GL_LOAD(glShaderSource);
+    SOLRA_GL_LOAD(glCompileShader);
+    SOLRA_GL_LOAD(glGetShaderiv);
+    SOLRA_GL_LOAD(glGetShaderInfoLog);
+    SOLRA_GL_LOAD(glCreateProgram);
+    SOLRA_GL_LOAD(glDeleteProgram);
+    SOLRA_GL_LOAD(glAttachShader);
+    SOLRA_GL_LOAD(glLinkProgram);
+    SOLRA_GL_LOAD(glGetProgramiv);
+    SOLRA_GL_LOAD(glGetProgramInfoLog);
+    #undef SOLRA_GL_LOAD
+#endif
 
     initialized_ = true;
     return true;

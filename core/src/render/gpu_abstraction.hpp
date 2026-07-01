@@ -35,6 +35,9 @@ public:
 struct TextureDesc {
     uint32_t width = 1, height = 1, depth = 1, mipLevels = 1, arrayLayers = 1;
     TextureFormat format = TextureFormat::RGBA8;
+    bool generate_mipmaps = true;
+    const void* data = nullptr;
+    size_t data_size = 0;
 };
 
 class GpuTexture {

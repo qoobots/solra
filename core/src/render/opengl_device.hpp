@@ -67,6 +67,7 @@ private:
     uint64_t memory_budget_ = 4096ULL * 1024 * 1024; // 4GB default
     std::mutex resource_mutex_;
 
+public:
     void trackAllocation(uint64_t bytes);
     void trackDeallocation(uint64_t bytes);
 };

@@ -163,6 +163,7 @@ target_compile_definitions(solracore PRIVATE SOLRA_BUILD_DLL)
 target_include_directories(solracore PRIVATE
   ${CMAKE_SOURCE_DIR}/src/render
   ${CMAKE_SOURCE_DIR}/src/platform
+  ${STB_IMAGE_INCLUDE_DIR}
 )
 
 # Link all internal static libraries (WHOLE_ARCHIVE to force symbol export)
@@ -208,6 +209,11 @@ target_link_libraries(solracore PRIVATE
   OpenSSL::SSL
   OpenSSL::Crypto
 )
+
+# Windows: link opengl32 for GL 1.1 functions; extension functions loaded dynamically
+if(WIN32)
+  target_link_libraries(solracore PRIVATE opengl32)
+endif()
 
 # Set output name to libsolracore
 set_target_properties(solracore PROPERTIES

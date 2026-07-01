@@ -1085,10 +1085,10 @@ static void render_gpu_frame() {
     static_cast<int>(g_render.config.width),
     static_cast<int>(g_render.config.height));
   glCmd->setClearColor(
-    g_render.config.clear_color[0],
-    g_render.config.clear_color[1],
-    g_render.config.clear_color[2],
-    g_render.config.clear_color[3]);
+    g_render.config.clear_color.r,
+    g_render.config.clear_color.g,
+    g_render.config.clear_color.b,
+    g_render.config.clear_color.a);
   glCmd->clear(true, true, false);
 
   // Use cached view-projection (already computed in render_gpu_frame)
@@ -2069,6 +2069,20 @@ void solra_material_set_metallic_roughness(SolraMaterialHandle material, float m
   }
 }
 
+// ============================================================
+// Texture registry (used by material_set_texture below)
+// ============================================================
+struct ActiveTexture {
+  std::shared_ptr<solra::render::GpuTexture> gpuTexture;
+  int width = 0;
+  int height = 0;
+  int channels = 0;
+};
+
+static std::unordered_map<SolraTextureHandle, std::shared_ptr<ActiveTexture>> g_textures;
+static std::mutex g_texture_mutex;
+static uintptr_t g_next_texture_handle = 1;
+
 int solra_material_set_texture(SolraMaterialHandle material, const char *slot, SolraTextureHandle texture) {
   static std::unordered_map<SolraMaterialHandle, std::shared_ptr<solra::render::PbrMaterial>> matMap;
   auto it = matMap.find(material);
@@ -2103,9 +2117,9 @@ int solra_material_set_texture(SolraMaterialHandle material, const char *slot, S
   }
 
   // Assign to material
-  solra::render::PbrTexture pbrTex;
-  pbrTex.slot = texSlot;
-  pbrTex.textureId = reinterpret_cast<uintptr_t>(texture);
+  auto pbrTex = std::make_shared<solra::render::PbrTexture>();
+  pbrTex->slot = texSlot;
+  pbrTex->textureId = reinterpret_cast<uintptr_t>(texture);
   it->second->textures.push_back(pbrTex);
 
   spdlog::info("Material texture assigned: slot={}", slot);
@@ -2123,17 +2137,6 @@ void solra_material_destroy(SolraMaterialHandle material) {
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
-struct ActiveTexture {
-  std::shared_ptr<solra::render::GpuTexture> gpuTexture;
-  int width = 0;
-  int height = 0;
-  int channels = 0;
-};
-
-static std::unordered_map<SolraTextureHandle, std::shared_ptr<ActiveTexture>> g_textures;
-static std::mutex g_texture_mutex;
-static uintptr_t g_next_texture_handle = 1;
 
 SolraTextureHandle solra_texture_load(const char *path, int generate_mipmaps) {
   if (!path || !path[0]) {
@@ -2278,7 +2281,7 @@ int solra_texture_bind(SolraTextureHandle texture, int slot) {
       }
     }
   }
-  return SOLRA_ERROR_NOT_SUPPORTED;
+  return SOLRA_ERROR_UNSUPPORTED;
 }
 
 /* ============================================================

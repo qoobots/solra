@@ -116,6 +116,7 @@ public:
     // Common
     std::shared_ptr<PbrTexture> normalTexture;
     std::shared_ptr<PbrTexture> occlusionTexture;
+    std::vector<std::shared_ptr<PbrTexture>> textures;
     float normalScale = 1.0f;
     float occlusionStrength = 1.0f;
 
