@@ -16,6 +16,10 @@ extern std::shared_ptr<GpuDevice> createMetalDevice();
 extern std::shared_ptr<GpuDevice> createVulkanDevice();
 #endif
 
+#if defined(SOLRA_GPU_OPENGLES)
+extern std::shared_ptr<GpuDevice> createOpenGLESDevice();
+#endif
+
 } // namespace
 
 std::shared_ptr<GpuDevice> createGpuDevice(Backend preferred) {
@@ -25,8 +29,11 @@ std::shared_ptr<GpuDevice> createGpuDevice(Backend preferred) {
         preferred = Backend::Metal;
 #elif defined(SOLRA_GPU_VULKAN)
         preferred = Backend::Vulkan;
-#else
+#elif defined(SOLRA_GPU_OPENGLES)
         preferred = Backend::OpenGLES;
+#else
+        // No GPU backend compiled — return null, caller handles gracefully
+        return nullptr;
 #endif
     }
 
@@ -35,22 +42,22 @@ std::shared_ptr<GpuDevice> createGpuDevice(Backend preferred) {
 #if defined(SOLRA_GPU_METAL)
         return createMetalDevice();
 #else
-        throw std::runtime_error("Metal backend not compiled into this build");
+        return nullptr;
 #endif
     case Backend::Vulkan:
 #if defined(SOLRA_GPU_VULKAN)
         return createVulkanDevice();
 #else
-        throw std::runtime_error("Vulkan backend not compiled into this build");
+        return nullptr;
 #endif
     case Backend::OpenGLES:
 #if defined(SOLRA_GPU_OPENGLES)
         return createOpenGLESDevice();
 #else
-        throw std::runtime_error("OpenGL ES backend not compiled into this build");
+        return nullptr;
 #endif
     default:
-        throw std::invalid_argument("Unknown backend");
+        return nullptr;
     }
 }
 

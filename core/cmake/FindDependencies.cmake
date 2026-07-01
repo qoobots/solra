@@ -79,14 +79,29 @@ endif()
 
 # OpenGL ES
 if(SOLRA_ENABLE_OPENGLES)
-  find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
+  if(WIN32)
+    # Windows: OpenGL without EGL (uses WGL natively)
+    find_package(OpenGL REQUIRED)
+  else()
+    find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
+  endif()
   message(STATUS "OpenGL ES enabled")
 endif()
 
 # ============================================================
 # stb - Single-file public domain libraries (header-only)
 # ============================================================
-# stb is optional; not currently used by any source files.
-# When needed, vendor the required stb header(s) directly.
-set(STB_AVAILABLE FALSE)
-message(STATUS "stb libraries: not required, skipping FetchContent")
+# stb_image for texture loading (PNG/JPEG/BMP/TGA/HDR)
+include(FetchContent)
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG master
+)
+FetchContent_GetProperties(stb)
+if(NOT stb_POPULATED)
+  FetchContent_Populate(stb)
+endif()
+set(STB_IMAGE_INCLUDE_DIR "${stb_SOURCE_DIR}" CACHE PATH "stb include directory")
+set(STB_AVAILABLE TRUE)
+message(STATUS "stb libraries: fetched for texture loading (${STB_IMAGE_INCLUDE_DIR})")

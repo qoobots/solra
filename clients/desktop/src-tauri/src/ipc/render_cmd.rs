@@ -22,17 +22,36 @@ pub async fn init_renderer(width: u32, height: u32) -> Result<RendererState, Str
     // 检测 Core SDK 是否真实可用
     let core_loaded = crate::core::ffi::is_core_sdk_loaded();
 
-    // TODO: 初始化 Core SDK 渲染引擎 + 创建 OpenGL 上下文
-    // if core_loaded {
-    //     crate::core::render::resize(width as i32, height as i32)?;
-    // }
+    let gpu_backend = if core_loaded {
+        // 尝试初始化 Core SDK 渲染引擎
+        match crate::core::render::init_render(width as i32, height as i32) {
+            Ok(()) => {
+                log::info!("Core SDK 渲染引擎就绪");
+                // 查询 GPU 信息
+                match crate::core::render::get_gpu_info() {
+                    Ok(info) => format!("Core SDK · {}", info.renderer),
+                    Err(_) => "Core SDK · OpenGL".into(),
+                }
+            }
+            Err(e) => {
+                log::warn!("Core SDK 渲染引擎初始化失败: {}，降级到 Three.js", e);
+                "Three.js WebGL (Core SDK 渲染初始化失败)".into()
+            }
+        }
+    } else {
+        "Three.js WebGL".into()
+    };
 
     Ok(RendererState {
         initialized: true,
-        fps: 60.0,
+        fps: if core_loaded {
+            crate::core::render::get_fps().unwrap_or(60.0)
+        } else {
+            60.0
+        },
         width,
         height,
-        gpu_backend: if core_loaded { "OpenGL".into() } else { "Mock".into() },
+        gpu_backend,
         core_sdk_loaded: core_loaded,
     })
 }
@@ -42,7 +61,9 @@ pub async fn init_renderer(width: u32, height: u32) -> Result<RendererState, Str
 pub async fn resize_renderer(width: u32, height: u32) -> Result<(), String> {
     log::info!("resize_renderer: {}x{}", width, height);
 
-    // crate::core::render::resize(width as i32, height as i32)?;
+    if crate::core::ffi::is_core_sdk_loaded() {
+        crate::core::render::resize(width as i32, height as i32)?;
+    }
 
     Ok(())
 }
@@ -50,6 +71,28 @@ pub async fn resize_renderer(width: u32, height: u32) -> Result<(), String> {
 /// 获取当前 FPS
 #[tauri::command]
 pub async fn get_fps() -> Result<f32, String> {
-    // crate::core::render::get_fps()
-    Ok(60.0)
+    if crate::core::ffi::is_core_sdk_loaded() {
+        crate::core::render::get_fps()
+    } else {
+        Ok(60.0)
+    }
+}
+
+/// 获取 GPU 信息（供调试/诊断使用）
+#[tauri::command]
+pub async fn get_gpu_info() -> Result<serde_json::Value, String> {
+    if crate::core::ffi::is_core_sdk_loaded() {
+        match crate::core::render::get_gpu_info() {
+            Ok(info) => Ok(serde_json::json!({
+                "vendor": info.vendor,
+                "renderer": info.renderer,
+                "version": info.version,
+                "dedicated_vram_mb": info.dedicated_vram_mb,
+                "shared_vram_mb": info.shared_vram_mb,
+            })),
+            Err(e) => Err(e),
+        }
+    } else {
+        Err("Core SDK 未加载".into())
+    }
 }

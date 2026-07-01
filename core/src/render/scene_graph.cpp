@@ -1,5 +1,6 @@
 #include "scene_graph.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <functional>
 #include <stdexcept>
@@ -140,10 +141,94 @@ std::vector<SceneNode*> SceneGraph::findNodesByTag(const std::string& tag) const
     return results;
 }
 
+// ============================================================
+// Frustum plane extraction from view-projection matrix
+// ============================================================
+struct FrustumPlane {
+    float nx, ny, nz, d; // plane equation: nx*x + ny*y + nz*z + d >= 0 (inside)
+};
+
+static std::array<FrustumPlane, 6> extractFrustumPlanes(const Mat4& vp) {
+    // VP is column-major: vp[col*4 + row]
+    // Left plane:   row3 + row0
+    // Right plane:  row3 - row0
+    // Bottom plane: row3 + row1
+    // Top plane:    row3 - row1
+    // Near plane:   row3 + row2
+    // Far plane:    row3 - row2
+    std::array<FrustumPlane, 6> planes;
+
+    auto normalize = [](FrustumPlane& p) {
+        float len = std::sqrt(p.nx*p.nx + p.ny*p.ny + p.nz*p.nz);
+        if (len > 0.0001f) {
+            p.nx /= len; p.ny /= len; p.nz /= len; p.d /= len;
+        }
+    };
+
+    // Left
+    planes[0] = {
+        vp[3] + vp[0], vp[7] + vp[4], vp[11] + vp[8], vp[15] + vp[12]
+    };
+    // Right
+    planes[1] = {
+        vp[3] - vp[0], vp[7] - vp[4], vp[11] - vp[8], vp[15] - vp[12]
+    };
+    // Bottom
+    planes[2] = {
+        vp[3] + vp[1], vp[7] + vp[5], vp[11] + vp[9], vp[15] + vp[13]
+    };
+    // Top
+    planes[3] = {
+        vp[3] - vp[1], vp[7] - vp[5], vp[11] - vp[9], vp[15] - vp[13]
+    };
+    // Near
+    planes[4] = {
+        vp[3] + vp[2], vp[7] + vp[6], vp[11] + vp[10], vp[15] + vp[14]
+    };
+    // Far
+    planes[5] = {
+        vp[3] - vp[2], vp[7] - vp[6], vp[11] - vp[10], vp[15] - vp[14]
+    };
+
+    for (auto& p : planes) normalize(p);
+    return planes;
+}
+
+// Test if an AABB is inside (or intersecting) the frustum
+static bool aabbInFrustum(const std::array<FrustumPlane, 6>& planes,
+                          const Vec3& min, const Vec3& max) {
+    for (const auto& p : planes) {
+        // Test the most-positive corner against the plane
+        float px = p.nx > 0 ? max.x : min.x;
+        float py = p.ny > 0 ? max.y : min.y;
+        float pz = p.nz > 0 ? max.z : min.z;
+
+        if (p.nx * px + p.ny * py + p.nz * pz + p.d < 0) {
+            return false; // outside this plane
+        }
+    }
+    return true; // inside all planes
+}
+
 std::vector<SceneNode*> SceneGraph::frustumCull(const Mat4& viewProj) const {
-    // Placeholder: return all nodes (full frustum culling integrates with BVH)
     std::vector<SceneNode*> visible;
-    std::function<void(SceneNode*)> pre = [&](SceneNode* n) { visible.push_back(n); };
+    auto planes = extractFrustumPlanes(viewProj);
+
+    std::function<void(SceneNode*)> pre = [&](SceneNode* n) {
+        // Leaf nodes with meshes: test their world-space AABB
+        // For now, use a simple sphere approximation around world position
+        Vec3 pos = n->worldPosition();
+        float radius = 1.5f; // default bounding sphere radius
+
+        // Create AABB from sphere
+        Vec3 aabbMin{pos.x - radius, pos.y - radius, pos.z - radius};
+        Vec3 aabbMax{pos.x + radius, pos.y + radius, pos.z + radius};
+
+        if (aabbInFrustum(planes, aabbMin, aabbMax)) {
+            visible.push_back(n);
+        }
+    };
+
     root->traverse(pre);
     return visible;
 }

@@ -54,6 +54,45 @@ pub struct SolraCoreConfig {
     pub user_data: *mut c_void,
 }
 
+/// Solra 渲染配置（对应 C 的 SolraRenderConfig）
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct SolraRenderConfig {
+    pub backend: c_int,       // SolraRenderBackend enum
+    pub width: c_int,
+    pub height: c_int,
+    pub vsync: c_int,
+    pub msaa_samples: c_int,
+    pub enable_hdr: c_int,
+    pub clear_color: SolraColor,
+    pub native_window: *mut c_void,
+}
+
+/// Solra 颜色（RGBA）
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct SolraColor {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+/// GPU 信息（对应 C 的 SolraGPUInfo）
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct SolraGpuInfo {
+    pub vendor: [u8; 128],
+    pub renderer: [u8; 128],
+    pub version: [u8; 64],
+    pub dedicated_vram_mb: u64,
+    pub shared_vram_mb: u64,
+    pub max_texture_size: c_int,
+    pub max_compute_workgroup_size: c_int,
+    pub supports_ray_tracing: c_int,
+    pub supports_mesh_shader: c_int,
+}
+
 #[repr(i32)]
 pub enum RenderBackend {
     Auto = 0,
@@ -85,13 +124,31 @@ type SolraCoreInitFn = unsafe extern "C" fn(*const SolraCoreConfig) -> i32;
 type SolraCoreShutdownFn = unsafe extern "C" fn();
 type SolraCoreVersionFn = unsafe extern "C" fn() -> *const c_char;
 
+/// 渲染函数指针类型
+type SolraRenderInitFn = unsafe extern "C" fn(*const SolraRenderConfig) -> i32;
+type SolraRenderBeginFrameFn = unsafe extern "C" fn() -> i32;
+type SolraRenderEndFrameFn = unsafe extern "C" fn() -> i32;
+type SolraRenderResizeFn = unsafe extern "C" fn(c_int, c_int);
+type SolraRenderShutdownFn = unsafe extern "C" fn();
+type SolraRenderGetFpsFn = unsafe extern "C" fn() -> f32;
+type SolraRenderGetGpuInfoFn = unsafe extern "C" fn(*mut SolraGpuInfo) -> i32;
+
 /// Core SDK 运行时（全局单例模式）
 pub struct CoreSdk {
     #[allow(dead_code)]
     lib: libloading::Library,
+    // Core lifecycle
     pub init: SolraCoreInitFn,
     pub shutdown: SolraCoreShutdownFn,
     pub version: SolraCoreVersionFn,
+    // Render lifecycle
+    pub render_init: SolraRenderInitFn,
+    pub render_begin_frame: SolraRenderBeginFrameFn,
+    pub render_end_frame: SolraRenderEndFrameFn,
+    pub render_resize: SolraRenderResizeFn,
+    pub render_shutdown: SolraRenderShutdownFn,
+    pub render_get_fps: SolraRenderGetFpsFn,
+    pub render_get_gpu_info: SolraRenderGetGpuInfoFn,
 }
 
 /// 引擎是否已初始化标志
@@ -151,6 +208,7 @@ pub fn load_core_sdk() -> Result<(), String> {
         let lib = libloading::Library::new(lib_path)
             .map_err(|e| format!("加载 {} 失败: {}", lib_path, e))?;
 
+        // Core lifecycle
         let init: SolraCoreInitFn = *lib.get(b"solra_core_init")
             .map_err(|e| format!("查找 solra_core_init 失败: {}", e))?;
         let shutdown: SolraCoreShutdownFn = *lib.get(b"solra_core_shutdown")
@@ -158,11 +216,34 @@ pub fn load_core_sdk() -> Result<(), String> {
         let version: SolraCoreVersionFn = *lib.get(b"solra_core_get_version")
             .map_err(|e| format!("查找 solra_core_get_version 失败: {}", e))?;
 
+        // Render lifecycle
+        let render_init: SolraRenderInitFn = *lib.get(b"solra_render_init")
+            .map_err(|e| format!("查找 solra_render_init 失败: {}", e))?;
+        let render_begin_frame: SolraRenderBeginFrameFn = *lib.get(b"solra_render_begin_frame")
+            .map_err(|e| format!("查找 solra_render_begin_frame 失败: {}", e))?;
+        let render_end_frame: SolraRenderEndFrameFn = *lib.get(b"solra_render_end_frame")
+            .map_err(|e| format!("查找 solra_render_end_frame 失败: {}", e))?;
+        let render_resize: SolraRenderResizeFn = *lib.get(b"solra_render_resize")
+            .map_err(|e| format!("查找 solra_render_resize 失败: {}", e))?;
+        let render_shutdown: SolraRenderShutdownFn = *lib.get(b"solra_render_shutdown")
+            .map_err(|e| format!("查找 solra_render_shutdown 失败: {}", e))?;
+        let render_get_fps: SolraRenderGetFpsFn = *lib.get(b"solra_render_get_fps")
+            .map_err(|e| format!("查找 solra_render_get_fps 失败: {}", e))?;
+        let render_get_gpu_info: SolraRenderGetGpuInfoFn = *lib.get(b"solra_render_get_gpu_info")
+            .map_err(|e| format!("查找 solra_render_get_gpu_info 失败: {}", e))?;
+
         let sdk = CoreSdk {
             lib,
             init,
             shutdown,
             version,
+            render_init,
+            render_begin_frame,
+            render_end_frame,
+            render_resize,
+            render_shutdown,
+            render_get_fps,
+            render_get_gpu_info,
         };
 
         // 获取版本信息

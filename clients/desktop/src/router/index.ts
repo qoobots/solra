@@ -51,6 +51,12 @@ const router = createRouter({
       component: () => import('@/views/InboxView.vue'),
       meta: { title: '消息', requiresAuth: true },
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
+      meta: { title: '设置 — 索拉' },
+    },
   ],
 })
 

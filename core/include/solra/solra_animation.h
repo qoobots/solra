@@ -32,6 +32,25 @@ typedef struct SolraBlendShapeConfig {
   float weights[SOLRA_MAX_BLEND_SHAPES];
 } SolraBlendShapeConfig;
 
+/**
+ * Reset all blend shape weights to zero.
+ */
+SOLRA_API void solra_blendshape_reset(SolraBlendShapeConfig *config);
+
+/**
+ * Set a single blend shape weight by name.
+ *
+ * @return 0 on success, negative on error.
+ */
+SOLRA_API int solra_blendshape_set_weight(
+    SolraBlendShapeConfig *config, const char *name, float weight);
+
+/**
+ * Get a single blend shape weight by name.
+ */
+SOLRA_API float solra_blendshape_get_weight(
+    const SolraBlendShapeConfig *config, const char *name);
+
 /* ============================================================
  * Lip Sync
  * ============================================================ */
@@ -162,6 +181,43 @@ SOLRA_API float solra_animation_clip_get_duration(SolraAnimationClipHandle clip)
  * Destroy an animation clip.
  */
 SOLRA_API void solra_animation_clip_destroy(SolraAnimationClipHandle clip);
+
+/* ============================================================
+ * Animation Controller (playback)
+ * ============================================================ */
+
+/**
+ * Play an animation clip with optional crossfade.
+ *
+ * @param clip Animation clip handle.
+ * @param clip_name Name of the sub-clip to play.
+ * @param crossfade_duration Crossfade duration in seconds (0 = instant).
+ * @param speed Playback speed multiplier (1.0 = normal).
+ * @param loop Whether to loop the animation.
+ * @return 0 on success.
+ */
+SOLRA_API int solra_animation_play(
+    SolraAnimationClipHandle clip,
+    const char *clip_name,
+    float crossfade_duration,
+    float speed,
+    int loop);
+
+/**
+ * Advance the animation controller by delta time.
+ *
+ * @param clip Animation clip handle.
+ * @param delta_time Elapsed time in seconds.
+ * @return 0 on success.
+ */
+SOLRA_API int solra_animation_update(
+    SolraAnimationClipHandle clip,
+    float delta_time);
+
+/**
+ * Get the number of bones in the animation clip skeleton.
+ */
+SOLRA_API int solra_animation_get_bone_count(SolraAnimationClipHandle clip);
 
 #ifdef __cplusplus
 }

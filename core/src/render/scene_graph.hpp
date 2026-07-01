@@ -60,6 +60,9 @@ public:
     using VisitorFn = std::function<void(SceneNode*)>;
     void traverse(const VisitorFn& pre, const VisitorFn& post = nullptr);
 
+    // Mark world matrix dirty (propagates to children)
+    void markWorldDirty();
+
 protected:
     SceneNode* parent_ = nullptr;
     std::vector<std::shared_ptr<SceneNode>> children_;
@@ -68,7 +71,6 @@ protected:
     mutable Quat worldRot_{0,0,0,1};
     mutable bool worldValid_ = false;
 
-    void markWorldDirty();
     void recomputeWorldMatrix() const;
 };
 

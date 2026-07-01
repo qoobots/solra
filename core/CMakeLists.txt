@@ -68,6 +68,7 @@ endif()
 
 if(SOLRA_PLATFORM_WINDOWS)
   set(SOLRA_ENABLE_VULKAN ON CACHE BOOL "Enable Vulkan rendering backend" FORCE)
+  set(SOLRA_ENABLE_OPENGLES ON CACHE BOOL "Enable OpenGL ES fallback" FORCE)
 endif()
 
 # ============================================================
@@ -144,10 +145,25 @@ endif()
 add_library(solracore SHARED
   src/core/core.cpp
   src/core/version.cpp
+  # Render module sources (directly compiled into DLL for symbol export)
+  src/render/render.cpp
+  src/render/scene.cpp
+  src/render/scene_graph.cpp
+  src/render/gpu_abstraction.cpp
+  src/render/opengl_device.cpp
+  src/render/shader_compiler.cpp
+  src/render/pbr_material.cpp
+  src/render/render_benchmark.cpp
 )
 
 # Add SOLRA_BUILD_DLL definition so headers use __declspec(dllexport)
 target_compile_definitions(solracore PRIVATE SOLRA_BUILD_DLL)
+
+# Add render module private include dirs for direct source compilation
+target_include_directories(solracore PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/render
+  ${CMAKE_SOURCE_DIR}/src/platform
+)
 
 # Link all internal static libraries (WHOLE_ARCHIVE to force symbol export)
 set(SOLRACORE_INTERNAL_LIBS solra_core_core solra_core_platform)

@@ -1,21 +1,38 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useRouter } from 'vue-router'
+import { useTheme } from '@/composables/useTheme'
 import { invoke } from '@tauri-apps/api/core'
 import api from '@/api'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const { isDark, toggleTheme } = useTheme()
 
 const profile = authStore.user
 const displayName = ref(profile?.displayName || '')
 const editing = ref(false)
 const saving = ref(false)
 
+// Bio editing
+const bio = ref(profile?.bio || '')
+const editingBio = ref(false)
+
+// Format join date
+const joinDate = computed(() => {
+  if (!profile?.createdAt) return ''
+  const d = new Date(profile.createdAt)
+  return `${d.getFullYear()}年${d.getMonth() + 1}月加入`
+})
+
 function handleLogout() {
   authStore.logout()
   router.push('/login')
+}
+
+function goToSettings() {
+  router.push('/settings')
 }
 
 function toggleEdit() {
@@ -30,7 +47,6 @@ async function saveProfile() {
   saving.value = true
 
   try {
-    // 优先使用 HTTP API
     const res = await api.post('/api/auth/v1/profile', {
       displayName: displayName.value.trim(),
     }) as any
@@ -39,7 +55,6 @@ async function saveProfile() {
       authStore.user.displayName = res.displayName || displayName.value.trim()
     }
   } catch {
-    // 回退到 Tauri IPC
     try {
       await invoke('update_profile', {
         request: { display_name: displayName.value.trim() },
@@ -55,12 +70,30 @@ async function saveProfile() {
     editing.value = false
   }
 }
+
+async function saveBio() {
+  saving.value = true
+  try {
+    await api.post('/api/auth/v1/profile', { bio: bio.value }) as any
+    if (authStore.user) authStore.user.bio = bio.value
+  } catch {
+    // silent
+  } finally {
+    saving.value = false
+    editingBio.value = false
+  }
+}
 </script>
 
 <template>
   <div class="profile-view">
     <header class="page-header">
       <h1>我的</h1>
+      <div class="header-actions">
+        <button class="icon-btn" @click="goToSettings" title="设置">
+          ⚙️
+        </button>
+      </div>
     </header>
 
     <div class="profile-content">
@@ -80,12 +113,42 @@ async function saveProfile() {
             />
             <p class="username">@{{ profile?.username || 'guest' }}</p>
             <span class="tier-badge">{{ profile?.subscriptionTier || 'Free' }}</span>
+            <p class="join-date" v-if="joinDate">{{ joinDate }}</p>
           </div>
           <div class="edit-actions">
             <button v-if="!editing" class="action-btn" @click="toggleEdit">编辑</button>
             <template v-else>
-              <button class="action-btn primary" @click="saveProfile">保存</button>
+              <button class="action-btn primary" :disabled="saving" @click="saveProfile">
+                {{ saving ? '保存中...' : '保存' }}
+              </button>
               <button class="action-btn" @click="toggleEdit">取消</button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Bio -->
+        <div class="bio-section">
+          <p v-if="!editingBio" class="bio-text">
+            {{ profile?.bio || '这个人很懒，什么都没写...' }}
+          </p>
+          <textarea
+            v-else
+            v-model="bio"
+            class="bio-input"
+            placeholder="写一段自我介绍..."
+            maxlength="200"
+            rows="3"
+          />
+          <div class="bio-actions">
+            <span class="bio-hint" v-if="editingBio">{{ bio.length }}/200</span>
+            <button
+              v-if="!editingBio"
+              class="link-btn"
+              @click="editingBio = true; bio = profile?.bio || ''"
+            >编辑简介</button>
+            <template v-else>
+              <button class="link-btn" @click="saveBio">保存</button>
+              <button class="link-btn cancel" @click="editingBio = false">取消</button>
             </template>
           </div>
         </div>
@@ -94,12 +157,12 @@ async function saveProfile() {
       <!-- 统计信息 -->
       <div class="stats-row">
         <div class="stat-item">
-          <span class="stat-value">0</span>
+          <span class="stat-value">{{ profile?.spaceCount || 0 }}</span>
           <span class="stat-label">创建的空间</span>
         </div>
         <div class="stat-item">
-          <span class="stat-value">0</span>
-          <span class="stat-label">收藏</span>
+          <span class="stat-value">{{ profile?.faithLevel || 0 }}</span>
+          <span class="stat-label">信仰值</span>
         </div>
         <div class="stat-item">
           <span class="stat-value">0</span>
@@ -113,7 +176,12 @@ async function saveProfile() {
 
       <!-- 功能菜单 -->
       <div class="menu-list">
-        <div class="menu-item" v-for="item in menuItems" :key="item.label">
+        <div
+          v-for="item in menuItems"
+          :key="item.label"
+          class="menu-item"
+          @click="item.action ? item.action() : undefined"
+        >
           <span>{{ item.icon }} {{ item.label }}</span>
           <span class="arrow">›</span>
         </div>
@@ -127,17 +195,40 @@ async function saveProfile() {
 <style lang="scss" scoped>
 .profile-view {
   min-height: 100vh;
-  background: var(--solra-bg-primary, #0d1117);
-  color: var(--solra-text-primary, #e6edf3);
+  background: var(--solra-bg-primary);
+  color: var(--solra-text-primary);
 }
 
 .page-header {
   padding: 16px 32px;
-  border-bottom: 1px solid var(--solra-border, #30363d);
+  border-bottom: 1px solid var(--solra-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 
   h1 {
     margin: 0;
     font-size: 20px;
+  }
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
+  background: none;
+  border: 1px solid var(--solra-border);
+  border-radius: 8px;
+  color: var(--solra-text-secondary);
+  font-size: 18px;
+  padding: 6px 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--solra-bg-tertiary);
+    color: var(--solra-text-primary);
   }
 }
 
@@ -148,8 +239,8 @@ async function saveProfile() {
 }
 
 .profile-card {
-  background: var(--solra-bg-secondary, #161b22);
-  border: 1px solid var(--solra-border, #30363d);
+  background: var(--solra-bg-secondary);
+  border: 1px solid var(--solra-border);
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 16px;
@@ -185,7 +276,7 @@ async function saveProfile() {
     .username {
       margin: 0 0 6px;
       font-size: 13px;
-      color: #8b949e;
+      color: var(--solra-text-secondary);
     }
 
     .tier-badge {
@@ -196,12 +287,18 @@ async function saveProfile() {
       border-radius: 10px;
     }
 
+    .join-date {
+      margin: 6px 0 0;
+      font-size: 12px;
+      color: var(--solra-text-tertiary);
+    }
+
     .inline-input {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--solra-bg-primary);
+      border: 1px solid var(--solra-border);
       border-radius: 6px;
       padding: 4px 8px;
-      color: #e6edf3;
+      color: var(--solra-text-primary);
       font-size: 16px;
       width: 160px;
       outline: none;
@@ -217,16 +314,21 @@ async function saveProfile() {
     gap: 8px;
 
     .action-btn {
-      background: #21262d;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
+      background: var(--solra-bg-tertiary);
+      border: 1px solid var(--solra-border);
+      color: var(--solra-text-primary);
       padding: 6px 14px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 13px;
 
       &:hover {
-        background: #30363d;
+        background: var(--solra-border);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
 
       &.primary {
@@ -242,6 +344,67 @@ async function saveProfile() {
   }
 }
 
+.bio-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--solra-border-light);
+}
+
+.bio-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--solra-text-secondary);
+  line-height: 1.5;
+}
+
+.bio-input {
+  width: 100%;
+  background: var(--solra-bg-primary);
+  border: 1px solid var(--solra-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--solra-text-primary);
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: #58a6ff;
+  }
+}
+
+.bio-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.bio-hint {
+  font-size: 11px;
+  color: var(--solra-text-tertiary);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--solra-brand);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &.cancel {
+    color: var(--solra-text-tertiary);
+  }
+}
+
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -249,8 +412,8 @@ async function saveProfile() {
   margin-bottom: 16px;
 
   .stat-item {
-    background: var(--solra-bg-secondary, #161b22);
-    border: 1px solid var(--solra-border, #30363d);
+    background: var(--solra-bg-secondary);
+    border: 1px solid var(--solra-border);
     border-radius: 8px;
     padding: 12px;
     text-align: center;
@@ -264,15 +427,15 @@ async function saveProfile() {
     .stat-label {
       display: block;
       font-size: 12px;
-      color: #8b949e;
+      color: var(--solra-text-secondary);
       margin-top: 4px;
     }
   }
 }
 
 .menu-list {
-  background: var(--solra-bg-secondary, #161b22);
-  border: 1px solid var(--solra-border, #30363d);
+  background: var(--solra-bg-secondary);
+  border: 1px solid var(--solra-border);
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 16px;
@@ -284,7 +447,7 @@ async function saveProfile() {
     padding: 14px 16px;
     cursor: pointer;
     font-size: 14px;
-    border-bottom: 1px solid #21262d;
+    border-bottom: 1px solid var(--solra-border-light);
 
     &:last-child {
       border-bottom: none;
@@ -295,7 +458,7 @@ async function saveProfile() {
     }
 
     .arrow {
-      color: #484f58;
+      color: var(--solra-text-tertiary);
       font-size: 18px;
     }
   }
@@ -305,7 +468,7 @@ async function saveProfile() {
   width: 100%;
   padding: 12px;
   background: transparent;
-  border: 1px solid #30363d;
+  border: 1px solid var(--solra-border);
   border-radius: 8px;
   color: #f85149;
   font-size: 14px;
@@ -318,12 +481,17 @@ async function saveProfile() {
 </style>
 
 <script lang="ts">
+function goToSettings() {
+  const router = (window as any).__vue_app__?.config?.globalProperties?.$router
+  if (router) router.push('/settings')
+}
+
 const menuItems = [
-  { icon: '👤', label: '账号与安全' },
-  { icon: '🎨', label: '外观设置' },
-  { icon: '🔔', label: '通知设置' },
-  { icon: '💾', label: '缓存管理' },
-  { icon: '❓', label: '帮助与反馈' },
-  { icon: 'ℹ️', label: '关于索拉' },
+  { icon: '👤', label: '账号与安全', action: undefined },
+  { icon: '🎨', label: '外观设置', action: undefined },
+  { icon: '🔔', label: '通知设置', action: undefined },
+  { icon: '💾', label: '缓存管理', action: undefined },
+  { icon: '❓', label: '帮助与反馈', action: undefined },
+  { icon: 'ℹ️', label: '关于索拉', action: undefined },
 ]
 </script>

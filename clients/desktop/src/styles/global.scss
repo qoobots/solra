@@ -82,18 +82,18 @@ a {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: var(--solra-scrollbar-thumb, #30363d);
   border-radius: 3px;
 
   &:hover {
-    background: #484f58;
+    background: var(--solra-text-tertiary, #484f58);
   }
 }
 
 /* 选中文字 */
 ::selection {
   background: rgba(88, 166, 255, 0.3);
-  color: #fff;
+  color: var(--solra-text-primary);
 }
 
 /* Element Plus 暗色覆盖 */

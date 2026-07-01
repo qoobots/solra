@@ -130,6 +130,53 @@ SOLRA_API void solra_render_resize(int width, int height);
 SOLRA_API void solra_render_shutdown(void);
 
 /* ============================================================
+ * Render State Query (Host/Frontend Integration)
+ * ============================================================ */
+
+/**
+ * Get current frames per second.
+ */
+SOLRA_API float solra_render_get_fps(void);
+
+/**
+ * Get current camera position and target.
+ */
+SOLRA_API void solra_render_get_camera(float *pos_x, float *pos_y, float *pos_z,
+                                        float *target_x, float *target_y, float *target_z);
+
+/**
+ * Get total rendered frame count.
+ */
+SOLRA_API uint64_t solra_render_get_frame_count(void);
+
+/**
+ * Get elapsed time since renderer init (seconds).
+ */
+SOLRA_API float solra_render_get_elapsed_time(void);
+
+/**
+ * Get number of active scene nodes.
+ */
+SOLRA_API int solra_render_get_node_count(void);
+
+/**
+ * Get scene node data by index (for frontend sync).
+ *
+ * @param index Node index [0, node_count).
+ * @param pos_x,pos_y,pos_z Output position.
+ * @param rot_x,rot_y,rot_z,rot_w Output rotation quaternion.
+ * @param scl_x,scl_y,scl_z Output scale.
+ * @param name_buf Output buffer for node name.
+ * @param name_buf_size Size of name_buf.
+ * @return 0 on success.
+ */
+SOLRA_API int solra_render_get_node_data(int index,
+                                          float *pos_x, float *pos_y, float *pos_z,
+                                          float *rot_x, float *rot_y, float *rot_z, float *rot_w,
+                                          float *scl_x, float *scl_y, float *scl_z,
+                                          char *name_buf, int name_buf_size);
+
+/* ============================================================
  * Scene Management
  * ============================================================ */
 
@@ -276,6 +323,28 @@ SOLRA_API void solra_material_destroy(SolraMaterialHandle material);
  * @return Texture handle, or NULL on failure.
  */
 SOLRA_API SolraTextureHandle solra_texture_load(const char *path, int generate_mipmaps);
+
+/**
+ * Create a texture from raw pixel data in memory.
+ *
+ * @param data Raw pixel data (RGBA8 or RGB8).
+ * @param width Image width in pixels.
+ * @param height Image height in pixels.
+ * @param channels Number of color channels (1, 2, 3, or 4).
+ * @param generate_mipmaps Whether to auto-generate mipmap chain.
+ * @return Texture handle, or NULL on failure.
+ */
+SOLRA_API SolraTextureHandle solra_texture_create_from_memory(
+    const void *data, int width, int height, int channels, int generate_mipmaps);
+
+/**
+ * Bind a texture to a texture unit slot for the current draw call.
+ *
+ * @param texture Texture handle.
+ * @param slot Texture unit index (0-based).
+ * @return 0 on success, negative on error.
+ */
+SOLRA_API int solra_texture_bind(SolraTextureHandle texture, int slot);
 
 /**
  * Destroy a texture and free GPU memory.
