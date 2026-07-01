@@ -12,6 +12,21 @@ set(SOLRA_RENDER_SOURCES
   render_benchmark.cpp
 )
 
+# Platform-specific backend sources
+if(SOLRA_ENABLE_METAL)
+  list(APPEND SOLRA_RENDER_SOURCES
+    metal_device.cpp
+    metal_device_bridge.mm
+  )
+endif()
+
+if(SOLRA_ENABLE_D3D12)
+  list(APPEND SOLRA_RENDER_SOURCES
+    d3d12_device.cpp
+    d3d12_device_bridge.cpp
+  )
+endif()
+
 add_library(solra_core_render STATIC ${SOLRA_RENDER_SOURCES})
 target_include_directories(solra_core_render
   PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -29,6 +44,19 @@ target_link_libraries(solra_core_render
 # Platform-specific backend flags (rendering backends resolved at runtime via gpu_abstraction)
 if(SOLRA_ENABLE_METAL)
   target_compile_definitions(solra_core_render PRIVATE SOLRA_RENDER_METAL=1 SOLRA_GPU_METAL=1)
+  # Metal requires Foundation, Metal, MetalKit frameworks
+  if(APPLE)
+    find_library(FOUNDATION_LIB Foundation REQUIRED)
+    find_library(METAL_LIB Metal REQUIRED)
+    find_library(METALKIT_LIB MetalKit REQUIRED)
+    target_link_libraries(solra_core_render PRIVATE ${FOUNDATION_LIB} ${METAL_LIB} ${METALKIT_LIB})
+    set_source_files_properties(metal_device_bridge.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+  endif()
+endif()
+
+if(SOLRA_ENABLE_D3D12 AND WIN32)
+  target_compile_definitions(solra_core_render PRIVATE SOLRA_RENDER_D3D12=1 SOLRA_GPU_D3D12=1)
+  target_link_libraries(solra_core_render PRIVATE d3d12 dxgi dxguid)
 endif()
 
 if(SOLRA_ENABLE_VULKAN AND Vulkan_FOUND)

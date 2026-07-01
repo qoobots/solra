@@ -6,6 +6,7 @@ set(SOLRA_WEBRTC_SOURCES
   webrtc_session.cpp
   spatial_audio.cpp
   turn_stun_signaling.cpp
+  signaling_client.cpp
 )
 
 add_library(solra_core_webrtc STATIC ${SOLRA_WEBRTC_SOURCES})
@@ -17,6 +18,7 @@ target_link_libraries(solra_core_webrtc
   PUBLIC
     solra_core_core
     spdlog::spdlog
+    nlohmann_json::nlohmann_json
     OpenSSL::SSL
     OpenSSL::Crypto
 )

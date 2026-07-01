@@ -20,6 +20,10 @@ extern std::shared_ptr<GpuDevice> createVulkanDevice();
 extern std::shared_ptr<GpuDevice> createOpenGLESDevice();
 #endif
 
+#if defined(SOLRA_GPU_D3D12)
+extern std::shared_ptr<GpuDevice> createD3D12Device();
+#endif
+
 } // namespace
 
 std::shared_ptr<GpuDevice> createGpuDevice(Backend preferred) {
@@ -27,6 +31,8 @@ std::shared_ptr<GpuDevice> createGpuDevice(Backend preferred) {
     if (preferred == Backend::Auto) {
 #if defined(SOLRA_GPU_METAL)
         preferred = Backend::Metal;
+#elif defined(SOLRA_GPU_D3D12)
+        preferred = Backend::OpenGLES; // Reuse OpenGLES slot for D3D12
 #elif defined(SOLRA_GPU_VULKAN)
         preferred = Backend::Vulkan;
 #elif defined(SOLRA_GPU_OPENGLES)
@@ -51,7 +57,9 @@ std::shared_ptr<GpuDevice> createGpuDevice(Backend preferred) {
         return nullptr;
 #endif
     case Backend::OpenGLES:
-#if defined(SOLRA_GPU_OPENGLES)
+#if defined(SOLRA_GPU_D3D12)
+        return createD3D12Device();
+#elif defined(SOLRA_GPU_OPENGLES)
         return createOpenGLESDevice();
 #else
         return nullptr;

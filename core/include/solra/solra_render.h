@@ -242,6 +242,69 @@ SOLRA_API void solra_scene_node_attach_mesh(SolraSceneNodeHandle node, SolraMesh
 SOLRA_API void solra_scene_node_add_child(SolraSceneNodeHandle parent, SolraSceneNodeHandle child);
 
 /* ============================================================
+ * Scene Serialization
+ * ============================================================ */
+
+/**
+ * Serialize a scene graph to a JSON string.
+ *
+ * @param scene Scene to serialize.
+ * @param out_json Buffer to receive JSON string. May be NULL to query required size.
+ * @param buf_size Size of out_json buffer.
+ * @return Required buffer size (including null terminator), or 0 on error.
+ *         If out_json is non-NULL and buf_size is sufficient, the JSON is written.
+ *         Caller should call with out_json=NULL first to get size, then allocate and call again.
+ */
+SOLRA_API int solra_scene_serialize(SolraSceneHandle scene, char *out_json, int buf_size);
+
+/**
+ * Deserialize a scene graph from a JSON string, replacing current content.
+ *
+ * @param scene Scene to populate.
+ * @param json Null-terminated JSON string.
+ * @return 0 on success, negative on error.
+ */
+SOLRA_API int solra_scene_deserialize(SolraSceneHandle scene, const char *json);
+
+/**
+ * Save a scene graph to a file.
+ *
+ * @param scene Scene to save.
+ * @param path File path (.json or .scn for binary).
+ * @return 0 on success, negative on error.
+ */
+SOLRA_API int solra_scene_save_to_file(SolraSceneHandle scene, const char *path);
+
+/**
+ * Load a scene graph from a file, replacing current content.
+ *
+ * @param scene Scene to populate.
+ * @param path File path.
+ * @return 0 on success, negative on error.
+ */
+SOLRA_API int solra_scene_load_from_file(SolraSceneHandle scene, const char *path);
+
+/**
+ * Set a key-value user data on a scene node (persisted via serialization).
+ *
+ * @param node Target node.
+ * @param key Metadata key.
+ * @param value Metadata value.
+ */
+SOLRA_API void solra_scene_node_set_user_data(SolraSceneNodeHandle node, const char *key, const char *value);
+
+/**
+ * Get a key-value user data from a scene node.
+ *
+ * @param node Target node.
+ * @param key Metadata key.
+ * @param out_value Buffer for value string. May be NULL to query required size.
+ * @param buf_size Size of out_value buffer.
+ * @return Required buffer size, or 0 if key not found.
+ */
+SOLRA_API int solra_scene_node_get_user_data(SolraSceneNodeHandle node, const char *key, char *out_value, int buf_size);
+
+/* ============================================================
  * Mesh Management
  * ============================================================ */
 

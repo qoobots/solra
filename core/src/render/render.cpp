@@ -21,6 +21,8 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <cstring>
 #include <chrono>
+#include <functional>
+#include <string>
 #include <vector>
 #include <memory>
 #include <algorithm>
@@ -1571,6 +1573,110 @@ void solra_scene_node_add_child(SolraSceneNodeHandle parent, SolraSceneNodeHandl
 
   c->removeFromParent();
   p->addChild(std::shared_ptr<solra::render::SceneNode>(c, [](solra::render::SceneNode*){}));
+}
+
+/* ============================================================
+ * Scene Serialization
+ * ============================================================ */
+
+int solra_scene_serialize(SolraSceneHandle scene, char *out_json, int buf_size) {
+  if (!scene) return 0;
+
+  auto* sg = reinterpret_cast<solra::render::SceneGraph*>(scene);
+  std::string json = sg->serialize();
+
+  int required = static_cast<int>(json.size()) + 1; // include null terminator
+  if (out_json && buf_size >= required) {
+    std::memcpy(out_json, json.c_str(), required);
+  }
+  return required;
+}
+
+int solra_scene_deserialize(SolraSceneHandle scene, const char *json) {
+  if (!scene || !json) return SOLRA_ERROR_INVALID_ARGUMENT;
+
+  auto* sg = reinterpret_cast<solra::render::SceneGraph*>(scene);
+  if (!sg->deserialize(json)) return SOLRA_ERROR_INTERNAL;
+
+  // Rebuild active nodes list from deserialized scene
+  g_render.active_nodes.clear();
+  std::function<void(solra::render::SceneNode*)> collect = [&](solra::render::SceneNode* n) {
+    if (!n) return;
+    ActiveSceneNode active;
+    active.node = n;
+    g_render.active_nodes.push_back(active);
+    for (const auto& child : n->children()) {
+      collect(child.get());
+    }
+  };
+  collect(sg->root.get());
+
+  spdlog::info("Scene deserialized: {} nodes", g_render.active_nodes.size());
+  return SOLRA_SUCCESS;
+}
+
+int solra_scene_save_to_file(SolraSceneHandle scene, const char *path) {
+  if (!scene || !path) return SOLRA_ERROR_INVALID_ARGUMENT;
+
+  auto* sg = reinterpret_cast<solra::render::SceneGraph*>(scene);
+  std::string pathStr(path);
+
+  // Auto-detect binary format by extension
+  bool binary = false;
+  if (pathStr.size() > 4) {
+    std::string ext = pathStr.substr(pathStr.size() - 4);
+    if (ext == ".scn" || ext == ".bsn" || ext == "bson") {
+      binary = true;
+    }
+  }
+
+  if (!sg->saveToFile(pathStr, binary)) return SOLRA_ERROR_INTERNAL;
+
+  spdlog::info("Scene saved to: {} ({})", pathStr, binary ? "binary" : "json");
+  return SOLRA_SUCCESS;
+}
+
+int solra_scene_load_from_file(SolraSceneHandle scene, const char *path) {
+  if (!scene || !path) return SOLRA_ERROR_INVALID_ARGUMENT;
+
+  auto* sg = reinterpret_cast<solra::render::SceneGraph*>(scene);
+  if (!sg->loadFromFile(path)) return SOLRA_ERROR_INTERNAL;
+
+  // Rebuild active nodes list from loaded scene
+  g_render.active_nodes.clear();
+  std::function<void(solra::render::SceneNode*)> collect = [&](solra::render::SceneNode* n) {
+    if (!n) return;
+    ActiveSceneNode active;
+    active.node = n;
+    g_render.active_nodes.push_back(active);
+    for (const auto& child : n->children()) {
+      collect(child.get());
+    }
+  };
+  collect(sg->root.get());
+
+  spdlog::info("Scene loaded from: {} ({} nodes)", path, g_render.active_nodes.size());
+  return SOLRA_SUCCESS;
+}
+
+void solra_scene_node_set_user_data(SolraSceneNodeHandle node, const char *key, const char *value) {
+  if (!node || !key) return;
+  auto* n = reinterpret_cast<solra::render::SceneNode*>(node);
+  n->userData[key] = value ? value : "";
+}
+
+int solra_scene_node_get_user_data(SolraSceneNodeHandle node, const char *key, char *out_value, int buf_size) {
+  if (!node || !key) return 0;
+  auto* n = reinterpret_cast<solra::render::SceneNode*>(node);
+
+  auto it = n->userData.find(key);
+  if (it == n->userData.end()) return 0;
+
+  int required = static_cast<int>(it->second.size()) + 1;
+  if (out_value && buf_size >= required) {
+    std::memcpy(out_value, it->second.c_str(), required);
+  }
+  return required;
 }
 
 /* ============================================================

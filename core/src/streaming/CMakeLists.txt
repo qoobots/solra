@@ -8,6 +8,7 @@ set(SOLRA_STREAMING_SOURCES
   quic_transport.cpp
   resumable_download.cpp
   http_downloader.cpp
+  progressive_lod.cpp
 )
 
 add_library(solra_core_streaming STATIC ${SOLRA_STREAMING_SOURCES})

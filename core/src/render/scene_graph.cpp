@@ -2,8 +2,11 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <fstream>
 #include <functional>
+#include <sstream>
 #include <stdexcept>
+#include <nlohmann/json.hpp>
 
 namespace solra::render {
 
@@ -231,6 +234,156 @@ std::vector<SceneNode*> SceneGraph::frustumCull(const Mat4& viewProj) const {
 
     root->traverse(pre);
     return visible;
+}
+
+// ============================================================
+// Serialization: SceneNode ↔ JSON
+// ============================================================
+
+nlohmann::json SceneNode::toJson() const {
+    nlohmann::json j;
+    j["name"] = name;
+    j["active"] = active;
+    if (!tag.empty()) j["tag"] = tag;
+
+    // Transform
+    nlohmann::json t;
+    t["position"] = {transform.position.x, transform.position.y, transform.position.z};
+    t["rotation"] = {transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w};
+    t["scale"]    = {transform.scale.x, transform.scale.y, transform.scale.z};
+    j["transform"] = t;
+
+    // User data (only non-empty)
+    if (!userData.empty()) {
+        nlohmann::json ud;
+        for (const auto& [k, v] : userData) ud[k] = v;
+        j["user_data"] = ud;
+    }
+
+    // Children (recursive)
+    if (!children_.empty()) {
+        nlohmann::json ch = nlohmann::json::array();
+        for (const auto& child : children_) {
+            ch.push_back(child->toJson());
+        }
+        j["children"] = ch;
+    }
+
+    return j;
+}
+
+std::shared_ptr<SceneNode> SceneNode::fromJson(const nlohmann::json& j) {
+    auto node = std::make_shared<SceneNode>();
+
+    node->name   = j.value("name", "Unnamed");
+    node->active = j.value("active", true);
+    node->tag    = j.value("tag", "");
+
+    // Transform
+    if (j.contains("transform")) {
+        const auto& t = j["transform"];
+        if (t.contains("position") && t["position"].is_array() && t["position"].size() >= 3) {
+            node->transform.position = {t["position"][0], t["position"][1], t["position"][2]};
+        }
+        if (t.contains("rotation") && t["rotation"].is_array() && t["rotation"].size() >= 4) {
+            node->transform.rotation = {t["rotation"][0], t["rotation"][1], t["rotation"][2], t["rotation"][3]};
+        }
+        if (t.contains("scale") && t["scale"].is_array() && t["scale"].size() >= 3) {
+            node->transform.scale = {t["scale"][0], t["scale"][1], t["scale"][2]};
+        }
+    }
+
+    // User data
+    if (j.contains("user_data") && j["user_data"].is_object()) {
+        for (auto& [k, v] : j["user_data"].items()) {
+            node->userData[k] = v.is_string() ? v.get<std::string>() : v.dump();
+        }
+    }
+
+    // Children (recursive)
+    if (j.contains("children") && j["children"].is_array()) {
+        for (const auto& childJson : j["children"]) {
+            auto child = SceneNode::fromJson(childJson);
+            node->addChild(child);
+        }
+    }
+
+    return node;
+}
+
+// ============================================================
+// Serialization: SceneGraph ↔ JSON
+// ============================================================
+
+nlohmann::json SceneGraph::toJson() const {
+    nlohmann::json j;
+    j["version"] = 1;
+    j["root"] = root ? root->toJson() : nlohmann::json::object();
+    return j;
+}
+
+bool SceneGraph::fromJson(const nlohmann::json& j) {
+    if (!j.contains("root")) return false;
+
+    root = SceneNode::fromJson(j["root"]);
+    root->name = "Root"; // enforce root name
+    return true;
+}
+
+std::string SceneGraph::serialize() const {
+    return toJson().dump(2); // pretty-print with 2-space indent
+}
+
+bool SceneGraph::deserialize(const std::string& json) {
+    try {
+        auto j = nlohmann::json::parse(json);
+        return fromJson(j);
+    } catch (const nlohmann::json::exception&) {
+        return false;
+    }
+}
+
+bool SceneGraph::saveToFile(const std::string& path, bool binary) {
+    try {
+        std::ofstream ofs(path, binary ? (std::ios::binary | std::ios::out) : std::ios::out);
+        if (!ofs.is_open()) return false;
+
+        if (binary) {
+            // BSON format
+            auto bson = nlohmann::json::to_bson(toJson());
+            ofs.write(reinterpret_cast<const char*>(bson.data()), bson.size());
+        } else {
+            ofs << toJson().dump(2);
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool SceneGraph::loadFromFile(const std::string& path) {
+    try {
+        std::ifstream ifs(path, std::ios::in | std::ios::ate);
+        if (!ifs.is_open()) return false;
+
+        std::streamsize size = ifs.tellg();
+        ifs.seekg(0, std::ios::beg);
+
+        std::string content(static_cast<size_t>(size), '\0');
+        ifs.read(content.data(), size);
+
+        // Detect binary BSON (starts with length int32)
+        nlohmann::json j;
+        if (size >= 4 && static_cast<uint8_t>(content[0]) != '{') {
+            j = nlohmann::json::from_bson(std::vector<uint8_t>(content.begin(), content.end()));
+        } else {
+            j = nlohmann::json::parse(content);
+        }
+
+        return fromJson(j);
+    } catch (...) {
+        return false;
+    }
 }
 
 } // namespace solra::render
